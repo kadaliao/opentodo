@@ -98,7 +98,7 @@ class TaskTile extends ConsumerWidget {
                   child: Icon(Icons.repeat, size: 13, color: dueColor(), semanticLabel: '重复'),
                 ),
               Text(
-                dueLabel(task.dueDate!, task.dueTime, today),
+                dueLabel(task.dueDate!, task.dueTime, today, duration: task.duration),
                 style: TextStyle(
                   fontSize: 12,
                   color: dueColor(),

@@ -90,8 +90,10 @@ class _DayCell extends ConsumerWidget {
     final border = BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6), width: 0.5);
     return DragTarget<CalendarEntry>(
       onWillAcceptWithDetails: (d) => canMoveEntry(d.data),
-      onAcceptWithDetails: (d) =>
-          ref.read(repoProvider).moveTo(d.data.task.id, date, d.data.task.dueTime),
+      onAcceptWithDetails: (d) {
+        final to = dropTarget(d.data, date);
+        ref.read(repoProvider).moveTo(d.data.task.id, to.date, to.time);
+      },
       builder: (context, candidates, _) => LayoutBuilder(builder: (context, c) {
         final room = math.max(0, ((c.maxHeight - _headerHeight - 4) / (_chipHeight + _gap)).floor());
         final overflow = entries.length > room;

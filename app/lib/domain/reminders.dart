@@ -126,7 +126,7 @@ List<ReminderEvent> upcomingReminders(
 
 /// 今天, 下午3:00 · 带上电脑. Worded for the day the reminder shows up.
 String _body(Task t, DateTime onDay) {
-  final when = fullDueLabel(t.dueDate!, t.dueTime, onDay);
+  final when = fullDueLabel(t.dueDate!, t.dueTime, onDay, duration: t.duration);
   final note = t.content.trim().split('\n').first.trim();
   if (note.isEmpty) return when;
   return '$when · ${note.length > 60 ? '${note.substring(0, 60)}…' : note}';

@@ -93,6 +93,7 @@ class EntryChip extends ConsumerWidget {
     required this.onOpen,
     this.height = 20,
     this.showTime = true,
+    this.endLabel,
   });
 
   final CalendarEntry entry;
@@ -101,6 +102,9 @@ class EntryChip extends ConsumerWidget {
 
   /// Shows the time at the end (the month board); hour grids leave it out.
   final bool showTime;
+
+  /// Where the task will end while its bottom edge is dragged (17:30).
+  final String? endLabel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -162,23 +166,49 @@ class EntryChip extends ConsumerWidget {
                     Expanded(
                       child: Padding(
                         padding: EdgeInsets.only(top: height > 26 ? 3 : 0),
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.2,
-                            color: fg,
-                            decoration: entry.done
-                                ? TextDecoration.lineThrough
-                                : null,
-                            decorationColor: fg,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.2,
+                                color: fg,
+                                decoration: entry.done
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                                decorationColor: fg,
+                              ),
+                            ),
+                            // A span tall enough on the hour grid says when.
+                            if (!showTime && height >= 40 && entry.endTime != null)
+                              Text(
+                                '${clockLabel(entry.time!)}-${clockLabel(entry.endTime!)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.clip,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  height: 1.4,
+                                  color: overdue ? scheme.error : fg.withValues(alpha: 0.8),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
-                    if (showTime && entry.time != null && width >= 120)
+                    if (endLabel != null)
+                      Padding(
+                        padding: EdgeInsets.only(left: 4, top: height > 26 ? 4 : 0),
+                        child: Text(
+                          '→ $endLabel',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: fg),
+                        ),
+                      ),
+                    if (showTime && entry.time != null && entry.dayIndex == 0 && width >= 120)
                       Padding(
                         padding: const EdgeInsets.only(left: 4),
                         child: Text(

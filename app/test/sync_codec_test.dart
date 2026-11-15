@@ -20,6 +20,7 @@ void main() {
       title: '开会',
       dueDate: DateTime(2026, 11, 16),
       dueTime: 900,
+      duration: 90,
       tags: ['工作', '重要'],
       priority: Priority.high,
       reminders: [0, -30],
@@ -57,5 +58,6 @@ void main() {
     expect(c.reminders.value, isEmpty);
     expect(c.repeatRule.value, isNull);
     expect(c.repeatFrom.value, 0);
+    expect(c.duration.value, isNull);
   });
 }

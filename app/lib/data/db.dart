@@ -65,6 +65,12 @@ class Tasks extends Table with SyncColumns {
 
   /// Minutes after midnight; null means all day.
   IntColumn get dueTime => integer().nullable()();
+
+  /// For a task that spans a while (时间段), minutes from its start (the
+  /// due date and time above) to its end, which is exclusive. An all-day
+  /// span is whole days: 2880 covers the due date and the day after. Null
+  /// for a task at one moment or on one day; see `domain/dates.dart`.
+  IntColumn get duration => integer().nullable()();
   TextColumn get timeZone => text().nullable()();
   TextColumn get tags => text()
       .withDefault(const Constant('[]'))
@@ -149,7 +155,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -161,6 +167,8 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(tasks, tasks.repeatRule);
             await m.addColumn(tasks, tasks.repeatFrom);
           }
+          // Time spans.
+          if (from < 4) await m.addColumn(tasks, tasks.duration);
         },
       );
 

@@ -9,6 +9,7 @@ Task task(
   String title, {
   String? due,
   int? time,
+  int? duration,
   String listId = inboxListId,
   int status = TaskStatus.open,
   String? repeat,
@@ -24,6 +25,7 @@ Task task(
     priority: priority,
     dueDate: due,
     dueTime: time,
+    duration: duration,
     timeZone: null,
     tags: const [],
     status: status,
@@ -243,6 +245,89 @@ void main() {
       expect(snapMinutes(24 * 60 + 5), 24 * 60 - 15);
       expect(snapMinutes(10 * 60 + 45, step: 30), 10 * 60 + 30);
       expect(clockLabel(9 * 60 + 5), '09:05');
+    });
+  });
+
+  group('spans', () {
+    final week = visibleRange(CalendarMode.week, sunday); // Mon 9 - Sun 15
+
+    test('a span is on every day it covers in the range', () {
+      expect(
+        keys(calendarEntries([task('出差', due: '2026-11-08', duration: 3 * 1440)], week, today: sunday)),
+        ['出差@2026-11-09+1', '出差@2026-11-10+2'],
+      );
+      final overnight = calendarEntries(
+          [task('夜班', due: '2026-11-10', time: 22 * 60, duration: 10 * 60)], week, today: sunday);
+      expect(keys(overnight), ['夜班@2026-11-10', '夜班@2026-11-11+1']);
+      expect([for (final e in overnight) '${e.time}-${e.endTime}'], ['1320-1440', '0-480']);
+    });
+
+    test('a repeating span shows its later occurrences, overlapping the range too', () {
+      // Every Saturday for two days, seen in the next week.
+      final next = visibleRange(CalendarMode.week, addDays(sunday, 7)); // Mon 16 - Sun 22
+      expect(
+        keys(calendarEntries(
+            [task('周末班', due: '2026-11-14', duration: 2 * 1440, repeat: 'FREQ=WEEKLY')], next,
+            today: sunday)),
+        ['周末班@2026-11-21*', '周末班@2026-11-22+1*'],
+      );
+      // From Sunday's own page: the real one ends today.
+      expect(
+        keys(calendarEntries(
+            [task('周末班', due: '2026-11-14', duration: 2 * 1440, repeat: 'FREQ=WEEKLY')], week,
+            today: sunday)),
+        ['周末班@2026-11-14', '周末班@2026-11-15+1'],
+      );
+    });
+
+    test('timed layout uses the real length', () {
+      final day = DayRange(sunday, addDays(sunday, 1));
+      expect(
+        [
+          for (final p in layoutTimed(calendarEntries([
+            task('长会', due: '2026-11-15', time: 9 * 60, duration: 120),
+            task('短', due: '2026-11-15', time: 10 * 60),
+            task('五分钟', due: '2026-11-15', time: 12 * 60, duration: 5),
+            task('之后', due: '2026-11-15', time: 12 * 60 + 10),
+          ], day, today: sunday)))
+            '$p',
+        ],
+        [
+          '长会 540-660 0/2',
+          '短 600-630 1/2',
+          // Drawn no smaller than half an hour, so 之后 goes beside it.
+          '五分钟 720-725 0/2',
+          '之后 730-760 1/2',
+        ],
+      );
+    });
+
+    test('dropping moves the whole span', () {
+      CalendarEntry entryOn(Task t, String day) => calendarEntries(
+              [t], DayRange(DateTime(2026, 11, 1), DateTime(2026, 12, 1)), today: sunday)
+          .firstWhere((e) => dateKey(e.date) == day);
+      String target(({DateTime date, int? time}) to) =>
+          '${dateKey(to.date)}${to.time == null ? '' : ' ${clockLabel(to.time!)}'}';
+
+      final trip = task('出差', due: '2026-11-16', duration: 3 * 1440); // Mon-Wed
+      // Its Tuesday dropped on Friday: Thursday to Saturday.
+      expect(target(dropTarget(entryOn(trip, '2026-11-17'), DateTime(2026, 11, 20))), '2026-11-19');
+      expect(target(dropTarget(entryOn(trip, '2026-11-17'), DateTime(2026, 11, 20), allDay: true)),
+          '2026-11-19');
+      // Onto the hour grid: starts where dropped.
+      expect(target(dropTarget(entryOn(trip, '2026-11-17'), DateTime(2026, 11, 20), minute: 600)),
+          '2026-11-20 10:00');
+
+      final night = task('夜班', due: '2026-11-16', time: 22 * 60, duration: 10 * 60);
+      // Its Tuesday part (0:00-8:00) dropped at Wednesday 2:00: two hours
+      // later and a day on.
+      expect(target(dropTarget(entryOn(night, '2026-11-17'), DateTime(2026, 11, 18), minute: 120)),
+          '2026-11-18 00:00');
+      // The first part dropped at 21:30 the same day.
+      expect(target(dropTarget(entryOn(night, '2026-11-16'), DateTime(2026, 11, 16), minute: 21 * 60 + 30)),
+          '2026-11-16 21:30');
+      // A month cell keeps the time.
+      expect(target(dropTarget(entryOn(night, '2026-11-17'), DateTime(2026, 11, 20))), '2026-11-19 22:00');
     });
   });
 }

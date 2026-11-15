@@ -255,4 +255,58 @@ void main() {
     await repo.moveTo(id, DateTime(2026, 11, 18), 10 * 60);
     expect((await repo.getTask(id))!.updatedAt, before);
   });
+
+  group('spans', () {
+    test('kept sensible when stored', () async {
+      final a = await repo.addTask(title: '会', dueDate: DateTime(2026, 11, 16), dueTime: 600, duration: 90);
+      final b = await repo.addTask(title: '一天', dueDate: DateTime(2026, 11, 16), duration: 1440);
+      final c = await repo.addTask(title: '没日期', duration: 90);
+      expect((await repo.getTask(a))!.duration, 90);
+      expect((await repo.getTask(b))!.duration, isNull);
+      expect((await repo.getTask(c))!.duration, isNull);
+
+      await repo.setSchedule(a, date: DateTime(2026, 11, 17), duration: 2000);
+      expect((await repo.getTask(a))!.duration, 2880, reason: 'all day: whole days');
+      await repo.setDuration(a, 1440);
+      expect((await repo.getTask(a))!.duration, isNull);
+    });
+
+    test('dragging moves the span; losing the time keeps its days', () async {
+      final id = await repo.addTask(
+          title: '夜班', dueDate: DateTime(2026, 11, 16), dueTime: 22 * 60, duration: 180, reminders: [0]);
+      await repo.moveTo(id, DateTime(2026, 11, 18), 21 * 60);
+      var t = (await repo.getTask(id))!;
+      expect('${(t.dueDate, t.dueTime, t.duration, t.reminders)}', '(2026-11-18, 1260, 180, [0])');
+
+      // 21:00 for three hours stays on one day.
+      await repo.moveTo(id, DateTime(2026, 11, 18), null);
+      t = (await repo.getTask(id))!;
+      expect('${(t.dueTime, t.duration, t.reminders)}', '(null, null, [])');
+
+      await repo.setSchedule(id, date: DateTime(2026, 11, 18), duration: 3 * 1440);
+      await repo.moveTo(id, DateTime(2026, 11, 20), 600);
+      t = (await repo.getTask(id))!;
+      expect((t.dueDate, t.dueTime, t.duration), ('2026-11-20', 600, null));
+    });
+
+    test('clearing the date clears the span; moving the day keeps it', () async {
+      final id = await repo.addTask(title: '会', dueDate: DateTime(2026, 11, 16), dueTime: 600, duration: 90);
+      await repo.setDue(id, DateTime(2026, 11, 17), 600);
+      expect((await repo.getTask(id))!.duration, 90);
+      await repo.setDue(id, null, null);
+      expect((await repo.getTask(id))!.duration, isNull);
+    });
+
+    test('a repeating span keeps its length on the next date', () async {
+      final id = await repo.addTask(
+          title: '周会',
+          dueDate: DateTime(2026, 11, 16),
+          dueTime: 600,
+          duration: 60,
+          repeatRule: 'FREQ=WEEKLY');
+      await repo.setCompleted(id, true);
+      final t = (await repo.getTask(id))!;
+      expect((t.dueDate, t.dueTime, t.duration), ('2026-11-23', 600, 60));
+    });
+  });
 }

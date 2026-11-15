@@ -210,4 +210,46 @@ void main() {
       expect((r.tokens.single.start, r.tokens.single.end), (0, 3));
     });
   });
+
+  group('spans', () {
+    String? span(String input) {
+      final r = parseQuickAdd(input, now);
+      if (r.time == null) return null;
+      String hm(int m) => '${(m ~/ 60 % 24).toString().padLeft(2, '0')}:${(m % 60).toString().padLeft(2, '0')}';
+      return r.duration == null ? hm(r.time!) : '${hm(r.time!)}-${hm(r.time! + r.duration!)} ${r.title}';
+    }
+
+    test('X点到Y点, with or without 上午/下午', () {
+      expect(span('明天下午3点到5点开会'), '15:00-17:00 开会');
+      expect(span('3点到5点开会'), '15:00-17:00 开会');
+      expect(span('上午9点到11点半 写方案'), '09:00-11:30 写方案');
+      // The end comes after the start: 上午11点到1点 ends at 13:00.
+      expect(span('上午11点到1点 午餐会'), '11:00-13:00 午餐会');
+      expect(span('上午10点到下午2点 培训'), '10:00-14:00 培训');
+    });
+
+    test('clock times and am/pm', () {
+      expect(span('15:00-16:30 评审'), '15:00-16:30 评审');
+      expect(span('9:00~10:00 站会'), '09:00-10:00 站会');
+      expect(span('3pm-5pm 健身'), '15:00-17:00 健身');
+    });
+
+    test('past midnight', () {
+      final r = parseQuickAdd('晚上10点到凌晨2点 值班', now);
+      expect(r.time, 22 * 60);
+      expect(r.duration, 240);
+      expect(r.title, '值班');
+    });
+
+    test('the whole span is one highlighted token', () {
+      final r = parseQuickAdd('开会 下午3点到5点', now);
+      expect(r.tokens.single.kind, QuickAddTokenKind.time);
+      expect('开会 下午3点到5点'.substring(r.tokens.single.start, r.tokens.single.end), '下午3点到5点');
+    });
+
+    test('a lone time or a dash elsewhere is no span', () {
+      expect(parseQuickAdd('下午3点开会', now).duration, isNull);
+      expect(span('3点 A-B 测试'), '15:00');
+    });
+  });
 }

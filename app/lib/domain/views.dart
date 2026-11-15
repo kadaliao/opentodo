@@ -70,10 +70,21 @@ class TaskSection {
 
 bool isOpen(Task t) => t.status == TaskStatus.open && t.trashedAt == null;
 
+/// The last day a dated task is on, `YYYY-MM-DD`: its due date, or where
+/// its span ends.
+String lastDueKey(Task t) => t.duration == null
+    ? t.dueDate!
+    : dateKey(spanLastDay(t.dueDate!, t.dueTime, t.duration));
+
 /// Whether an open task's due moment has come: an earlier day, or today
-/// once its time is reached (the minute its 准时 reminder goes off).
+/// once its time is reached (the minute its 准时 reminder goes off). A span
+/// is due when it ends.
 bool isOverdue(Task t, DateTime now) {
   if (!isOpen(t) || t.dueDate == null) return false;
+  final end = spanEnd(t.dueDate!, t.dueTime, t.duration);
+  if (end != null) {
+    return !DateTime(now.year, now.month, now.day, now.hour, now.minute).isBefore(end);
+  }
   final c = t.dueDate!.compareTo(dateKey(now));
   if (c != 0) return c < 0;
   return t.dueTime != null && t.dueTime! <= now.hour * 60 + now.minute;
@@ -165,7 +176,9 @@ bool matchesView(Task t, ViewRef view, String todayKey, String tomorrowKey,
   return switch (view) {
     SmartViewRef(kind: SmartKind.today) =>
       t.dueDate != null && t.dueDate!.compareTo(todayKey) <= 0,
-    SmartViewRef(kind: SmartKind.tomorrow) => t.dueDate == tomorrowKey,
+    SmartViewRef(kind: SmartKind.tomorrow) => t.dueDate != null &&
+        t.dueDate!.compareTo(tomorrowKey) <= 0 &&
+        lastDueKey(t).compareTo(tomorrowKey) >= 0,
     SmartViewRef(kind: SmartKind.next7) =>
       t.dueDate != null && t.dueDate!.compareTo(weekEndKey) <= 0,
     SmartViewRef(kind: SmartKind.inbox) => t.listId == inboxListId,
@@ -255,7 +268,7 @@ List<TaskSection> buildSections({
   // ever finished that was due in the past.
   final done = inView
       .where((t) =>
-          isDone(t) && (!isDateView || t.dueDate!.compareTo(todayKey) >= 0))
+          isDone(t) && (!isDateView || lastDueKey(t).compareTo(todayKey) >= 0))
       .toList()
     ..sort(_compareCompleted);
   final doneSection = done.isEmpty
@@ -271,14 +284,17 @@ List<TaskSection> buildSections({
   switch (view) {
     case SmartViewRef(kind: SmartKind.today || SmartKind.tomorrow || SmartKind.next7):
       open.sort(compareByDue);
-      final overdue = open.where((t) => t.dueDate!.compareTo(todayKey) < 0);
+      final overdue = open.where((t) => lastDueKey(t).compareTo(todayKey) < 0);
       if (overdue.isNotEmpty) {
         sections.add(TaskSection(
             id: 'overdue', title: '已过期', tasks: overdue.toList(), alert: true));
       }
+      // A span that began earlier shows once, on the view's first day.
+      final firstKey = view == const SmartViewRef(SmartKind.tomorrow) ? tomorrowKey : todayKey;
       final byDay = <String, List<Task>>{};
-      for (final t in open.where((t) => t.dueDate!.compareTo(todayKey) >= 0)) {
-        byDay.putIfAbsent(t.dueDate!, () => []).add(t);
+      for (final t in open.where((t) => lastDueKey(t).compareTo(todayKey) >= 0)) {
+        final key = t.dueDate!.compareTo(firstKey) < 0 ? firstKey : t.dueDate!;
+        byDay.putIfAbsent(key, () => []).add(t);
       }
       for (final e in byDay.entries) {
         sections.add(TaskSection(

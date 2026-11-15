@@ -97,7 +97,11 @@ class _AgendaRow extends ConsumerWidget {
           SizedBox(
             width: 52,
             child: Text(
-              entry.allDay ? '全天' : clockLabel(entry.time!),
+              entry.allDay
+                  ? '全天'
+                  : entry.endTime == null
+                      ? clockLabel(entry.time!)
+                      : '${clockLabel(entry.time!)}\n${clockLabel(entry.endTime!)}',
               style: TextStyle(fontSize: 12, color: overdue ? scheme.error : scheme.outline),
             ),
           ),

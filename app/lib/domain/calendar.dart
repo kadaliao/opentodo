@@ -1,6 +1,6 @@
 /// What the calendar shows: which days each mode covers, which tasks land on
-/// them (a repeating task on its later dates too), and how timed tasks that
-/// overlap share a day's column.
+/// them (a repeating task on its later dates too, a span on every day it
+/// covers), and how timed tasks that overlap share a day's column.
 library;
 
 import 'dart:math' as math;
@@ -101,23 +101,46 @@ String calendarTitle(CalendarMode mode, DateTime anchor) {
   return '${ym(first)}–${ym(last)}';
 }
 
-/// One task on one day of the calendar.
+/// One task on one day of the calendar. A task that spans days has an
+/// entry on each of them.
 class CalendarEntry {
-  const CalendarEntry(this.task, this.date, {this.projected = false});
+  const CalendarEntry(this.task, this.date, {this.projected = false, DateTime? occurrence})
+      : occurrence = occurrence ?? date;
 
   final Task task;
+
+  /// The day this entry is on.
   final DateTime date;
+
+  /// The day this occurrence of the task starts: [date], unless it is a
+  /// later day of a span.
+  final DateTime occurrence;
 
   /// A later date of a repeating task, shown ahead of time. Only the task's
   /// own date is real: a projected one can't be ticked off or moved.
   final bool projected;
 
-  int? get time => task.dueTime;
+  /// Which day of its span this is; 0 for the first.
+  int get dayIndex => daysBetween(occurrence, date);
+
   bool get allDay => task.dueTime == null;
   bool get done => task.status != TaskStatus.open;
 
-  /// Unique within a calendar page.
-  String get key => '${task.id}@${dateKey(date)}';
+  /// Minutes after midnight where the task starts on this day: its time on
+  /// its first day, midnight on the days a span runs on into. Null all day.
+  int? get time => allDay ? null : (dayIndex == 0 ? task.dueTime : 0);
+
+  /// Where a timed span stops on this day (exclusive, at most midnight);
+  /// null for a task at one moment.
+  int? get endTime {
+    final d = task.duration;
+    if (allDay || d == null) return null;
+    return math.min(task.dueTime! + d - dayIndex * minutesPerDay, minutesPerDay);
+  }
+
+  /// Unique within a calendar page: a span's later days, and the days where
+  /// occurrences of a repeating span overlap, are told apart by [dayIndex].
+  String get key => '${task.id}@${dateKey(date)}${dayIndex == 0 ? '' : '+$dayIndex'}';
 
   @override
   String toString() => '$key${projected ? '*' : ''}';
@@ -143,7 +166,8 @@ class CalendarFilter {
 /// A daily task looked at decades ahead stops here.
 const _maxProjected = 20000;
 
-/// The tasks on the days of [range], in display order.
+/// The tasks on the days of [range], in display order. A span shows on
+/// each day it covers.
 ///
 /// A repeating task also shows on the dates it will move to, which are all
 /// after [today]: finishing an overdue one skips the dates already passed
@@ -156,40 +180,46 @@ List<CalendarEntry> calendarEntries(
   CalendarFilter filter = const CalendarFilter(),
 }) {
   today = dateOnly(today);
-  final startKey = dateKey(range.start), endKey = dateKey(range.end);
   final out = <CalendarEntry>[];
   for (final t in tasks) {
     final due = t.dueDate;
     if (due == null || t.trashedAt != null || filter.hiddenLists.contains(t.listId)) continue;
     final open = t.status == TaskStatus.open;
     if (!open && !filter.showCompleted) continue;
-    if (due.compareTo(startKey) >= 0 && due.compareTo(endKey) < 0) {
-      out.add(CalendarEntry(t, parseDateKey(due)));
+    // Wall-clock spans cover as many days wherever they start.
+    final days = spanDays(due, t.dueTime, t.duration);
+    void addOccurrence(DateTime start, {bool projected = false}) {
+      for (var i = 0; i < days; i++) {
+        final d = addDays(start, i);
+        if (range.contains(d)) out.add(CalendarEntry(t, d, projected: projected, occurrence: start));
+      }
     }
-    if (!open || !filter.showRepeats || due.compareTo(endKey) >= 0) continue;
+
+    final dueDate = parseDateKey(due);
+    addOccurrence(dueDate);
+    if (!open || !filter.showRepeats || !dueDate.isBefore(range.end)) continue;
     final rule = RepeatRule.tryParse(t.repeatRule);
     if (rule == null) continue;
-    final dueDate = parseDateKey(due);
     final from = t.repeatFrom == RepeatFrom.completion && dueDate.isBefore(today) ? today : dueDate;
+    final reach = addDays(range.start, 1 - days);
     var steps = 0;
     for (final d in occurrencesAfter(rule, from)) {
       if (!d.isBefore(range.end) || ++steps > _maxProjected) break;
-      if (d.isAfter(today) && !d.isBefore(range.start)) {
-        out.add(CalendarEntry(t, d, projected: true));
-      }
+      if (d.isAfter(today) && !d.isBefore(reach)) addOccurrence(d, projected: true);
     }
   }
   return out..sort(compareEntries);
 }
 
-/// By day; within a day open before finished, all-day before timed, then
-/// by time and priority.
+/// By day; within a day open before finished, all-day before timed (spans
+/// that began earlier first), then by time and priority.
 int compareEntries(CalendarEntry a, CalendarEntry b) {
   final d = a.date.compareTo(b.date);
   if (d != 0) return d;
   if (a.done != b.done) return a.done ? 1 : -1;
   final at = a.time ?? -1, bt = b.time ?? -1;
   if (at != bt) return at.compareTo(bt);
+  if (a.dayIndex != b.dayIndex) return b.dayIndex.compareTo(a.dayIndex);
   return compareByPriority(a.task, b.task);
 }
 
@@ -201,8 +231,6 @@ Map<String, List<CalendarEntry>> entriesByDay(List<CalendarEntry> entries) {
   }
   return out;
 }
-
-const minutesPerDay = 24 * 60;
 
 /// Where a timed entry sits in its day's column.
 class TimedPlacement {
@@ -220,9 +248,11 @@ class TimedPlacement {
   String toString() => '${entry.task.title} $start-$end $column/$columns';
 }
 
-/// Lays out one day's timed entries. Tasks have no length yet, so each takes
-/// [span] minutes (cut short at midnight). Entries that overlap share the
-/// width, each in the first free slot, as in most calendars.
+/// Lays out one day's timed entries. A span runs to its end on this day; a
+/// task at one moment takes [span] minutes (cut short at midnight). Entries
+/// that overlap share the width, each in the first free slot, as in most
+/// calendars; anything shorter than [span] still takes that much room, as
+/// it is drawn no smaller.
 List<TimedPlacement> layoutTimed(List<CalendarEntry> entries, {int span = 30}) {
   final timed = entries.where((e) => e.time != null).toList()
     ..sort((a, b) {
@@ -244,20 +274,43 @@ List<TimedPlacement> layoutTimed(List<CalendarEntry> entries, {int span = 30}) {
 
   for (final e in timed) {
     final start = e.time!.clamp(0, minutesPerDay - 1);
-    final end = math.min(start + span, minutesPerDay);
+    final end = math.min(math.max(e.endTime ?? start + span, start + 1), minutesPerDay);
+    final room = math.min(math.max(end, start + span), minutesPerDay);
     if (start >= clusterEnd) flush();
     var col = slotEnds.indexWhere((slotEnd) => slotEnd <= start);
     if (col < 0) {
       col = slotEnds.length;
-      slotEnds.add(end);
+      slotEnds.add(room);
     } else {
-      slotEnds[col] = end;
+      slotEnds[col] = room;
     }
     cluster.add((e, start, end, col));
-    clusterEnd = math.max(clusterEnd, end);
+    clusterEnd = math.max(clusterEnd, room);
   }
   flush();
   return out;
+}
+
+/// Where the task behind [e] starts once the entry is dropped on [day]: in
+/// the all-day row ([allDay]), at [minute] on an hour grid, or else on a
+/// month cell, which keeps its time. A span moves as a whole: dropping its
+/// second day on Friday starts it on Thursday, and a timed one moves by as
+/// many minutes as the dropped part did.
+({DateTime date, int? time}) dropTarget(
+  CalendarEntry e,
+  DateTime day, {
+  int? minute,
+  bool allDay = false,
+}) {
+  day = dateOnly(day);
+  final shifted = addDays(day, -e.dayIndex);
+  if (allDay) return (date: shifted, time: null);
+  if (minute == null) return (date: shifted, time: e.task.dueTime);
+  if (e.allDay) return (date: day, time: minute);
+  final delta = daysBetween(e.date, day) * minutesPerDay + minute - e.time!;
+  final o = e.occurrence;
+  final start = DateTime(o.year, o.month, o.day, 0, e.task.dueTime! + delta);
+  return (date: dateOnly(start), time: start.hour * 60 + start.minute);
 }
 
 /// Rounds [minutes] down to a whole [step] that still fits in the day.

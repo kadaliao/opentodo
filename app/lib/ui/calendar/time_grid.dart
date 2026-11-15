@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -16,8 +17,8 @@ const _gap = 2.0;
 
 /// Days side by side over the hours: the day, 3-day and week views.
 /// All-day tasks sit in a strip on top. Tasks drag to another day or time
-/// (snapping to 15 minutes) or into the strip; a click on an empty hour
-/// adds a task there.
+/// (snapping to 15 minutes) or into the strip, and their bottom edge drags
+/// to set when they end; a click on an empty hour adds a task there.
 class TimeGrid extends ConsumerStatefulWidget {
   const TimeGrid({super.key, required this.callbacks});
 
@@ -179,7 +180,10 @@ class _AllDayStrip extends ConsumerWidget {
           Expanded(
             child: DragTarget<CalendarEntry>(
               onWillAcceptWithDetails: (det) => canMoveEntry(det.data),
-              onAcceptWithDetails: (det) => ref.read(repoProvider).moveTo(det.data.task.id, d, null),
+              onAcceptWithDetails: (det) {
+                final to = dropTarget(det.data, d, allDay: true);
+                ref.read(repoProvider).moveTo(det.data.task.id, to.date, null);
+              },
               builder: (context, candidates, _) => LayoutBuilder(builder: (context, c) {
                 final entries = on(d).where((e) => e.allDay).toList();
                 final overflow = entries.length > maxRows;
@@ -259,8 +263,18 @@ class _DayColumn extends ConsumerStatefulWidget {
 class _DayColumnState extends ConsumerState<_DayColumn> {
   final _stackKey = GlobalKey();
 
-  /// Where a dragged task would land, while it hovers over this day.
-  int? _hover;
+  /// Where a dragged task would land, and for how many minutes it shows,
+  /// while it hovers over this day.
+  ({int minute, int length})? _hover;
+
+  /// The end a task's bottom edge is being dragged to: the entry's key and
+  /// the minute.
+  (String, int)? _resize;
+
+  /// How much of a dragged entry shows from where it's dropped: a span's
+  /// length, half an hour for the rest.
+  static int _lengthOf(CalendarEntry e) =>
+      e.allDay || e.endTime == null ? 30 : e.endTime! - e.time!;
 
   /// The minute under the top of a dragged task, [globalTop] being where
   /// that top is on screen.
@@ -278,14 +292,14 @@ class _DayColumnState extends ConsumerState<_DayColumn> {
     return DragTarget<CalendarEntry>(
       onWillAcceptWithDetails: (d) => canMoveEntry(d.data),
       onMove: (d) {
-        final m = _minuteAt(d.offset);
-        if (m != _hover) setState(() => _hover = m);
+        final h = (minute: _minuteAt(d.offset), length: _lengthOf(d.data));
+        if (h != _hover) setState(() => _hover = h);
       },
       onLeave: (_) => setState(() => _hover = null),
       onAcceptWithDetails: (d) {
-        final minute = _minuteAt(d.offset);
+        final to = dropTarget(d.data, widget.date, minute: _minuteAt(d.offset));
         setState(() => _hover = null);
-        ref.read(repoProvider).moveTo(d.data.task.id, widget.date, minute);
+        ref.read(repoProvider).moveTo(d.data.task.id, to.date, to.time);
       },
       builder: (context, _, _) => LayoutBuilder(builder: (context, c) {
         final width = c.maxWidth;
@@ -306,31 +320,65 @@ class _DayColumnState extends ConsumerState<_DayColumn> {
             ),
           ),
           for (final p in widget.placements)
-            () {
-              final h = math.max(y(p.end - p.start), _chipHeight) - 1;
+            ...() {
+              final resizing = _resize?.$1 == p.entry.key ? _resize!.$2 : null;
+              final end = resizing ?? p.end;
+              final h = math.max(y(end - p.start), _chipHeight) - 1;
               final w = width / p.columns - 3;
-              return Positioned(
-                // A task late at night stays inside the day.
-                top: math.min(y(p.start), 24 * hourHeight - h - 1),
-                height: h,
-                left: width * p.column / p.columns + 1,
-                width: w,
-                child: EntryDraggable(
-                  entry: p.entry,
-                  size: Size(w, h),
-                  child: EntryChip(
+              // A task late at night stays inside the day.
+              final top = math.min(y(p.start), 24 * hourHeight - h - 1);
+              final left = width * p.column / p.columns + 1;
+              return [
+                Positioned(
+                  top: top,
+                  height: h,
+                  left: left,
+                  width: w,
+                  child: EntryDraggable(
                     entry: p.entry,
-                    onOpen: widget.callbacks.openTask,
-                    height: h,
-                    showTime: false,
+                    size: Size(w, h),
+                    child: EntryChip(
+                      entry: p.entry,
+                      onOpen: widget.callbacks.openTask,
+                      height: h,
+                      showTime: false,
+                      endLabel: resizing == null ? null : clockLabel(resizing),
+                    ),
                   ),
                 ),
-              );
+                // The bottom edge sets the end; a span that runs on into the
+                // next day ends there, not here.
+                if (canMoveEntry(p.entry) && (p.entry.endTime ?? 0) < minutesPerDay)
+                  Positioned(
+                    top: top + h - 5,
+                    height: 8,
+                    left: left,
+                    width: w,
+                    child: _ResizeHandle(
+                      onStart: () => setState(() => _resize = (p.entry.key, p.end)),
+                      onUpdate: (total) {
+                        final m = (p.end + (total / hourHeight * 60 / 15).round() * 15)
+                            .clamp(p.start + 15, minutesPerDay);
+                        if (_resize?.$2 != m) setState(() => _resize = (p.entry.key, m));
+                      },
+                      onEnd: () {
+                        final m = _resize?.$2;
+                        setState(() => _resize = null);
+                        if (m == null || m == p.end) return;
+                        final e = p.entry;
+                        ref.read(repoProvider).setDuration(
+                              e.task.id,
+                              e.dayIndex * minutesPerDay + m - e.task.dueTime!,
+                            );
+                      },
+                    ),
+                  ),
+              ];
             }(),
-          if (_hover case final m?)
+          if (_hover case (:final minute, :final length))
             Positioned(
-              top: y(m),
-              height: y(30),
+              top: y(minute),
+              height: y(math.min(length, minutesPerDay - minute)),
               left: 1,
               right: 2,
               child: IgnorePointer(
@@ -342,7 +390,7 @@ class _DayColumnState extends ConsumerState<_DayColumn> {
                     border: Border.all(color: scheme.primary),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(clockLabel(m),
+                  child: Text(clockLabel(minute),
                       style: TextStyle(fontSize: 10, color: scheme.primary, fontWeight: FontWeight.w600)),
                 ),
               ),
@@ -366,6 +414,45 @@ class _DayColumnState extends ConsumerState<_DayColumn> {
             ),
         ]);
       }),
+    );
+  }
+}
+
+/// The strip along the bottom of a task on the hour grid that drags its
+/// end up or down. [onUpdate] gets how far it has moved in all, in pixels.
+class _ResizeHandle extends StatefulWidget {
+  const _ResizeHandle({required this.onStart, required this.onUpdate, required this.onEnd});
+
+  final VoidCallback onStart;
+  final ValueChanged<double> onUpdate;
+  final VoidCallback onEnd;
+
+  @override
+  State<_ResizeHandle> createState() => _ResizeHandleState();
+}
+
+class _ResizeHandleState extends State<_ResizeHandle> {
+  double _startY = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeUpDown,
+      child: Semantics(
+        label: '拖动改结束时间',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          // From where the pointer went down, so the end keeps up with it.
+          dragStartBehavior: DragStartBehavior.down,
+          onVerticalDragStart: (d) {
+            _startY = d.globalPosition.dy;
+            widget.onStart();
+          },
+          onVerticalDragUpdate: (d) => widget.onUpdate(d.globalPosition.dy - _startY),
+          onVerticalDragEnd: (_) => widget.onEnd(),
+          onVerticalDragCancel: widget.onEnd,
+        ),
+      ),
     );
   }
 }

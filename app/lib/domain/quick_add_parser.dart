@@ -1,5 +1,6 @@
 /// Parses the quick-add line: 明天下午3点开会 #工作 !高 becomes the title 开会,
-/// tomorrow at 15:00, tag 工作 and high priority; 每周一9点例会 repeats.
+/// tomorrow at 15:00, tag 工作 and high priority; 每周一9点例会 repeats;
+/// 下午3点到5点 is a span.
 /// Matched spans are returned so the input field can highlight them as the
 /// person types.
 library;
@@ -29,6 +30,7 @@ class QuickAddResult {
     required this.priority,
     required this.tokens,
     this.repeat,
+    this.duration,
   });
 
   final String title;
@@ -38,6 +40,9 @@ class QuickAddResult {
 
   /// Minutes after midnight.
   final int? time;
+
+  /// Minutes from [time] to the end of a span (下午3点到5点: 120).
+  final int? duration;
   final List<String> tags;
   final int? priority;
   final List<QuickAddToken> tokens;
@@ -268,6 +273,7 @@ final _timeDian = RegExp(
     '($_period)?\\s*($_num)\\s*[点时](?![点儿])(?:\\s*(半|一刻|三刻|(\\d{1,2})\\s*分?|([零一二三四五六七八九十]{1,3})\\s*分))?');
 final _timeAmPm =
     RegExp(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b', caseSensitive: false);
+final _rangeJoin = RegExp(r'\s*(?:到|至|-|~|～|—|－)\s*');
 final _tag = RegExp(r'(?<!\S)#([^\s#]+)');
 final _priority = RegExp(r'(?<!\S)[!！](高|中|低|[1-3])(?!\S)');
 
@@ -286,6 +292,58 @@ int? _hour24(int h, String? period) {
       if (h >= 1 && h <= 6) h += 12;
   }
   return h >= 0 && h <= 23 ? h : null;
+}
+
+final _timeRules = [_timeAmPm, _timeColon, _timeDian];
+
+/// The hour and minute a time match says, before 上午/下午 is applied;
+/// [period] is what it named (`ampm` for am/pm, already applied).
+({int hour, int minute, String? period})? _readTime(RegExp re, RegExpMatch m) {
+  if (re == _timeAmPm) {
+    final h = int.parse(m[1]!);
+    if (h > 12) return null;
+    final pm = m[3]!.toLowerCase() == 'pm';
+    return (hour: h % 12 + (pm ? 12 : 0), minute: m[2] == null ? 0 : int.parse(m[2]!), period: 'ampm');
+  }
+  if (re == _timeColon) return (hour: int.parse(m[2]!), minute: int.parse(m[3]!), period: m[1]);
+  final raw = parseNumber(m[2]!);
+  final min = switch (m[3]) {
+    null => 0,
+    '半' => 30,
+    '一刻' => 15,
+    '三刻' => 45,
+    _ => m[4] != null ? int.parse(m[4]!) : parseNumber(m[5]!),
+  };
+  if (raw == null || min == null) return null;
+  return (hour: raw, minute: min, period: m[1]);
+}
+
+/// The end of 3点到5点, right after the start's match: minutes from the
+/// start, and where the text ends. Without 上午/下午 the end is the first
+/// reading after the start (上午11点到1点 ends at 13:00); one earlier than
+/// the start runs past midnight (晚上10点到凌晨2点).
+(int, int)? _spanEnd(String masked, int from, int start) {
+  final join = _rangeJoin.matchAsPrefix(masked, from);
+  if (join == null) return null;
+  for (final re in _timeRules) {
+    final m = re.matchAsPrefix(masked, join.end) as RegExpMatch?;
+    if (m == null) continue;
+    final t = _readTime(re, m);
+    if (t == null || t.minute < 0 || t.minute > 59) return null;
+    var h = switch (t.period) {
+      'ampm' => t.hour,
+      null => t.hour <= 23 ? t.hour : null,
+      final p => _hour24(t.hour, p),
+    };
+    if (h == null) return null;
+    if (t.period == null && h < 12 && h * 60 + t.minute <= start) h += 12;
+    var end = h * 60 + t.minute;
+    if (end <= start) end += 24 * 60;
+    final duration = end - start;
+    if (duration <= 0 || duration > 24 * 60) return null;
+    return (duration, m.end);
+  }
+  return null;
 }
 
 QuickAddResult parseQuickAdd(String input, DateTime now) {
@@ -336,38 +394,23 @@ QuickAddResult parseQuickAdd(String input, DateTime now) {
     consume(dateHit.match.start, dateHit.match.end, QuickAddTokenKind.date);
   }
 
-  int? time;
+  int? time, duration;
   final periodHint = dateHit?.periodHint;
-  for (final re in [_timeAmPm, _timeColon, _timeDian]) {
+  for (final re in _timeRules) {
     final m = re.firstMatch(masked);
     if (m == null) continue;
-    int? h, min;
-    if (re == _timeAmPm) {
-      h = int.parse(m[1]!);
-      min = m[2] == null ? 0 : int.parse(m[2]!);
-      final pmFlag = m[3]!.toLowerCase() == 'pm';
-      if (h > 12) {
-        h = null;
-      } else {
-        h = (h % 12) + (pmFlag ? 12 : 0);
+    final t = _readTime(re, m);
+    final h = t == null
+        ? null
+        : (t.period == 'ampm' ? t.hour : _hour24(t.hour, t.period ?? periodHint));
+    if (h != null && t!.minute >= 0 && t.minute < 60) {
+      time = h * 60 + t.minute;
+      var end = m.end;
+      if (_spanEnd(masked, m.end, time) case (final d, final to)) {
+        duration = d;
+        end = to;
       }
-    } else if (re == _timeColon) {
-      h = _hour24(int.parse(m[2]!), m[1] ?? periodHint);
-      min = int.parse(m[3]!);
-    } else {
-      final raw = parseNumber(m[2]!);
-      h = raw == null ? null : _hour24(raw, m[1] ?? periodHint);
-      min = switch (m[3]) {
-        null => 0,
-        '半' => 30,
-        '一刻' => 15,
-        '三刻' => 45,
-        _ => m[4] != null ? int.parse(m[4]!) : parseNumber(m[5]!),
-      };
-    }
-    if (h != null && min != null && min >= 0 && min < 60) {
-      time = h * 60 + min;
-      consume(m.start, m.end, QuickAddTokenKind.time);
+      consume(m.start, end, QuickAddTokenKind.time);
       break;
     }
   }
@@ -406,5 +449,6 @@ QuickAddResult parseQuickAdd(String input, DateTime now) {
     priority: priority,
     tokens: tokens,
     repeat: repeat,
+    duration: duration,
   );
 }

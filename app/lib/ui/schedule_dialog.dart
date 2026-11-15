@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -7,11 +9,12 @@ import '../domain/recurrence.dart';
 import '../domain/reminders.dart';
 import '../state/reminder_providers.dart';
 
-/// A task's date, time, reminders and repeat, as one choice.
+/// A task's date, time, span, reminders and repeat, as one choice.
 class Schedule {
   const Schedule({
     required this.date,
     this.time,
+    this.duration,
     this.reminders = const [],
     this.repeat,
     this.repeatFrom = RepeatFrom.dueDate,
@@ -20,6 +23,9 @@ class Schedule {
   /// Null: the person cleared the date (and with it everything else).
   final DateTime? date;
   final int? time;
+
+  /// Minutes to the end of a span (时间段); see `domain/dates.dart`.
+  final int? duration;
   final List<int> reminders;
   final RepeatRule? repeat;
   final int repeatFrom;
@@ -47,7 +53,92 @@ class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
   late RepeatRule? _repeat = widget.initial.repeat;
   late int _repeatFrom = widget.initial.repeatFrom;
 
+  /// 时间段: a start and an end instead of one date.
+  late bool _span = widget.initial.date != null && widget.initial.duration != null;
+
+  /// Minutes from the start to the end while picking a span; it may be zero
+  /// or less while the end is set before the start. All day, whole days, and
+  /// null is the one day.
+  late int? _duration = widget.initial.duration;
+
   bool get _allDay => _time == null;
+
+  bool get _spanValid =>
+      !_span || (_allDay ? (_duration ?? minutesPerDay) >= minutesPerDay : (_duration ?? 0) > 0);
+
+  /// The last day of an all-day span, or the end of a timed one.
+  DateTime get _end {
+    if (_allDay) {
+      return addDays(_date, ((_duration ?? minutesPerDay) / minutesPerDay).ceil() - 1);
+    }
+    return DateTime(_date.year, _date.month, _date.day, 0, _time! + (_duration ?? 0));
+  }
+
+  /// Wall-clock minutes from the start to [end].
+  int _minutesTo(DateTime end) =>
+      DateTime.utc(end.year, end.month, end.day, end.hour, end.minute)
+          .difference(DateTime.utc(_date.year, _date.month, _date.day, 0, _time ?? 0))
+          .inMinutes;
+
+  void _setSpan(bool on) {
+    setState(() => _span = on);
+    if (!on) return;
+    if (_allDay && _duration == null) {
+      // A span is usually a few hours: start at the next hour today, or in
+      // the morning another day.
+      final now = DateTime.now();
+      final start = _date == dateOnly(now) && now.hour < 23 ? (now.hour + 1) * 60 : 9 * 60;
+      _setTime(start);
+    }
+    if (!_allDay) setState(() => _duration ??= defaultSpanMinutes);
+  }
+
+  void _setSpanAllDay(bool allDay) {
+    if (allDay == _allDay) return;
+    if (allDay) {
+      final days = daysBetween(_date, dateOnly(_end)) + (_end.hour == 0 && _end.minute == 0 ? 0 : 1);
+      _setTime(null);
+      setState(() => _duration = math.max(days, 1) * minutesPerDay);
+    } else {
+      _setTime(9 * 60);
+      setState(() => _duration = defaultSpanMinutes);
+    }
+  }
+
+  Future<DateTime?> _pickDay(DateTime initial) => showDatePicker(
+        context: context,
+        initialDate: initial,
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2100),
+      );
+
+  Future<int?> _pickClock(int? initial) async {
+    final t = await showTimePicker(
+      context: context,
+      initialTime: initial == null
+          ? const TimeOfDay(hour: 9, minute: 0)
+          : TimeOfDay(hour: initial ~/ 60 % 24, minute: initial % 60),
+    );
+    return t == null ? null : t.hour * 60 + t.minute;
+  }
+
+  Future<void> _pickEndDay() async {
+    final end = _end;
+    final d = await _pickDay(dateOnly(end));
+    if (d == null) return;
+    setState(() {
+      _duration = _allDay
+          ? (daysBetween(_date, d) + 1) * minutesPerDay
+          : _minutesTo(DateTime(d.year, d.month, d.day, end.hour, end.minute));
+    });
+  }
+
+  Future<void> _pickEndTime() async {
+    final end = _end;
+    final m = await _pickClock(end.hour * 60 + end.minute);
+    if (m == null) return;
+    setState(() => _duration = _minutesTo(DateTime(end.year, end.month, end.day, 0, m)));
+  }
 
   /// Reminders mean different things with and without a time, so switching
   /// starts them over: 准时 for a timed task, none for an all-day one.
@@ -61,13 +152,8 @@ class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
   }
 
   Future<void> _pickTime() async {
-    final t = await showTimePicker(
-      context: context,
-      initialTime: _time == null
-          ? const TimeOfDay(hour: 9, minute: 0)
-          : TimeOfDay(hour: _time! ~/ 60, minute: _time! % 60),
-    );
-    if (t != null) _setTime(t.hour * 60 + t.minute);
+    final m = await _pickClock(_time);
+    if (m != null) _setTime(m);
   }
 
   Future<void> _pickReminders() async {
@@ -175,36 +261,108 @@ class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
           onTap: onTap,
         );
 
+    String day(DateTime d) => '${d.year == today.year ? '' : '${d.year}年'}'
+        '${d.month}月${d.day}日 ${weekdayName(d)}';
+
+    final compact = OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8));
+    Widget spanRow(String label, DateTime date, int? time,
+            {required VoidCallback onDate, required VoidCallback onTime}) =>
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 16, 4),
+          child: Row(children: [
+            SizedBox(width: 40, child: Text(label)),
+            Expanded(
+              child: OutlinedButton(
+                style: compact,
+                onPressed: onDate,
+                child: Text(day(date), maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+            if (time != null) ...[
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 112,
+                child: OutlinedButton(
+                  style: compact,
+                  onPressed: onTime,
+                  child: Text(timeLabel(time), maxLines: 1, softWrap: false),
+                ),
+              ),
+            ],
+          ]),
+        );
+
+    final end = _end;
+    final dateSection = <Widget>[
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+        child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+          quick(Icons.today_outlined, '今天', today),
+          quick(Icons.wb_twilight_outlined, '明天', addDays(today, 1)),
+          quick(Icons.next_week_outlined, '下周一', addDays(startOfWeek(today), 7)),
+          quick(Icons.calendar_month_outlined, '下个月',
+              DateTime(today.year, today.month + 1, today.day)),
+        ]),
+      ),
+      CalendarDatePicker(
+        key: ValueKey(_date),
+        initialDate: _date,
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2100),
+        onDateChanged: (d) => setState(() => _date = d),
+      ),
+      row(
+        icon: Icons.schedule,
+        label: _time == null ? '时间' : timeLabel(_time!),
+        set: _time != null,
+        onTap: _pickTime,
+        onClear: () => _setTime(null),
+        clearTooltip: '清除时间',
+      ),
+    ];
+    final spanSection = <Widget>[
+      const SizedBox(height: 8),
+      spanRow('开始', _date, _time,
+          onDate: () async {
+            final d = await _pickDay(_date);
+            if (d != null) setState(() => _date = d);
+          },
+          onTime: _pickTime),
+      spanRow('结束', dateOnly(end), _allDay ? null : end.hour * 60 + end.minute,
+          onDate: _pickEndDay, onTime: _pickEndTime),
+      SwitchListTile(
+        contentPadding: const EdgeInsets.only(left: 24, right: 16),
+        title: const Text('全天'),
+        value: _allDay,
+        onChanged: _setSpanAllDay,
+      ),
+      if (!_spanValid)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 16, 8),
+          child: Text('结束要晚于开始', style: TextStyle(fontSize: 12, color: scheme.error)),
+        ),
+      const Divider(height: 1),
+    ];
+
     return Dialog(
       child: SizedBox(
         width: 340,
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                quick(Icons.today_outlined, '今天', today),
-                quick(Icons.wb_twilight_outlined, '明天', addDays(today, 1)),
-                quick(Icons.next_week_outlined, '下周一', addDays(startOfWeek(today), 7)),
-                quick(Icons.calendar_month_outlined, '下个月',
-                    DateTime(today.year, today.month + 1, today.day)),
-              ]),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('日期')),
+                  ButtonSegment(value: true, label: Text('时间段')),
+                ],
+                selected: {_span},
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                onSelectionChanged: (s) => _setSpan(s.single),
+              ),
             ),
-            CalendarDatePicker(
-              key: ValueKey(_date),
-              initialDate: _date,
-              firstDate: DateTime(2000),
-              lastDate: DateTime(2100),
-              onDateChanged: (d) => setState(() => _date = d),
-            ),
-            row(
-              icon: Icons.schedule,
-              label: _time == null ? '时间' : timeLabel(_time!),
-              set: _time != null,
-              onTap: _pickTime,
-              onClear: () => _setTime(null),
-              clearTooltip: '清除时间',
-            ),
+            ...(_span ? spanSection : dateSection),
             row(
               icon: Icons.alarm,
               label: _reminders.isEmpty ? '提醒' : remindersSummary(_reminders, allDay: _allDay),
@@ -254,11 +412,14 @@ class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
-                    onPressed: () => Navigator.pop(
+                    onPressed: !_spanValid
+                        ? null
+                        : () => Navigator.pop(
                       context,
                       Schedule(
                         date: _date,
                         time: _time,
+                        duration: _span ? normalizeDuration(_time, _duration) : null,
                         reminders: _reminders,
                         repeat: _repeat,
                         repeatFrom: _repeatFrom,

@@ -10,6 +10,7 @@ Task task(
   String listId = inboxListId,
   String? due,
   int? time,
+  int? duration,
   int priority = 0,
   int status = TaskStatus.open,
   int? completedAt,
@@ -27,6 +28,7 @@ Task task(
     priority: priority,
     dueDate: due,
     dueTime: time,
+    duration: duration,
     timeZone: null,
     tags: tags,
     status: status,
@@ -169,5 +171,33 @@ void main() {
     expect(overdue(task('没日期')), isFalse);
     expect(overdue(task('做完了', due: '2026-11-14', status: TaskStatus.done)), isFalse);
     expect(overdue(task('删了', due: '2026-11-14', trashedAt: 1)), isFalse);
+  });
+
+  group('spans', () {
+    // Sunday 10:00.
+    test('a span is due when it ends', () {
+      expect(isOverdue(task('会', due: '2026-11-15', time: 9 * 60, duration: 120), now), isFalse);
+      expect(isOverdue(task('会', due: '2026-11-15', time: 8 * 60, duration: 120), now), isTrue);
+      // All day, Saturday to Monday: still on.
+      expect(isOverdue(task('出差', due: '2026-11-14', duration: 3 * 1440), now), isFalse);
+      expect(isOverdue(task('出差', due: '2026-11-13', duration: 2 * 1440), now), isTrue);
+    });
+
+    test('a span shows on each day it covers, once per view', () {
+      final trip = task('出差', due: '2026-11-14', duration: 3 * 1440); // Sat-Mon
+      final later = task('培训', due: '2026-11-17', duration: 2 * 1440); // Tue-Wed
+      final done = task('旧的', due: '2026-11-12', duration: 2 * 1440); // Thu-Fri
+
+      List<String?> titles(SmartKind kind) => [
+            for (final s in buildSections(
+                view: SmartViewRef(kind), tasks: [trip, later, done], lists: const {}, now: now))
+              '${s.title}: ${s.tasks.map((t) => t.title).join(',')}',
+          ];
+
+      expect(titles(SmartKind.today), ['已过期: 旧的', '今天, 周日: 出差']);
+      expect(titles(SmartKind.tomorrow), ['明天, 周一: 出差']);
+      expect(titles(SmartKind.next7), ['已过期: 旧的', '今天, 周日: 出差', '11月17日, 周二: 培训']);
+      expect(openCount(const SmartViewRef(SmartKind.tomorrow), [trip, later], now), 1);
+    });
   });
 }

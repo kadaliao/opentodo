@@ -68,6 +68,59 @@ void main() {
     await finish(tester, db);
   });
 
+  testWidgets('desktop: the date dialog sets a time span', (tester) async {
+    final db = await pumpApp(tester, const Size(1400, 900));
+    await tester.enterText(find.byType(TextField).first, '上午10点评审');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    Future<Task> reload() async => (await db.select(db.tasks).get()).single;
+
+    // 时间段 starts from the task's time and lasts an hour.
+    await tester.tap(find.text('今天, 上午10:00'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('时间段'));
+    await tester.pumpAndSettle();
+    Finder inDialog(String text) =>
+        find.descendant(of: find.byType(Dialog), matching: find.text(text));
+    expect(find.text('开始'), findsOneWidget);
+    expect(inDialog('上午10:00'), findsOneWidget);
+    expect(inDialog('上午11:00'), findsOneWidget);
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+    var t = await reload();
+    expect((t.dueTime, t.duration, t.reminders.toString()), (600, 60, '[0]'));
+    expect(find.text('今天, 上午10:00-11:00'), findsOneWidget); // the detail
+    expect(find.text('上午10:00-11:00'), findsOneWidget); // the row
+
+    // All day: the dates stay, the times go.
+    await tester.tap(find.text('今天, 上午10:00-11:00'));
+    await tester.pumpAndSettle();
+    expect(find.text('结束'), findsOneWidget); // opens on 时间段
+    await tester.tap(find.text('全天'));
+    await tester.pumpAndSettle();
+    expect(inDialog('上午10:00'), findsNothing);
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+    t = await reload();
+    expect((t.dueTime, t.duration, t.reminders.toString()), (null, null, '[]'));
+
+    // Back to one date drops the span.
+    await tester.enterText(find.byType(TextField).first, '明天下午3点到5点 培训');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(find.text('明天, 下午3:00-5:00'), findsOneWidget);
+    await tester.tap(find.text('明天, 下午3:00-5:00'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('日期'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+    final trained = (await db.select(db.tasks).get()).firstWhere((t) => t.title == '培训');
+    expect((trained.dueTime, trained.duration), (900, null));
+
+    await finish(tester, db);
+  });
+
   testWidgets('phone: lists live in a drawer and tasks open as a page', (tester) async {
     final db = await pumpApp(tester, const Size(400, 800));
     expect(find.byIcon(Icons.menu), findsOneWidget);

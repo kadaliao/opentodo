@@ -155,7 +155,7 @@ class _TaskDetailState extends ConsumerState<TaskDetail> {
                       child: Text(
                         task.dueDate == null
                             ? '设置日期'
-                            : fullDueLabel(task.dueDate!, task.dueTime, today),
+                            : fullDueLabel(task.dueDate!, task.dueTime, today, duration: task.duration),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),

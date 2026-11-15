@@ -102,6 +102,7 @@ Future<void> pickDueDate(BuildContext context, WidgetRef ref, Task task) async {
     Schedule(
       date: task.dueDate == null ? null : parseDateKey(task.dueDate!),
       time: task.dueTime,
+      duration: task.duration,
       reminders: task.reminders,
       repeat: RepeatRule.tryParse(task.repeatRule),
       repeatFrom: task.repeatFrom,
@@ -112,6 +113,7 @@ Future<void> pickDueDate(BuildContext context, WidgetRef ref, Task task) async {
         task.id,
         date: choice.date,
         time: choice.time,
+        duration: choice.duration,
         reminders: choice.reminders,
         repeatRule: choice.repeat?.toString(),
         repeatFrom: choice.repeatFrom,

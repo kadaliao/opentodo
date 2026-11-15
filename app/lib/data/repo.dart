@@ -84,6 +84,7 @@ class TaskRepo {
     String listId = inboxListId,
     DateTime? dueDate,
     int? dueTime,
+    int? duration,
     List<String> tags = const [],
     int priority = Priority.none,
     List<int> reminders = const [],
@@ -103,6 +104,7 @@ class TaskRepo {
             priority: Value(priority),
             dueDate: Value(dueDate == null ? null : dateKey(dueDate)),
             dueTime: Value(dated ? dueTime : null),
+            duration: Value(dated ? normalizeDuration(dueTime, duration) : null),
             tags: Value(tags),
             reminders: Value(dated ? reminders : const []),
             repeatRule: Value(dated ? repeatRule : null),
@@ -126,14 +128,15 @@ class TaskRepo {
   Future<void> setContent(String id, String content) =>
       updateTask(id, TasksCompanion(content: Value(content)));
 
-  /// Moves the task to another day, keeping its reminders and repeat;
-  /// clearing the date clears those too.
+  /// Moves the task to another day, keeping its time span, reminders and
+  /// repeat; clearing the date clears those too.
   Future<void> setDue(String id, DateTime? date, int? time) => updateTask(
     id,
     date == null
         ? const TasksCompanion(
             dueDate: Value(null),
             dueTime: Value(null),
+            duration: Value(null),
             reminders: Value([]),
             repeatRule: Value(null),
             repeatFrom: Value(RepeatFrom.dueDate),
@@ -141,10 +144,11 @@ class TaskRepo {
         : TasksCompanion(dueDate: Value(dateKey(date)), dueTime: Value(time)),
   );
 
-  /// Moves the task to [date] at [time] (null: all day), as dragging it on
-  /// the calendar does. Reminders count from the due time, so going between
-  /// timed and all-day starts them over, as the date dialog does: 准时 for a
-  /// timed task, none for an all-day one.
+  /// Moves the task to start on [date] at [time] (null: all day), as
+  /// dragging it on the calendar does; a span moves as a whole. Reminders
+  /// count from the due time, so going between timed and all-day starts them
+  /// over, as the date dialog does: 准时 for a timed task, none for an all-day
+  /// one. A span keeps the days it covered when it loses its time.
   Future<void> moveTo(String id, DateTime date, int? time) async {
     final t = await getTask(id);
     if (t == null) return;
@@ -159,16 +163,31 @@ class TaskRepo {
       TasksCompanion(
         dueDate: Value(key),
         dueTime: Value(time),
+        duration: Value(
+          t.dueDate == null ? null : durationForTimeChange(t.dueDate!, t.dueTime, time, t.duration),
+        ),
         reminders: Value(reminders),
       ),
     );
   }
 
-  /// Date, time, reminders and repeat together, as the date dialog sets them.
+  /// Sets how long a task with a date lasts (null: no span), as dragging the
+  /// bottom edge of a task on the calendar does.
+  Future<void> setDuration(String id, int? duration) async {
+    final t = await getTask(id);
+    if (t == null || t.dueDate == null) return;
+    final d = normalizeDuration(t.dueTime, duration);
+    if (d == t.duration) return;
+    await updateTask(id, TasksCompanion(duration: Value(d)));
+  }
+
+  /// Date, time, span, reminders and repeat together, as the date dialog
+  /// sets them.
   Future<void> setSchedule(
     String id, {
     required DateTime? date,
     int? time,
+    int? duration,
     List<int> reminders = const [],
     String? repeatRule,
     int repeatFrom = RepeatFrom.dueDate,
@@ -179,6 +198,7 @@ class TaskRepo {
       TasksCompanion(
         dueDate: Value(dateKey(date)),
         dueTime: Value(time),
+        duration: Value(normalizeDuration(time, duration)),
         reminders: Value(reminders),
         repeatRule: Value(repeatRule),
         repeatFrom: Value(repeatFrom),

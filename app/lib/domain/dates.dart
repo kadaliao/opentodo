@@ -61,19 +61,30 @@ String timeLabel(int minutes) {
 }
 
 /// Short due label for a task row: just the time for today's timed tasks,
-/// otherwise the date label.
-String dueLabel(String dueDate, int? dueTime, DateTime today) {
+/// otherwise the date label. A span shows both ends: 上午9:00-11:00 today,
+/// 今天-11月17日 across days.
+String dueLabel(String dueDate, int? dueTime, DateTime today, {int? duration}) {
   final date = parseDateKey(dueDate);
+  final last = spanLastDay(dueDate, dueTime, duration);
+  if (last != date) return '${dateLabel(date, today)}-${dateLabel(last, today)}';
   if (dueTime != null && daysBetween(today, date) == 0) {
-    return timeLabel(dueTime);
+    return duration == null ? timeLabel(dueTime) : timeRangeLabel(dueTime, dueTime + duration);
   }
   return dateLabel(date, today);
 }
 
-/// Full label for the detail view: 明天, 下午3:00.
-String fullDueLabel(String dueDate, int? dueTime, DateTime today) {
-  final label = dateLabel(parseDateKey(dueDate), today);
-  return dueTime == null ? label : '$label, ${timeLabel(dueTime)}';
+/// Full label for the detail view: 明天, 下午3:00; with a span 明天,
+/// 下午3:00-5:00, 今天 - 11月17日 or 今天 下午10:00 - 明天 上午1:00.
+String fullDueLabel(String dueDate, int? dueTime, DateTime today, {int? duration}) {
+  final date = parseDateKey(dueDate);
+  final label = dateLabel(date, today);
+  final end = spanEnd(dueDate, dueTime, duration);
+  if (end == null) return dueTime == null ? label : '$label, ${timeLabel(dueTime)}';
+  final last = spanLastDay(dueDate, dueTime, duration);
+  if (dueTime == null) return last == date ? label : '$label - ${dateLabel(last, today)}';
+  if (last == date) return '$label, ${timeRangeLabel(dueTime, dueTime + duration!)}';
+  return '$label ${timeLabel(dueTime)} - '
+      '${dateLabel(dateOnly(end), today)} ${timeLabel(end.hour * 60 + end.minute)}';
 }
 
 /// Section header for a day: 今天, 周日 / 11月18日, 周三.
@@ -88,4 +99,69 @@ String daySectionTitle(DateTime date, DateTime today) {
         : '${date.year}年${date.month}月${date.day}日',
   };
   return '$head, ${weekdayName(date)}';
+}
+
+// ---- spans (时间段) ----
+//
+// A task that spans a while starts at its due date and time and lasts
+// `duration` minutes; the end is exclusive. An all-day span is whole days,
+// so 2880 is the due date and the day after. Like due dates, spans float
+// with the device's clock: the arithmetic is on wall-clock time.
+
+const minutesPerDay = 24 * 60;
+
+/// How long a span is when the person first asks for one.
+const defaultSpanMinutes = 60;
+
+/// Where a task's day or time begins: its due time, or the midnight that
+/// starts its due date.
+DateTime dueStart(String dueDate, int? dueTime) {
+  final d = parseDateKey(dueDate);
+  return DateTime(d.year, d.month, d.day, 0, dueTime ?? 0);
+}
+
+/// Where a span ends (exclusive); null for a task without one.
+DateTime? spanEnd(String dueDate, int? dueTime, int? duration) {
+  if (duration == null) return null;
+  final d = parseDateKey(dueDate);
+  return DateTime(d.year, d.month, d.day, 0, (dueTime ?? 0) + duration);
+}
+
+/// The last day a task is on: its due date, or the day its span ends on
+/// (a span ending at midnight ends the day before).
+DateTime spanLastDay(String dueDate, int? dueTime, int? duration) {
+  final end = spanEnd(dueDate, dueTime, duration);
+  final start = parseDateKey(dueDate);
+  if (end == null) return start;
+  final last = dateOnly(DateTime(end.year, end.month, end.day, end.hour, end.minute - 1));
+  return last.isBefore(start) ? start : last;
+}
+
+/// How many calendar days a task is on: 1 unless it spans midnight.
+int spanDays(String dueDate, int? dueTime, int? duration) =>
+    daysBetween(parseDateKey(dueDate), spanLastDay(dueDate, dueTime, duration)) + 1;
+
+/// A span that makes sense for a task with [dueTime]: positive, and whole
+/// days of two or more for an all-day task (one day is no span at all).
+int? normalizeDuration(int? dueTime, int? duration) {
+  if (duration == null || duration <= 0) return null;
+  if (dueTime != null) return duration;
+  final days = (duration / minutesPerDay).ceil();
+  return days < 2 ? null : days * minutesPerDay;
+}
+
+/// The span a task keeps when it moves between having a time and being all
+/// day: the days it covered, or nothing. Same kind, same span.
+int? durationForTimeChange(String dueDate, int? fromTime, int? toTime, int? duration) {
+  if ((fromTime == null) == (toTime == null)) return duration;
+  if (duration == null || toTime != null) return null;
+  return normalizeDuration(null, spanDays(dueDate, fromTime, duration) * minutesPerDay);
+}
+
+/// 上午9:00-11:00 / 上午11:30-下午12:30: the end leaves out 上午 or 下午 when
+/// the start has the same.
+String timeRangeLabel(int start, int end) {
+  final e = end % minutesPerDay;
+  final a = timeLabel(start), b = timeLabel(e);
+  return (start < 720) == (e < 720) ? '$a-${b.substring(2)}' : '$a-$b';
 }

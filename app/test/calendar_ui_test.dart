@@ -11,6 +11,7 @@ import 'package:opentodo/domain/dates.dart';
 import 'package:opentodo/state/providers.dart';
 import 'package:opentodo/state/reminder_providers.dart';
 import 'package:opentodo/ui/app.dart';
+import 'package:opentodo/ui/calendar/entry_chip.dart';
 import 'package:opentodo/ui/calendar/month_view.dart';
 
 import 'reminder_scheduler_test.dart' show FakeBackend;
@@ -189,6 +190,55 @@ void main() {
 
     await finish(tester);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('desktop: a span is as tall as it is long; its bottom edge sets the end', (tester) async {
+    final (db, repo) = await pumpApp(tester, const Size(1400, 900));
+    final id = await repo.addTask(title: '评审', dueDate: today, dueTime: 10 * 60, duration: 120);
+    final point = await repo.addTask(title: '晨会', dueDate: neighbour, dueTime: 8 * 60);
+    await tester.tap(find.byTooltip('日历'));
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyW);
+    await tester.pumpAndSettle();
+
+    Rect chip(String title) =>
+        tester.getRect(find.ancestor(of: find.text(title), matching: find.byType(EntryChip)));
+    expect(chip('评审').height, closeTo(2 * 48 - 1, 0.5));
+    expect(chip('晨会').height, closeTo(48 / 2 - 1, 0.5)); // no span: half an hour
+
+    // An hour more from the bottom edge.
+    var r = chip('评审');
+    await tester.dragFrom(Offset(r.center.dx, r.bottom - 1), const Offset(0, 48));
+    await tester.pumpAndSettle();
+    expect((await reload(db, id)).duration, 180);
+    expect(chip('评审').height, closeTo(3 * 48 - 1, 0.5));
+
+    // A task without a span gets one.
+    r = chip('晨会');
+    await tester.dragFrom(Offset(r.center.dx, r.bottom - 1), const Offset(0, 48));
+    await tester.pumpAndSettle();
+    final t = await reload(db, point);
+    expect((t.dueTime, t.duration), (8 * 60, 90));
+
+    // Dragging the task itself moves it, span and all.
+    await tester.drag(find.text('评审'), const Offset(0, 48 + 6));
+    await tester.pumpAndSettle();
+    final moved = await reload(db, id);
+    expect((moved.dueTime, moved.duration), (11 * 60, 180));
+
+    await finish(tester);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('a span across days shows on each of them', (tester) async {
+    final (_, repo) = await pumpApp(tester, const Size(1400, 900));
+    await repo.addTask(title: '出差', dueDate: today, duration: 3 * 1440);
+    await tester.tap(find.byTooltip('日历'));
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+    await tester.pumpAndSettle();
+    expect(find.text('出差'), findsNWidgets(3));
+
+    await finish(tester);
+  });
 
   testWidgets('a repeating task shows on its later days, which open the task', (tester) async {
     final (_, repo) = await pumpApp(tester, const Size(1400, 900));

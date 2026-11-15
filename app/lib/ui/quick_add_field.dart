@@ -98,6 +98,7 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
     if (parsed?.tokens.length != _parsed?.tokens.length ||
         parsed?.date != _parsed?.date ||
         parsed?.time != _parsed?.time ||
+        parsed?.duration != _parsed?.duration ||
         parsed?.repeat != _parsed?.repeat) {
       setState(() => _parsed = parsed);
     } else {
@@ -120,6 +121,7 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
           listId: defaults.listId,
           dueDate: dueDate,
           dueTime: dueTime,
+          duration: parsed.time == null ? null : parsed.duration,
           tags: {...defaults.tags, ...parsed.tags}.toList(),
           priority: parsed.priority ?? 0,
           // A task with a time gets a reminder at that time.
@@ -157,7 +159,8 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
     final preview = parsed?.date == null
         ? null
         : [
-            fullDueLabel(dateKey(parsed!.date!), parsed.time, dateOnly(DateTime.now())),
+            fullDueLabel(dateKey(parsed!.date!), parsed.time, dateOnly(DateTime.now()),
+                duration: parsed.duration),
             if (parsed.repeat != null) describeRepeat(parsed.repeat!, parsed.date!),
           ].join(' · ');
 
