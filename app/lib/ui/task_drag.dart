@@ -104,9 +104,18 @@ class GroupDrop extends TaskDropGroup {
   }
 }
 
-/// The tasks being dragged and how big the row under the pointer is, so
-/// drop targets can tell where its middle is.
-final _dragging = ValueNotifier<({DraggedTasks drag, Size size})?>(null);
+/// The tasks being dragged, how big the row under the pointer is (so drop
+/// targets can tell where its middle is) and where on it the pointer took
+/// hold.
+final _dragging = ValueNotifier<({DraggedTasks drag, Size size, Offset grab})?>(null);
+
+/// Where the pointer took hold of the task being dragged, from the top left
+/// of its row or card (or bar); null when nothing is dragged. A drop
+/// target finds the pointer at the dragged copy's top left plus this.
+Offset? get taskDragGrab => _dragging.value?.grab;
+
+/// Whether [taskId] is one of the tasks being dragged.
+bool isTaskDragged(String taskId) => _dragging.value?.drag.all.any((t) => t.id == taskId) ?? false;
 
 /// Scrolls the lists (and the board) around a dragged thing when it nears
 /// their edges.
@@ -159,6 +168,9 @@ class TaskDraggable extends ConsumerStatefulWidget {
 
 class _TaskDraggableState extends ConsumerState<TaskDraggable> {
   Offset? _startTopLeft;
+
+  /// Where the pointer went down on the row.
+  Offset? _down;
   final _scroll = _EdgeScroll();
 
   DraggedTasks get _data => widget.picked.length > 1 && widget.picked.any((t) => t.id == widget.task.id)
@@ -168,7 +180,7 @@ class _TaskDraggableState extends ConsumerState<TaskDraggable> {
   void _started(DraggedTasks data) {
     final box = context.findRenderObject()! as RenderBox;
     _startTopLeft = box.localToGlobal(Offset.zero);
-    _dragging.value = (drag: data, size: box.size);
+    _dragging.value = (drag: data, size: box.size, grab: _down ?? box.size.center(Offset.zero));
     _scroll.start(context);
   }
 
@@ -251,26 +263,26 @@ class _TaskDraggableState extends ConsumerState<TaskDraggable> {
       ),
       child: widget.child,
     );
-    if (dragsOnLongPress(context)) {
-      return LongPressDraggable<DraggedTasks>(
-        data: data,
-        feedback: feedback,
-        childWhenDragging: dimmed,
-        onDragStarted: () => _started(data),
-        onDragUpdate: (d) => _scroll.update(d.globalPosition),
-        onDragEnd: (d) => _ended(d.offset),
-        child: child,
-      );
-    }
-    return Draggable<DraggedTasks>(
-      data: data,
-      feedback: feedback,
-      childWhenDragging: dimmed,
-      onDragStarted: () => _started(data),
-      onDragUpdate: (d) => _scroll.update(d.globalPosition),
-      onDragEnd: (d) => _ended(d.offset),
-      child: child,
-    );
+    final Widget draggable = dragsOnLongPress(context)
+        ? LongPressDraggable<DraggedTasks>(
+            data: data,
+            feedback: feedback,
+            childWhenDragging: dimmed,
+            onDragStarted: () => _started(data),
+            onDragUpdate: (d) => _scroll.update(d.globalPosition),
+            onDragEnd: (d) => _ended(d.offset),
+            child: child,
+          )
+        : Draggable<DraggedTasks>(
+            data: data,
+            feedback: feedback,
+            childWhenDragging: dimmed,
+            onDragStarted: () => _started(data),
+            onDragUpdate: (d) => _scroll.update(d.globalPosition),
+            onDragEnd: (d) => _ended(d.offset),
+            child: child,
+          );
+    return Listener(onPointerDown: (e) => _down = e.localPosition, child: draggable);
   }
 }
 

@@ -14,6 +14,7 @@ import 'search_panel.dart';
 import 'section_actions.dart';
 import 'task_drag.dart';
 import 'task_tile.dart';
+import 'timeline_view.dart';
 
 class TaskListPane extends ConsumerStatefulWidget {
   const TaskListPane({
@@ -66,6 +67,7 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
     final anyTarget = sections.any((s) => s.target != null);
     final arrangedList = arrangedListId(view);
     final board = arrangedList != null && prefs.layout == ListLayout.board;
+    final timeline = arrangedList != null && prefs.layout == ListLayout.timeline;
     final touch = dragsOnLongPress(context);
     final selection = ref.watch(taskSelectionProvider);
     final picking = selection.active;
@@ -118,7 +120,7 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
               icon: const Icon(Icons.search),
               onPressed: () => openSearch(context),
             ),
-          if (groupingsFor(view).isNotEmpty) _ArrangeMenu(view: view, prefs: prefs, board: board),
+          if (groupingsFor(view).isNotEmpty) _ArrangeMenu(view: view, prefs: prefs, board: board || timeline),
           if (arrangedList != null) _ListMenu(view: view, listId: arrangedList, prefs: prefs),
           if (isTrash && sections.isNotEmpty)
             TextButton.icon(
@@ -143,6 +145,8 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
             ? const SizedBox.shrink()
             : board
                 ? BoardView(listId: arrangedList, onOpenTask: widget.onOpenTask)
+                : timeline
+                ? TimelineView(key: ValueKey(arrangedList), listId: arrangedList, onOpenTask: widget.onOpenTask)
                 : sections.isEmpty
                 ? _EmptyState(view: view)
                 : ListView(
@@ -318,7 +322,8 @@ class _ArrangeMenu extends ConsumerWidget {
   final ViewRef view;
   final ViewPrefs prefs;
 
-  /// A board's columns are always the list's sections: only the order.
+  /// A board's columns (a timeline's lanes) are always the list's
+  /// sections: only the order.
   final bool board;
 
   @override
@@ -368,7 +373,8 @@ class _ArrangeMenu extends ConsumerWidget {
   }
 }
 
-/// The ⋯ of a list: show it as a list or a board, add a section.
+/// The ⋯ of a list: show it as a list, a board or a timeline, add a
+/// section.
 class _ListMenu extends ConsumerWidget {
   const _ListMenu({required this.view, required this.listId, required this.prefs});
 
@@ -378,24 +384,21 @@ class _ListMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final board = prefs.layout == ListLayout.board;
     final notifier = ref.read(viewPrefsProvider.notifier);
-    void layout(ListLayout l) => notifier.setLayout(view, l);
     const check = Icon(Icons.check, size: 18);
     return MenuAnchor(
       menuChildren: [
-        MenuItemButton(
-          leadingIcon: const Icon(Icons.view_list_outlined),
-          trailingIcon: board ? null : check,
-          onPressed: () => layout(ListLayout.list),
-          child: const Text('列表'),
-        ),
-        MenuItemButton(
-          leadingIcon: const Icon(Icons.view_kanban_outlined),
-          trailingIcon: board ? check : null,
-          onPressed: () => layout(ListLayout.board),
-          child: const Text('看板'),
-        ),
+        for (final (l, icon, label) in const [
+          (ListLayout.list, Icons.view_list_outlined, '列表'),
+          (ListLayout.board, Icons.view_kanban_outlined, '看板'),
+          (ListLayout.timeline, Icons.view_timeline_outlined, '时间线'),
+        ])
+          MenuItemButton(
+            leadingIcon: Icon(icon),
+            trailingIcon: prefs.layout == l ? check : null,
+            onPressed: () => notifier.setLayout(view, l),
+            child: Text(label),
+          ),
         const Divider(height: 8),
         MenuItemButton(
           leadingIcon: const Icon(Icons.add),

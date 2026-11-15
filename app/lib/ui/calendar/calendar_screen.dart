@@ -432,15 +432,18 @@ class _DetailPane extends ConsumerWidget {
 }
 
 /// A new task on [date] (at [time], or all day): a title field that still
-/// understands dates typed into it, and which list it goes to. A dialog on a
-/// computer, a bottom sheet on a phone.
+/// understands dates typed into it, and which list it goes to (to start
+/// with [listId], in its section [sectionId]). A dialog on a computer, a
+/// bottom sheet on a phone.
 Future<void> showNewTaskDialog(
   BuildContext context, {
   required DateTime date,
   int? time,
   bool sheet = false,
+  String listId = inboxListId,
+  String? sectionId,
 }) {
-  final form = _NewTaskForm(date: dateOnly(date), time: time);
+  final form = _NewTaskForm(date: dateOnly(date), time: time, listId: listId, sectionId: sectionId);
   if (sheet) {
     return showModalBottomSheet<void>(
       context: context,
@@ -464,17 +467,21 @@ Future<void> showNewTaskDialog(
 }
 
 class _NewTaskForm extends ConsumerStatefulWidget {
-  const _NewTaskForm({required this.date, this.time});
+  const _NewTaskForm({required this.date, this.time, required this.listId, this.sectionId});
 
   final DateTime date;
   final int? time;
+  final String listId;
+
+  /// A section of [listId]; dropped if the person picks another list.
+  final String? sectionId;
 
   @override
   ConsumerState<_NewTaskForm> createState() => _NewTaskFormState();
 }
 
 class _NewTaskFormState extends ConsumerState<_NewTaskForm> {
-  String _listId = inboxListId;
+  late String _listId = widget.listId;
 
   @override
   Widget build(BuildContext context) {
@@ -495,7 +502,12 @@ class _NewTaskFormState extends ConsumerState<_NewTaskForm> {
       const SizedBox(height: 12),
       QuickAddField(
         autofocus: true,
-        target: QuickAddTarget(listId: _listId, date: widget.date, time: widget.time),
+        target: QuickAddTarget(
+          listId: _listId,
+          sectionId: _listId == widget.listId ? widget.sectionId : null,
+          date: widget.date,
+          time: widget.time,
+        ),
         hintText: '准备做什么？回车创建',
         onAdded: () => Navigator.pop(context),
       ),

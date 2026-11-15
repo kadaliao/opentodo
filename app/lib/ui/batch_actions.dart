@@ -213,14 +213,11 @@ class BatchPanel extends ConsumerWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
             onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              child: Column(children: [
-                Icon(icon, color: color ?? scheme.primary),
-                const SizedBox(height: 6),
-                Text(label, style: TextStyle(fontSize: 13, color: color)),
-              ]),
-            ),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(icon, color: color ?? scheme.primary),
+              const SizedBox(height: 6),
+              Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: color)),
+            ]),
           ),
         );
 
@@ -269,13 +266,16 @@ class BatchPanel extends ConsumerWidget {
         ]),
       ),
       const SizedBox(height: 16),
-      GridView.count(
-        crossAxisCount: 2,
+      // As tall however narrow the panel is (beside a board it's 400 wide).
+      GridView(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          mainAxisExtent: 80,
+        ),
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 2.4,
         children: [
           action(Icons.check_circle_outline, '完成', () => _complete(context, ref)),
           action(allPinned ? Icons.push_pin : Icons.push_pin_outlined, allPinned ? '取消置顶' : '置顶',

@@ -24,6 +24,9 @@ abstract final class Keys {
   /// Calendar mode and display choices (JSON); see `CalendarPrefs`.
   static const calendarPrefs = 'calendar.prefs';
 
+  /// Timeline scale and display choices (JSON); see `TimelinePrefs`.
+  static const timelinePrefs = 'timeline.prefs';
+
   /// Ids of the welcome items a fresh install creates; dropped on first
   /// sign-in if untouched, so every device doesn't add its own copy.
   static const seedIds = 'seed.ids';

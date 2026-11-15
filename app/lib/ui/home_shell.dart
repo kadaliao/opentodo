@@ -70,9 +70,9 @@ class HomeShell extends ConsumerWidget {
       if (layout != ShellLayout.phone) {
         final Widget body = switch (module) {
           AppModule.calendar => CalendarScreen(layout: layout),
-          // A board wants the width: the detail shows only for a selected
-          // task, beside it.
-          AppModule.tasks when layout == ShellLayout.wide && _showsBoard(ref) => Row(children: [
+          // A board or a timeline wants the width: the detail shows only
+          // for a selected task, beside it.
+          AppModule.tasks when layout == ShellLayout.wide && _wantsWidth(ref) => Row(children: [
               const SizedBox(width: 248, child: Sidebar()),
               const VerticalDivider(width: 1),
               Expanded(
@@ -183,9 +183,10 @@ class HomeShell extends ConsumerWidget {
   }
 }
 
-bool _showsBoard(WidgetRef ref) {
+/// Whether the list on screen is a board or a timeline.
+bool _wantsWidth(WidgetRef ref) {
   final listId = arrangedListId(ref.watch(selectedViewProvider));
-  return listId != null && ref.watch(viewPrefsProvider)[listId]?.layout == ListLayout.board;
+  return listId != null && (ref.watch(viewPrefsProvider)[listId]?.layout ?? ListLayout.list) != ListLayout.list;
 }
 
 /// The modules as icons down the left edge of a computer window.

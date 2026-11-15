@@ -326,6 +326,25 @@ class TaskRepo {
         }
       });
 
+  /// Tasks dragged on the timeline, in one transaction: dated ones move by
+  /// [days] (each keeping its time and span), undated ones go on [day] all
+  /// day, and all of them into [sectionId] (null: 未分组) of their list.
+  Future<void> placeOnTimeline(List<String> ids, {required int days, required DateTime day, String? sectionId}) =>
+      db.transaction(() async {
+        for (final id in ids) {
+          final t = await getTask(id);
+          if (t == null) continue;
+          if (t.dueDate == null) {
+            await moveTo(id, day, null);
+          } else if (days != 0) {
+            await moveTo(id, addDays(parseDateKey(t.dueDate!), days), t.dueTime);
+          }
+          if (t.sectionId != sectionId) {
+            await updateTask(id, TasksCompanion(sectionId: Value(sectionId)));
+          }
+        }
+      });
+
   Future<void> setTags(String id, List<String> tags) =>
       updateTask(id, TasksCompanion(tags: Value(tags)));
 

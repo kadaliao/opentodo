@@ -48,14 +48,16 @@ final sectionsByListProvider = Provider<Map<String, List<ListSection>>>((ref) {
   return out;
 });
 
-/// How a list is laid out on this device.
-enum ListLayout { list, board }
+/// How a list is laid out on this device. A version that doesn't know a
+/// layout shows the list.
+enum ListLayout { list, board, timeline }
 
 /// The key a view's [ViewPrefs] are kept under: a list's id (the inbox's
 /// too), or the view's name for the rest.
 String viewPrefsKey(ViewRef view) => arrangedListId(view) ?? view.toString();
 
-/// How a view shows on this device: a list as a list or a board, and how
+/// How a view shows on this device: a list as a list, a board or a
+/// timeline, and how
 /// the open tasks are grouped and ordered. A phone may want the list where
 /// the computer shows the board.
 class ViewPrefs {
