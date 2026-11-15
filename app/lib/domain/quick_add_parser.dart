@@ -6,6 +6,7 @@
 library;
 
 import 'dates.dart';
+import 'lunar.dart';
 import 'recurrence.dart';
 
 enum QuickAddTokenKind { date, time, tag, priority, repeat }
@@ -99,7 +100,30 @@ class _DateHit {
 
 typedef _DateRule = _DateHit? Function(RegExpMatch m, DateTime today);
 
+/// 正 / 八 / 十一 / 冬 / 腊 (the 月 follows).
+const _lunarMonth = '十一|十二|正|一|二|三|四|五|六|七|八|九|十|冬|腊';
+
+/// 初五 / 十五 / 二十 / 廿三 / 三十.
+const _lunarDay = '初[一二三四五六七八九十]|十[一二三四五六七八九]|二十|廿[一二三四五六七八九]|三十';
+
+/// The next 农历 [month]/[day] from [today] on (its last day for a 三十 the
+/// month hasn't got).
+DateTime? _nextLunar(int month, int day, DateTime today) => firstOccurrence(
+    RepeatRule(Freq.yearly, lunar: true, month: month, monthDays: [day]), today);
+
 final List<(RegExp, _DateRule)> _dateRules = [
+  // 农历八月十五 / 除夕: the next one. Before 八月十五 is read as August.
+  (
+    RegExp('农历($_lunarMonth)月($_lunarDay)'),
+    (m, today) {
+      final d = _nextLunar(lunarMonthNumber(m[1]!)!, lunarDayNumber(m[2]!)!, today);
+      return d == null ? null : _DateHit(m, d);
+    },
+  ),
+  (
+    RegExp('除夕'),
+    (m, today) => switch (_nextLunar(12, 30, today)) { final d? => _DateHit(m, d), null => null },
+  ),
   // 2026年11月18日 / 2026-11-18 / 2026/11/18
   (
     RegExp(r'(\d{4})\s*[年/\-.]\s*(\d{1,2})\s*[月/\-.]\s*(\d{1,2})\s*[日号]?'),
@@ -210,7 +234,19 @@ const _weekdayChars = '一二三四五六日天1-7';
 
 /// 每天 / 每3天 / 每周一、三 / 每两周 / 工作日 / 每月15号 / 每月最后一天 / 每年3月8日 …
 final List<(RegExp, RepeatRule? Function(RegExpMatch m))> _repeatRules = [
+  // By the lunar calendar, before 每年 and 每月 take the words.
+  (
+    RegExp('(?:每年农历|农历每年)($_lunarMonth)月($_lunarDay)'),
+    (m) => RepeatRule(Freq.yearly,
+        lunar: true, month: lunarMonthNumber(m[1]!), monthDays: [lunarDayNumber(m[2]!)!]),
+  ),
+  (RegExp(r'每年除夕'), (m) => const RepeatRule(Freq.yearly, lunar: true, month: 12, monthDays: [30])),
+  (
+    RegExp('(?:每月农历|农历每月)($_lunarDay)'),
+    (m) => RepeatRule(Freq.monthly, lunar: true, monthDays: [lunarDayNumber(m[1]!)!]),
+  ),
   // Always with 每, so 工作日志 or 天天向上 stay plain words.
+  (RegExp(r'每个?法定工作日'), (m) => RepeatRule.statutoryWorkdays),
   (RegExp(r'每天|每日'), (m) => RepeatRule.daily),
   (
     RegExp('每($_num)天'),

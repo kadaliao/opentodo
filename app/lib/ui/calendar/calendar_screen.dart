@@ -242,6 +242,8 @@ class _CalendarHeader extends ConsumerWidget {
                 n.set(prefs.copyWith(showCompleted: !prefs.showCompleted));
               case 'repeats':
                 n.set(prefs.copyWith(showRepeats: !prefs.showRepeats));
+              case 'lunar':
+                n.set(prefs.copyWith(showLunar: !prefs.showLunar));
               case 'lists':
                 showListFilterDialog(context);
             }
@@ -256,6 +258,11 @@ class _CalendarHeader extends ConsumerWidget {
               value: 'repeats',
               checked: prefs.showRepeats,
               child: const Text('显示重复任务以后的日期'),
+            ),
+            CheckedPopupMenuItem(
+              value: 'lunar',
+              checked: prefs.showLunar,
+              child: const Text('显示农历和节假日'),
             ),
             if (!sidebarOpen) ...[
               const PopupMenuDivider(),

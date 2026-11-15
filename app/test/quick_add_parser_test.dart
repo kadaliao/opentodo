@@ -252,4 +252,42 @@ void main() {
       expect(span('3点 A-B 测试'), '15:00');
     });
   });
+
+  group('China', () {
+    test('法定工作日', () {
+      expectParse('每个法定工作日9点打卡',
+          title: '打卡',
+          date: '2026-11-16', // today (Sunday) isn't one
+          time: '09:00',
+          repeat: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;X-HOLIDAYS=CN');
+      expectParse('每个工作日站会', title: '站会', date: '2026-11-16', repeat: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR');
+    });
+
+    test('lunar repeats', () {
+      expectParse('每年农历八月十五 买月饼',
+          title: '买月饼',
+          date: '2027-09-15', // 2026's was in September
+          repeat: 'RSCALE=CHINESE;FREQ=YEARLY;BYMONTH=8;BYMONTHDAY=15;SKIP=BACKWARD');
+      expectParse('农历每年腊月初八喝粥',
+          title: '喝粥',
+          date: '2027-01-15',
+          repeat: 'RSCALE=CHINESE;FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=8;SKIP=BACKWARD');
+      expectParse('农历每月初一上香',
+          title: '上香',
+          date: '2026-12-09',
+          repeat: 'RSCALE=CHINESE;FREQ=MONTHLY;BYMONTHDAY=1;SKIP=BACKWARD');
+      expectParse('每年除夕年夜饭',
+          title: '年夜饭',
+          date: '2027-02-05',
+          repeat: 'RSCALE=CHINESE;FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=30;SKIP=BACKWARD');
+    });
+
+    test('a lunar date once', () {
+      expectParse('农历八月十五回家', title: '回家', date: '2027-09-15');
+      expectParse('农历十月初九 生日', title: '生日', date: '2026-11-17');
+      expectParse('除夕前大扫除', title: '前大扫除', date: '2027-02-05');
+      // Without 农历 it is still August.
+      expectParse('八月十五交房租', title: '交房租', date: '2027-08-15');
+    });
+  });
 }

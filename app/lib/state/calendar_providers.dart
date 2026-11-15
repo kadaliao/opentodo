@@ -13,12 +13,16 @@ class CalendarPrefs {
     this.mode = CalendarMode.month,
     this.showCompleted = true,
     this.showRepeats = true,
+    this.showLunar = true,
     this.hiddenLists = const {},
   });
 
   final CalendarMode mode;
   final bool showCompleted;
   final bool showRepeats;
+
+  /// Lunar days, festivals, and 休 / 班 from the holiday schedule.
+  final bool showLunar;
   final Set<String> hiddenLists;
 
   CalendarFilter get filter => CalendarFilter(
@@ -31,12 +35,14 @@ class CalendarPrefs {
     CalendarMode? mode,
     bool? showCompleted,
     bool? showRepeats,
+    bool? showLunar,
     Set<String>? hiddenLists,
   }) =>
       CalendarPrefs(
         mode: mode ?? this.mode,
         showCompleted: showCompleted ?? this.showCompleted,
         showRepeats: showRepeats ?? this.showRepeats,
+        showLunar: showLunar ?? this.showLunar,
         hiddenLists: hiddenLists ?? this.hiddenLists,
       );
 
@@ -44,6 +50,7 @@ class CalendarPrefs {
         'mode': mode.name,
         'showCompleted': showCompleted,
         'showRepeats': showRepeats,
+        'showLunar': showLunar,
         'hiddenLists': hiddenLists.toList(),
       };
 
@@ -52,6 +59,7 @@ class CalendarPrefs {
         mode: CalendarMode.byName(json['mode'] as String?) ?? CalendarMode.month,
         showCompleted: json['showCompleted'] as bool? ?? true,
         showRepeats: json['showRepeats'] as bool? ?? true,
+        showLunar: json['showLunar'] as bool? ?? true,
         hiddenLists: {...?(json['hiddenLists'] as List<dynamic>?)?.whereType<String>()},
       );
 }

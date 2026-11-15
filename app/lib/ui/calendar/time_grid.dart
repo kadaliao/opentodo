@@ -72,6 +72,7 @@ class _TimeGridState extends ConsumerState<TimeGrid> {
               child: _DayHeading(
                 date: d,
                 isToday: d == today,
+                showNote: ref.watch(calendarPrefsProvider.select((p) => p.showLunar)),
                 onTap: days.length > 1 ? () => widget.callbacks.showDay(d) : null,
               ),
             ),
@@ -107,10 +108,13 @@ class _TimeGridState extends ConsumerState<TimeGrid> {
 }
 
 class _DayHeading extends StatelessWidget {
-  const _DayHeading({required this.date, required this.isToday, this.onTap});
+  const _DayHeading({required this.date, required this.isToday, this.showNote = false, this.onTap});
 
   final DateTime date;
   final bool isToday;
+
+  /// The lunar day or festival, and 休 or 班.
+  final bool showNote;
   final VoidCallback? onTap;
 
   @override
@@ -138,6 +142,10 @@ class _DayHeading extends StatelessWidget {
             ),
           ),
         ),
+        if (showNote) ...[
+          const SizedBox(width: 4),
+          Flexible(child: DayNoteLabel(date: date)),
+        ],
       ]),
     );
   }

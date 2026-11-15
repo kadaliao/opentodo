@@ -232,6 +232,53 @@ class EntryChip extends ConsumerWidget {
   }
 }
 
+/// Beside a day's number: its lunar day or festival, and 休 or 班.
+class DayNoteLabel extends StatelessWidget {
+  const DayNoteLabel({super.key, required this.date, this.dim = false});
+
+  final DateTime date;
+
+  /// A day outside the month on show.
+  final bool dim;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final note = dayNote(date);
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Flexible(
+        child: Text(
+          note.label,
+          maxLines: 1,
+          overflow: TextOverflow.clip,
+          style: TextStyle(
+            fontSize: 10,
+            color: dim ? scheme.outlineVariant : (note.special ? scheme.primary : scheme.outline),
+          ),
+        ),
+      ),
+      if (note.off != null) ...[
+        const SizedBox(width: 3),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          decoration: BoxDecoration(
+            color: (note.off! ? scheme.primary : scheme.error).withValues(alpha: dim ? 0.06 : 0.12),
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Text(
+            note.off! ? '休' : '班',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: (note.off! ? scheme.primary : scheme.error).withValues(alpha: dim ? 0.5 : 1),
+            ),
+          ),
+        ),
+      ],
+    ]);
+  }
+}
+
 /// “还有3项”: more entries than a day has room for.
 class MoreEntries extends StatelessWidget {
   const MoreEntries({super.key, required this.count, required this.onTap});

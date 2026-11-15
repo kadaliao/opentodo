@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opentodo/domain/dates.dart';
 import 'package:opentodo/domain/recurrence.dart';
 
 DateTime d(int m, int day, [int y = 2026]) => DateTime(y, m, day);
@@ -207,6 +208,57 @@ void main() {
     expect(say('FREQ=DAILY;INTERVAL=3', from: RepeatFrom.completion), '每3天（按完成日期）');
     expect(say('FREQ=DAILY;UNTIL=20261231'), '每天，至2026年12月31日');
     expect(say('FREQ=DAILY;COUNT=5'), '每天，还剩5次');
+  });
+
+  group('China', () {
+    List<String> next(RepeatRule r, String from, int n) =>
+        occurrencesAfter(r, parseDateKey(from)).take(n).map(dateKey).toList();
+
+    test('text', () {
+      for (final text in [
+        'RSCALE=CHINESE;FREQ=YEARLY;BYMONTH=8;BYMONTHDAY=15;SKIP=BACKWARD',
+        'RSCALE=CHINESE;FREQ=MONTHLY;BYMONTHDAY=1;SKIP=BACKWARD',
+        'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;X-HOLIDAYS=CN',
+      ]) {
+        expect(RepeatRule.tryParse(text).toString(), text);
+      }
+      expect(RepeatRule.tryParse('FREQ=YEARLY;RSCALE=HEBREW;BYMONTH=5'), isNull);
+      expect(RepeatRule.tryParse('RSCALE=CHINESE;FREQ=YEARLY;BYMONTH=6L;BYMONTHDAY=1')!.month, 6);
+      expect(RepeatRule.lunarYearlyOn(DateTime(2026, 9, 25)).toString(),
+          'RSCALE=CHINESE;FREQ=YEARLY;BYMONTH=8;BYMONTHDAY=15;SKIP=BACKWARD');
+      expect(RepeatRule.statutoryWorkdays.toString(), 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;X-HOLIDAYS=CN');
+    });
+
+    test('法定工作日 skips the holidays and works the weekend days in exchange', () {
+      const r = RepeatRule.statutoryWorkdays;
+      expect(next(r, '2026-09-18', 2), ['2026-09-20', '2026-09-21']); // Sunday 9/20 is worked
+      expect(next(r, '2026-09-30', 4), ['2026-10-08', '2026-10-09', '2026-10-10', '2026-10-12']);
+      expect(firstOccurrence(r, DateTime(2026, 10, 3)), DateTime(2026, 10, 8));
+      final done = advanceRepeat(r, DateTime(2027, 2, 4), today: DateTime(2027, 2, 4))!;
+      expect(done.date, DateTime(2027, 2, 14)); // 春节 off, Sunday 2/14 worked
+      expect(describeRepeat(r, DateTime(2026, 11, 16)), '法定工作日');
+    });
+
+    test('农历每年 and 农历每月, leap months and 除夕', () {
+      final midAutumn = RepeatRule.lunarYearlyOn(DateTime(2026, 9, 25))!;
+      expect(next(midAutumn, '2026-09-25', 2), ['2027-09-15', '2028-10-03']);
+      expect(describeRepeat(midAutumn, DateTime(2026, 9, 25)), '农历每年八月十五');
+
+      // 腊月三十: 除夕 even when the month has 29 days.
+      const eve = RepeatRule(Freq.yearly, lunar: true, month: 12, monthDays: [30]);
+      expect(next(eve, '2026-02-16', 2), ['2027-02-05', '2028-01-25']);
+      expect(describeRepeat(eve, DateTime(2026, 2, 16)), '农历每年腊月三十');
+
+      // Every 初一, through 2025's leap sixth month.
+      final first = RepeatRule.lunarMonthlyOn(DateTime(2025, 6, 25))!;
+      expect(next(first, '2025-06-25', 3), ['2025-07-25', '2025-08-23', '2025-09-22']);
+      expect(describeRepeat(first, DateTime(2025, 6, 25)), '农历每月初一');
+      expect(firstOccurrence(first, DateTime(2025, 7, 1)), DateTime(2025, 7, 25));
+
+      const every2 = RepeatRule(Freq.yearly, interval: 2, lunar: true, month: 1, monthDays: [1]);
+      expect(next(every2, '2026-02-17', 1), ['2028-01-26']);
+      expect(describeRepeat(every2, DateTime(2026, 2, 17)), '每2年的农历正月初一');
+    });
   });
 }
 

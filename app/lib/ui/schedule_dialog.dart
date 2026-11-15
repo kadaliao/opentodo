@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../domain/dates.dart';
+import '../domain/lunar.dart';
 import '../domain/recurrence.dart';
 import '../domain/reminders.dart';
 import '../state/reminder_providers.dart';
@@ -179,6 +180,11 @@ class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
       ('每月（${_date.day}日）', RepeatRule.monthly),
       ('每年（${_date.month}月${_date.day}日）', RepeatRule.yearly),
       ('工作日（周一至周五）', RepeatRule.workdays),
+      ('法定工作日（按节假日调休）', RepeatRule.statutoryWorkdays),
+      if (toLunar(_date) case final l?) ...[
+        ('农历每年（${lunarMonthName(l.month)}${lunarDayName(l.day)}）', RepeatRule.lunarYearlyOn(_date)),
+        ('农历每月（${lunarDayName(l.day)}）', RepeatRule.lunarMonthlyOn(_date)),
+      ],
     ];
     final scheme = Theme.of(context).colorScheme;
     final custom = _repeat != null &&
@@ -654,9 +660,23 @@ class _CustomRepeatState extends State<_CustomRepeat> {
     ...(widget.rule.weekdays.isEmpty ? [widget.date.weekday] : widget.rule.weekdays),
   };
 
+  /// The task's date in the lunar calendar; null outside its table.
+  late final LunarDate? _lunarDate = toLunar(widget.date);
+
+  /// Monthly and yearly: by the lunar calendar.
+  late bool _lunar = widget.rule.lunar && _lunarDate != null;
+
+  /// Monday to Friday, as China's holiday schedule shifts them.
+  late bool _holidays = widget.rule.chinaHolidays;
+
   /// Monthly: by day of the month, or by the nth weekday.
   late bool _byWeekday = widget.rule.nthWeekday != null;
-  late int _monthDay = widget.rule.monthDays.firstOrNull ?? widget.date.day;
+  late int _monthDay = widget.rule.monthDays.firstOrNull ?? _dayOfMonth;
+
+  /// The task's day of the month, lunar or not.
+  int get _dayOfMonth => _lunar ? _lunarDate!.day : widget.date.day;
+
+  bool get _monFri => _weekdays.length == 5 && _weekdays.every((d) => d <= 5);
   late int _nth = widget.rule.nthWeekday?.n ?? _nthOf(widget.date);
   late int _nthDay = widget.rule.nthWeekday?.weekday ?? widget.date.weekday;
 
@@ -681,15 +701,22 @@ class _CustomRepeatState extends State<_CustomRepeat> {
     final count = int.tryParse(_count.text);
     if (_end == _End.count && (count == null || count < 1)) return null;
     final byDate = _from == RepeatFrom.dueDate;
+    final lunar = byDate && _lunar && (_freq == Freq.monthly || _freq == Freq.yearly);
     return RepeatRule(
       _freq,
       interval: interval,
       weekdays: byDate && _freq == Freq.weekly ? (_weekdays.toList()..sort()) : const [],
-      monthDays: byDate && _freq == Freq.monthly && !_byWeekday ? [_monthDay] : const [],
-      nthWeekday:
-          byDate && _freq == Freq.monthly && _byWeekday ? (n: _nth, weekday: _nthDay) : null,
+      monthDays: byDate && _freq == Freq.monthly && (!_byWeekday || lunar)
+          ? [_monthDay]
+          : (lunar ? [_lunarDate!.day] : const []),
+      month: lunar && _freq == Freq.yearly ? _lunarDate!.month : null,
+      nthWeekday: byDate && _freq == Freq.monthly && _byWeekday && !lunar
+          ? (n: _nth, weekday: _nthDay)
+          : null,
       until: _end == _End.until ? _until : null,
       count: _end == _End.count ? count : null,
+      lunar: lunar,
+      chinaHolidays: byDate && _holidays && _freq == Freq.weekly && interval == 1 && _monFri,
     );
   }
 
@@ -762,8 +789,38 @@ class _CustomRepeatState extends State<_CustomRepeat> {
                     }),
                   ),
               ]),
+              if (_monFri && _interval.text.trim() == '1')
+                _CheckRow(
+                  label: '按法定节假日调休（放假跳过，调休上班照常）',
+                  value: _holidays,
+                  onChanged: (v) => setState(() => _holidays = v),
+                ),
             ],
-            if (byDate && _freq == Freq.monthly) ...[
+            if (byDate && _lunarDate != null && (_freq == Freq.monthly || _freq == Freq.yearly))
+              _CheckRow(
+                label: '按农历',
+                value: _lunar,
+                onChanged: (v) => setState(() {
+                  _lunar = v;
+                  _monthDay = _dayOfMonth;
+                }),
+              ),
+            if (byDate && _freq == Freq.monthly && _lunar)
+              Row(children: [
+                const SizedBox(width: 12),
+                const Text('农历每月'),
+                const SizedBox(width: 12),
+                DropdownButton<int>(
+                  value: _monthDay,
+                  underline: const SizedBox.shrink(),
+                  items: [
+                    for (var d = 1; d <= 30; d++) DropdownMenuItem(value: d, child: Text(lunarDayName(d))),
+                    const DropdownMenuItem(value: -1, child: Text('最后一天')),
+                  ],
+                  onChanged: (v) => setState(() => _monthDay = v!),
+                ),
+              ]),
+            if (byDate && _freq == Freq.monthly && !_lunar) ...[
               const SizedBox(height: 8),
               RadioGroup<bool>(
                 groupValue: _byWeekday,
@@ -866,6 +923,23 @@ class _CustomRepeatState extends State<_CustomRepeat> {
       ],
     );
   }
+}
+
+/// A checkbox with its label, the whole row tappable.
+class _CheckRow extends StatelessWidget {
+  const _CheckRow({required this.label, required this.value, required this.onChanged});
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: () => onChanged(!value),
+        child: Row(children: [
+          Checkbox(value: value, onChanged: (v) => onChanged(v!)),
+          Flexible(child: Text(label)),
+        ]),
+      );
 }
 
 class _DayToggle extends StatelessWidget {

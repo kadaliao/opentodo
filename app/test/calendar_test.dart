@@ -330,4 +330,12 @@ void main() {
       expect(target(dropTarget(entryOn(night, '2026-11-17'), DateTime(2026, 11, 20))), '2026-11-19 22:00');
     });
   });
+
+  test('what a day says beside its number', () {
+    expect(dayNote(DateTime(2026, 2, 17)), (label: '春节', special: true, off: true));
+    expect(dayNote(DateTime(2026, 2, 28)), (label: '十二', special: false, off: false)); // worked
+    expect(dayNote(DateTime(2026, 10, 1)), (label: '国庆节', special: true, off: true));
+    expect(dayNote(DateTime(2026, 11, 9)), (label: '十月', special: false, off: null));
+    expect(dayNote(sunday), (label: '初七', special: false, off: null));
+  });
 }

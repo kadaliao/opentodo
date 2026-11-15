@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:opentodo/data/db.dart';
 import 'package:opentodo/domain/dates.dart';
+import 'package:opentodo/domain/lunar.dart';
+import 'package:opentodo/domain/recurrence.dart';
 import 'package:opentodo/notify/reminder_backend.dart';
 import 'package:opentodo/state/providers.dart';
 import 'package:opentodo/state/reminder_providers.dart';
@@ -323,6 +325,53 @@ void main() {
     expect(task.repeatRule, 'FREQ=DAILY;INTERVAL=2');
     expect(task.reminders, [540]);
     expect(task.dueTime, isNull);
+
+    await finish(tester, db);
+  });
+
+  testWidgets('the date dialog repeats on statutory working days or by the lunar calendar',
+      (tester) async {
+    final db = await pumpApp(tester, const Size(1400, 900));
+    final today = dateOnly(DateTime.now());
+    final lunar = toLunar(today)!;
+    await tester.enterText(find.byType(TextField).first, '打卡');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    Future<String?> rule() async => (await db.select(db.tasks).get()).single.repeatRule;
+
+    Future<void> pick(String option) async {
+      await tester.tap(find.text('今天').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.repeat).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(option));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('确定').last);
+      await tester.pumpAndSettle();
+    }
+
+    await pick('法定工作日（按节假日调休）');
+    expect(await rule(), 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;X-HOLIDAYS=CN');
+
+    final yearly = '${lunarMonthName(lunar.month)}${lunarDayName(lunar.day)}';
+    await pick('农历每年（$yearly）');
+    expect(await rule(), RepeatRule.lunarYearlyOn(today).toString());
+    expect(describeRepeat(RepeatRule.tryParse(await rule())!, today), '农历每年$yearly');
+
+    // The custom dialog keeps it lunar.
+    await tester.tap(find.text('今天').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.repeat).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('自定义…'));
+    await tester.pumpAndSettle();
+    expect(find.text('按农历'), findsOneWidget);
+    expect(find.text('农历每年$yearly'), findsWidgets); // the preview
+    await tester.tap(find.text('确定').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确定').last);
+    await tester.pumpAndSettle();
+    expect(await rule(), RepeatRule.lunarYearlyOn(today).toString());
 
     await finish(tester, db);
   });

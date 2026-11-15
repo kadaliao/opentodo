@@ -240,6 +240,22 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('the month shows lunar days and 休 / 班, and they can be turned off', (tester) async {
+    await pumpApp(tester, const Size(1400, 900));
+    await tester.tap(find.byTooltip('日历'));
+    await tester.pumpAndSettle();
+    final note = dayNote(today).label;
+    expect(find.text(note), findsWidgets);
+
+    await tester.tap(find.byTooltip('更多').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('显示农历和节假日'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.text(note), findsNothing);
+
+    await finish(tester);
+  });
+
   testWidgets('a repeating task shows on its later days, which open the task', (tester) async {
     final (_, repo) = await pumpApp(tester, const Size(1400, 900));
     await repo.addTask(title: '晨跑', dueDate: today, repeatRule: 'FREQ=DAILY');

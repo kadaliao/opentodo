@@ -7,6 +7,8 @@ import 'dart:math' as math;
 
 import '../data/db.dart';
 import 'dates.dart';
+import 'holidays.dart';
+import 'lunar.dart';
 import 'recurrence.dart';
 import 'views.dart';
 
@@ -311,6 +313,27 @@ List<TimedPlacement> layoutTimed(List<CalendarEntry> entries, {int span = 30}) {
   final o = e.occurrence;
   final start = DateTime(o.year, o.month, o.day, 0, e.task.dueTime! + delta);
   return (date: dateOnly(start), time: start.hour * 60 + start.minute);
+}
+
+/// What a day on the calendar says beside its number: a festival's name or
+/// else the lunar day ([special] for a festival), and whether the holiday
+/// schedule has it off (休, true) or worked (班, false).
+typedef DayNote = ({String label, bool special, bool? off});
+
+DayNote dayNote(DateTime date) {
+  final festival = lunarFestival(date) ??
+      switch ((date.month, date.day)) {
+        (1, 1) => '元旦',
+        (5, 1) => '劳动节',
+        (10, 1) => '国庆节',
+        _ => null,
+      };
+  final lunar = toLunar(date);
+  return (
+    label: festival ?? (lunar == null ? '' : lunarCalendarLabel(lunar)),
+    special: festival != null,
+    off: holidayOn(date)?.off,
+  );
 }
 
 /// Rounds [minutes] down to a whole [step] that still fits in the day.

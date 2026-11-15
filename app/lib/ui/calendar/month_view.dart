@@ -113,7 +113,16 @@ class _DayCell extends ConsumerWidget {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 3),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              SizedBox(height: _headerHeight, child: _dayNumber(scheme)),
+              SizedBox(
+                height: _headerHeight,
+                child: Row(children: [
+                  _dayNumber(scheme),
+                  if (ref.watch(calendarPrefsProvider.select((p) => p.showLunar))) ...[
+                    const SizedBox(width: 4),
+                    Flexible(child: DayNoteLabel(date: date, dim: !inMonth)),
+                  ],
+                ]),
+              ),
               for (final e in entries.take(shown))
                 Padding(
                   padding: const EdgeInsets.only(bottom: _gap),
@@ -140,6 +149,7 @@ class _DayCell extends ConsumerWidget {
     final color = inMonth ? scheme.onSurface : scheme.outline;
     return Align(
       alignment: Alignment.centerLeft,
+      widthFactor: 1,
       child: isToday
           ? DecoratedBox(
               decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(11)),

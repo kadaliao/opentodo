@@ -5,9 +5,16 @@
 /// text (`FREQ=WEEKLY;BYDAY=MO,WE`) so they can be exported to calendars
 /// later. Parts the rule leaves out (which weekday, which day of the month)
 /// come from the task's current date, as DTSTART does in iCalendar.
+///
+/// Two Chinese additions: lunar dates, as RFC 7529's `RSCALE=CHINESE`
+/// (农历每年八月十五), and China's working days, `X-HOLIDAYS=CN` on a
+/// Monday-to-Friday rule (法定工作日), which an older app reads as plain
+/// weekdays.
 library;
 
 import 'dates.dart';
+import 'holidays.dart';
+import 'lunar.dart';
 
 enum Freq { daily, weekly, monthly, yearly }
 
@@ -34,6 +41,8 @@ class RepeatRule {
     this.month,
     this.until,
     this.count,
+    this.lunar = false,
+    this.chinaHolidays = false,
   });
 
   final Freq freq;
@@ -61,12 +70,35 @@ class RepeatRule {
   /// Occurrences left, the current one included. Each completion uses one up.
   final int? count;
 
+  /// MONTHLY / YEARLY by the lunar calendar: [month] and [monthDays] are
+  /// lunar, leap months count as months for MONTHLY, and a thirtieth in a
+  /// month of 29 days falls back to the 29th (SKIP=BACKWARD), so 腊月三十 is
+  /// always 除夕.
+  final bool lunar;
+
+  /// Monday to Friday as China's holiday schedule shifts them: holidays
+  /// skipped, weekend days worked in exchange added (`holidays.dart`).
+  final bool chinaHolidays;
+
   static const daily = RepeatRule(Freq.daily);
   static const weekly = RepeatRule(Freq.weekly);
   static const monthly = RepeatRule(Freq.monthly);
   static const yearly = RepeatRule(Freq.yearly);
   static const workdays = RepeatRule(Freq.weekly, weekdays: _workdays);
   static const weekends = RepeatRule(Freq.weekly, weekdays: _weekend);
+  static const statutoryWorkdays = RepeatRule(Freq.weekly, weekdays: _workdays, chinaHolidays: true);
+
+  /// 农历每年 on [date]'s lunar month and day; null outside the lunar table.
+  static RepeatRule? lunarYearlyOn(DateTime date) => switch (toLunar(date)) {
+        final l? => RepeatRule(Freq.yearly, lunar: true, month: l.month, monthDays: [l.day]),
+        null => null,
+      };
+
+  /// 农历每月 on [date]'s lunar day.
+  static RepeatRule? lunarMonthlyOn(DateTime date) => switch (toLunar(date)) {
+        final l? => RepeatRule(Freq.monthly, lunar: true, monthDays: [l.day]),
+        null => null,
+      };
 
   /// Null for empty or unusable text (an unknown FREQ, say, from a newer app).
   static RepeatRule? tryParse(String? text) {
@@ -88,6 +120,21 @@ class RepeatRule {
     };
     if (freq == null) return null;
     final interval = int.tryParse(parts['INTERVAL'] ?? '') ?? 1;
+    final count = int.tryParse(parts['COUNT'] ?? '');
+    final until = _parseUntil(parts['UNTIL']);
+    final rscale = parts['RSCALE']?.toUpperCase();
+    // Another calendar (Hebrew, say) would put the dates elsewhere.
+    if (rscale != null && rscale != 'GREGORIAN' && rscale != 'CHINESE') return null;
+    final lunar = rscale == 'CHINESE' && (freq == Freq.monthly || freq == Freq.yearly);
+    if (parts['X-HOLIDAYS']?.toUpperCase() == 'CN') {
+      return RepeatRule(
+        Freq.weekly,
+        weekdays: _workdays,
+        chinaHolidays: true,
+        until: until,
+        count: count != null && count > 0 ? count : null,
+      );
+    }
 
     final weekdays = <int>{};
     ({int n, int weekday})? nth;
@@ -104,10 +151,11 @@ class RepeatRule {
     }
     final monthDays = <int>{
       for (final d in (parts['BYMONTHDAY'] ?? '').split(','))
-        if (int.tryParse(d.trim()) case final n? when n != 0 && n >= -1 && n <= 31) n,
+        if (int.tryParse(d.trim()) case final n? when n != 0 && n >= -1 && n <= (lunar ? 30 : 31)) n,
     };
-    final month = int.tryParse(parts['BYMONTH']?.split(',').first ?? '');
-    final count = int.tryParse(parts['COUNT'] ?? '');
+    // A leap month (6L) is taken as the month it repeats.
+    final month = int.tryParse(
+        (parts['BYMONTH']?.split(',').first ?? '').toUpperCase().replaceAll('L', ''));
     return RepeatRule(
       freq,
       interval: interval < 1 ? 1 : interval,
@@ -115,10 +163,11 @@ class RepeatRule {
       monthDays: freq == Freq.monthly || freq == Freq.yearly
           ? (monthDays.toList()..sort(_compareMonthDays))
           : const [],
-      nthWeekday: freq == Freq.monthly || freq == Freq.yearly ? nth : null,
+      nthWeekday: (freq == Freq.monthly || freq == Freq.yearly) && !lunar ? nth : null,
       month: freq == Freq.yearly && month != null && month >= 1 && month <= 12 ? month : null,
-      until: _parseUntil(parts['UNTIL']),
+      until: until,
       count: count != null && count > 0 ? count : null,
+      lunar: lunar,
     );
   }
 
@@ -131,7 +180,7 @@ class RepeatRule {
   /// RRULE text, parts in a fixed order so equal rules give equal text.
   @override
   String toString() {
-    final parts = ['FREQ=${freq.name.toUpperCase()}'];
+    final parts = [if (lunar) 'RSCALE=CHINESE', 'FREQ=${freq.name.toUpperCase()}'];
     if (interval > 1) parts.add('INTERVAL=$interval');
     if (month != null) parts.add('BYMONTH=$month');
     if (monthDays.isNotEmpty) parts.add('BYMONTHDAY=${monthDays.join(',')}');
@@ -140,6 +189,8 @@ class RepeatRule {
     } else if (nthWeekday case final nth?) {
       parts.add('BYDAY=${nth.n}${_dayCodes[nth.weekday - 1]}');
     }
+    if (chinaHolidays) parts.add('X-HOLIDAYS=CN');
+    if (lunar) parts.add('SKIP=BACKWARD');
     if (until case final u?) {
       parts.add('UNTIL=${u.year.toString().padLeft(4, '0')}'
           '${u.month.toString().padLeft(2, '0')}${u.day.toString().padLeft(2, '0')}');
@@ -172,12 +223,15 @@ class RepeatRule {
         month: month == null ? this.month : month(),
         until: until == null ? this.until : until(),
         count: count == null ? this.count : count(),
+        lunar: lunar,
+        chinaHolidays: chinaHolidays,
       );
 
   /// The rule without its end (until / count).
   RepeatRule get open => copyWith(until: () => null, count: () => null);
 
   bool get _usesTaskDate => switch (freq) {
+        _ when chinaHolidays => false,
         Freq.daily => true,
         Freq.weekly => weekdays.isEmpty,
         Freq.monthly => monthDays.isEmpty && nthWeekday == null,
@@ -223,10 +277,62 @@ List<DateTime> _monthCandidates(RepeatRule r, int year, int month, DateTime anch
   return out;
 }
 
+/// The day [d] of a lunar month: -1 or a thirtieth it hasn't got is its
+/// last.
+DateTime _lunarDay(LunarMonth m, int d) =>
+    addDays(m.start, (d == -1 || d > m.length ? m.length : d) - 1);
+
+/// The lunar months from [from]'s on, leap months included, to the end of
+/// the table.
+Iterable<LunarMonth> _lunarMonthsFrom(LunarDate from) sync* {
+  var started = false;
+  for (var y = from.year;; y++) {
+    final months = lunarMonths(y);
+    if (months.isEmpty) return;
+    for (final m in months) {
+      started = started || (m.month == from.month && m.leap == from.leap);
+      if (started) yield m;
+    }
+  }
+}
+
+DateTime? _lunarStepAfter(RepeatRule r, DateTime anchor) {
+  final from = toLunar(anchor);
+  if (from == null) return null;
+  final days = r.monthDays.isEmpty ? [from.day] : r.monthDays;
+  if (r.freq == Freq.monthly) {
+    var i = 0;
+    for (final m in _lunarMonthsFrom(from)) {
+      if (i++ % r.interval != 0) continue;
+      final hits = [for (final d in days) _lunarDay(m, d)]..sort();
+      for (final d in hits) {
+        if (d.isAfter(anchor)) return d;
+      }
+    }
+    return null;
+  }
+  final month = r.month ?? from.month;
+  for (var y = from.year;; y += r.interval) {
+    final m = lunarMonths(y).where((m) => m.month == month && !m.leap).firstOrNull;
+    if (m == null) return null; // past the table
+    final hits = [for (final d in days) _lunarDay(m, d)]..sort();
+    for (final d in hits) {
+      if (d.isAfter(anchor)) return d;
+    }
+  }
+}
+
 /// The first date after [anchor] the rule lands on, ignoring its end. The
 /// anchor also fixes the phase: with an interval of two, which weeks count.
 DateTime? _stepAfter(RepeatRule r, DateTime anchor) {
   anchor = dateOnly(anchor);
+  if (r.chinaHolidays) {
+    for (var d = addDays(anchor, 1), i = 0; i < 400; d = addDays(d, 1), i++) {
+      if (isWorkday(d)) return d;
+    }
+    return null;
+  }
+  if (r.lunar) return _lunarStepAfter(r, anchor);
   switch (r.freq) {
     case Freq.daily:
       return addDays(anchor, r.interval);
@@ -350,8 +456,18 @@ String _monthDayLabel(int d) => d == -1 ? '最后一天' : '$d日';
 /// [date] is the task's date, which fills in what the rule leaves out.
 String describeRepeat(RepeatRule r, DateTime date, {int repeatFrom = RepeatFrom.dueDate}) {
   final n = r.interval;
+  final lunarDate = toLunar(date);
+  String lunarDays() => (r.monthDays.isEmpty ? [lunarDate?.day ?? 1] : r.monthDays)
+      .map((d) => d == -1 ? '最后一天' : lunarDayName(d))
+      .join('、');
 
   final base = switch (r.freq) {
+    _ when r.chinaHolidays => '法定工作日',
+    Freq.monthly when r.lunar => n == 1 ? '农历每月${lunarDays()}' : '每$n个月的农历${lunarDays()}',
+    Freq.yearly when r.lunar => () {
+        final which = '${lunarMonthName(r.month ?? lunarDate?.month ?? 1)}${lunarDays()}';
+        return n == 1 ? '农历每年$which' : '每$n年的农历$which';
+      }(),
     Freq.daily => n == 1 ? '每天' : '每$n天',
     Freq.weekly when n == 1 && _sameDays(r.weekdays, _workdays) => '工作日',
     Freq.weekly when n == 1 && _sameDays(r.weekdays, _weekend) => '周末',
