@@ -80,10 +80,17 @@ void main() {
     final today = buildSections(
         view: const SmartViewRef(SmartKind.today), tasks: tasks, lists: const {}, now: now);
     expect([for (final x in today) (x.day, x.tasks.length)], [(null, 1), (DateTime(2026, 11, 15), 0)]);
-    // Nothing at all: no sections, so the empty state shows.
+    // Nothing at all: no sections, so the empty state shows. Only finished
+    // ones: nothing to drag, so no empty days either.
     expect(
         buildSections(view: const SmartViewRef(SmartKind.next7), tasks: const [], lists: const {}, now: now),
         isEmpty);
+    final done = buildSections(
+        view: const SmartViewRef(SmartKind.today),
+        tasks: [task('做完了', due: '2026-11-15', status: TaskStatus.done, completedAt: 1)],
+        lists: const {},
+        now: now);
+    expect([for (final x in done) x.title], ['已完成']);
   });
 
   test('pinning is stored and synced; a finished copy of a repeating task is not pinned', () async {

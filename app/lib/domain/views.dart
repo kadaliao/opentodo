@@ -462,9 +462,9 @@ List<TaskSection> buildSections({
         final key = t.dueDate!.compareTo(firstKey) < 0 ? firstKey : t.dueDate!;
         byDay.putIfAbsent(key, () => []).add(t);
       }
-      // With anything to show, every day of the view is there, empty or
-      // not, so a task can be dragged onto it (out of 已过期, say).
-      final days = open.isEmpty && doneSection == null
+      // With an open task to drag, every day of the view is there, empty
+      // or not, so it can be dropped onto it (out of 已过期, say).
+      final days = open.isEmpty
           ? byDay.keys
           : [
               for (var d = 0; d < (view == const SmartViewRef(SmartKind.next7) ? 7 : 1); d++)
