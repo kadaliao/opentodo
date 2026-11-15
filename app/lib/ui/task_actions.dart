@@ -3,8 +3,9 @@ import 'package:material_ui/material_ui.dart';
 
 import '../data/db.dart';
 import '../domain/dates.dart';
+import '../domain/recurrence.dart';
 import '../state/providers.dart';
-import 'dialogs.dart';
+import 'schedule_dialog.dart';
 import 'theme.dart';
 
 /// Right-click (or long-press) menu for a task row.
@@ -57,6 +58,8 @@ Future<void> showTaskMenu(
       entry('nextweek', Icons.next_week_outlined, '下周一'),
       entry('pickdate', Icons.edit_calendar_outlined, '选择日期…'),
       if (task.dueDate != null) entry('nodate', Icons.event_busy_outlined, '清除日期'),
+      if (task.repeatRule != null && task.dueDate != null)
+        entry('skip', Icons.redo, '跳过此次'),
       const PopupMenuDivider(),
       for (final p in [Priority.high, Priority.medium, Priority.low, Priority.none])
         entry('p$p', p == Priority.none ? Icons.outlined_flag : Icons.flag, priorityName(p),
@@ -78,6 +81,8 @@ Future<void> showTaskMenu(
       await pickDueDate(context, ref, task);
     case 'nodate':
       await repo.setDue(task.id, null, null);
+    case 'skip':
+      await skipOccurrence(context, ref, task);
     case 'move':
       final listId = await pickList(context, ref, current: task.listId);
       if (listId != null) await repo.moveToList(task.id, listId);
@@ -90,14 +95,62 @@ Future<void> showTaskMenu(
   }
 }
 
+/// The date dialog: date, time, reminders and repeat.
 Future<void> pickDueDate(BuildContext context, WidgetRef ref, Task task) async {
-  final choice = await showDueDateDialog(
+  final choice = await showScheduleDialog(
     context,
-    date: task.dueDate == null ? null : parseDateKey(task.dueDate!),
-    time: task.dueTime,
+    Schedule(
+      date: task.dueDate == null ? null : parseDateKey(task.dueDate!),
+      time: task.dueTime,
+      reminders: task.reminders,
+      repeat: RepeatRule.tryParse(task.repeatRule),
+      repeatFrom: task.repeatFrom,
+    ),
   );
   if (choice == null) return;
-  await ref.read(repoProvider).setDue(task.id, choice.date, choice.time);
+  await ref.read(repoProvider).setSchedule(
+        task.id,
+        date: choice.date,
+        time: choice.time,
+        reminders: choice.reminders,
+        repeatRule: choice.repeat?.toString(),
+        repeatFrom: choice.repeatFrom,
+      );
+}
+
+void _toast(ScaffoldMessengerState? messenger, String text, {SnackBarAction? action}) {
+  messenger
+    ?..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(
+      content: Text(text),
+      action: action,
+      behavior: SnackBarBehavior.floating,
+      width: 320,
+      duration: const Duration(seconds: 4),
+    ));
+}
+
+/// Ticks a task off or back on. Finishing one occurrence of a repeating
+/// task says where it went, with an undo.
+Future<void> setTaskDone(BuildContext context, WidgetRef ref, Task task, bool done) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final repo = ref.read(repoProvider);
+  final result = await repo.setCompleted(task.id, done);
+  if (result == null) return;
+  final today = dateOnly(DateTime.now());
+  _toast(
+    messenger,
+    '已完成，下次：${dateLabel(result.next, today)}',
+    action: SnackBarAction(label: '撤销', onPressed: () => repo.undoRepeatCompletion(result)),
+  );
+}
+
+/// Moves a repeating task on to its next date without finishing it.
+Future<void> skipOccurrence(BuildContext context, WidgetRef ref, Task task) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final next = await ref.read(repoProvider).skipOccurrence(task.id);
+  final today = dateOnly(DateTime.now());
+  _toast(messenger, next == null ? '已是最后一次，任务已放弃' : '已跳过，下次：${dateLabel(next, today)}');
 }
 
 /// Lets the person pick a list; returns its id, or null if dismissed.

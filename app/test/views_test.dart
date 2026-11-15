@@ -15,13 +15,15 @@ Task task(
   int? completedAt,
   int? trashedAt,
   List<String> tags = const [],
+  List<int> reminders = const [],
+  String content = '',
 }) {
   final created = now.millisecondsSinceEpoch + _seq++;
   return Task(
     id: title,
     listId: listId,
     title: title,
-    content: '',
+    content: content,
     priority: priority,
     dueDate: due,
     dueTime: time,
@@ -29,6 +31,9 @@ Task task(
     tags: tags,
     status: status,
     completedAt: completedAt,
+    reminders: reminders,
+    repeatRule: null,
+    repeatFrom: 0,
     trashedAt: trashedAt,
     sortOrder: -created.toDouble(),
     createdAt: created,

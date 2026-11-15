@@ -82,6 +82,9 @@ WireRecord taskToWire(Task t) => WireRecord(
         'tags': t.tags,
         'status': t.status,
         'completedAt': t.completedAt,
+        'reminders': t.reminders,
+        'repeatRule': t.repeatRule,
+        'repeatFrom': t.repeatFrom,
         'trashedAt': t.trashedAt,
         'sortOrder': t.sortOrder,
         'createdAt': t.createdAt,
@@ -145,6 +148,12 @@ TasksCompanion wireToTask(WireRecord r) {
     tags: Value((d['tags'] as List?)?.cast<String>() ?? const []),
     status: Value(_int(d['status']) ?? TaskStatus.open),
     completedAt: Value(_int(d['completedAt'])),
+    reminders: Value([
+      for (final r in (d['reminders'] as List? ?? const []))
+        if (r is num) r.toInt(),
+    ]),
+    repeatRule: Value(d['repeatRule'] as String?),
+    repeatFrom: Value(_int(d['repeatFrom']) ?? 0),
     trashedAt: Value(_int(d['trashedAt'])),
     sortOrder: Value(_double(d['sortOrder'])),
     createdAt: Value(_int(d['createdAt']) ?? r.updatedAt),

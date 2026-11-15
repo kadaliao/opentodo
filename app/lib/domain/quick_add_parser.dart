@@ -1,11 +1,13 @@
 /// Parses the quick-add line: 明天下午3点开会 #工作 !高 becomes the title 开会,
-/// tomorrow at 15:00, tag 工作 and high priority. Matched spans are returned
-/// so the input field can highlight them as the person types.
+/// tomorrow at 15:00, tag 工作 and high priority; 每周一9点例会 repeats.
+/// Matched spans are returned so the input field can highlight them as the
+/// person types.
 library;
 
 import 'dates.dart';
+import 'recurrence.dart';
 
-enum QuickAddTokenKind { date, time, tag, priority }
+enum QuickAddTokenKind { date, time, tag, priority, repeat }
 
 class QuickAddToken {
   const QuickAddToken(this.start, this.end, this.kind);
@@ -26,9 +28,12 @@ class QuickAddResult {
     required this.tags,
     required this.priority,
     required this.tokens,
+    this.repeat,
   });
 
   final String title;
+
+  /// For a repeating task without a date of its own, its first occurrence.
   final DateTime? date;
 
   /// Minutes after midnight.
@@ -36,6 +41,7 @@ class QuickAddResult {
   final List<String> tags;
   final int? priority;
   final List<QuickAddToken> tokens;
+  final RepeatRule? repeat;
 }
 
 const _num = r'(?:\d{1,2}|[零〇一二两三四五六七八九十]{1,3})';
@@ -195,6 +201,68 @@ final List<(RegExp, _DateRule)> _dateRules = [
   ),
 ];
 
+const _weekdayChars = '一二三四五六日天1-7';
+
+/// 每天 / 每3天 / 每周一、三 / 每两周 / 工作日 / 每月15号 / 每月最后一天 / 每年3月8日 …
+final List<(RegExp, RepeatRule? Function(RegExpMatch m))> _repeatRules = [
+  // Always with 每, so 工作日志 or 天天向上 stay plain words.
+  (RegExp(r'每天|每日'), (m) => RepeatRule.daily),
+  (
+    RegExp('每($_num)天'),
+    (m) => switch (parseNumber(m[1]!)) {
+          final n? when n > 0 => RepeatRule(Freq.daily, interval: n),
+          _ => null,
+        },
+  ),
+  (RegExp(r'每个?工作日'), (m) => RepeatRule.workdays),
+  (RegExp(r'每个?周末'), (m) => RepeatRule.weekends),
+  // 每周一 / 每周一三五 / 每周二、四 / 每个星期六
+  (
+    RegExp('每个?(?:周|星期|礼拜)([$_weekdayChars](?:[、,，和及与]?[$_weekdayChars])*)'),
+    (m) {
+      final days = {
+        for (final c in m[1]!.split(''))
+          if (RegExp('[$_weekdayChars]').hasMatch(c)) _weekdayNumber(c),
+      }.toList()
+        ..sort();
+      return RepeatRule(Freq.weekly, weekdays: days);
+    },
+  ),
+  (
+    RegExp('每($_num)个?(?:周|星期|礼拜)'),
+    (m) => switch (parseNumber(m[1]!)) {
+          final n? when n > 0 => RepeatRule(Freq.weekly, interval: n),
+          _ => null,
+        },
+  ),
+  (RegExp(r'每个?(?:周|星期|礼拜)'), (m) => RepeatRule.weekly),
+  (RegExp(r'每个?月(?:的)?最后一天'), (m) => const RepeatRule(Freq.monthly, monthDays: [-1])),
+  (
+    RegExp('每个?月(?:的)?($_num)\\s*[号日]'),
+    (m) => switch (parseNumber(m[1]!)) {
+          final n? when n >= 1 && n <= 31 => RepeatRule(Freq.monthly, monthDays: [n]),
+          _ => null,
+        },
+  ),
+  (
+    RegExp('每($_num)个月'),
+    (m) => switch (parseNumber(m[1]!)) {
+          final n? when n > 0 => RepeatRule(Freq.monthly, interval: n),
+          _ => null,
+        },
+  ),
+  (RegExp(r'每个?月'), (m) => RepeatRule.monthly),
+  (
+    RegExp('每年(?:的)?($_num)\\s*月\\s*($_num)\\s*[日号]?'),
+    (m) {
+      final mo = parseNumber(m[1]!), day = parseNumber(m[2]!);
+      if (mo == null || day == null || _validDate(2028, mo, day) == null) return null;
+      return RepeatRule(Freq.yearly, month: mo, monthDays: [day]);
+    },
+  ),
+  (RegExp(r'每年'), (m) => RepeatRule.yearly),
+];
+
 final _timeColon = RegExp('($_period)?\\s*(\\d{1,2})\\s*[:：]\\s*(\\d{2})');
 final _timeDian = RegExp(
     '($_period)?\\s*($_num)\\s*[点时](?![点儿])(?:\\s*(半|一刻|三刻|(\\d{1,2})\\s*分?|([零一二三四五六七八九十]{1,3})\\s*分))?');
@@ -241,6 +309,19 @@ QuickAddResult parseQuickAdd(String input, DateTime now) {
   if (pm != null) {
     priority = switch (pm[1]) { '高' || '3' => 3, '中' || '2' => 2, _ => 1 };
     consume(pm.start, pm.end, QuickAddTokenKind.priority);
+  }
+
+  // Repeats before dates, so 每周一 isn't read as 周一.
+  RepeatRule? repeat;
+  for (final (re, rule) in _repeatRules) {
+    for (final m in re.allMatches(masked)) {
+      repeat = rule(m);
+      if (repeat != null) {
+        consume(m.start, m.end, QuickAddTokenKind.repeat);
+        break;
+      }
+    }
+    if (repeat != null) break;
   }
 
   _DateHit? dateHit;
@@ -292,7 +373,16 @@ QuickAddResult parseQuickAdd(String input, DateTime now) {
   }
 
   time ??= dateHit?.defaultTime;
-  final date = dateHit?.date ?? (time != null ? today : null);
+  var date = dateHit?.date ??
+      (repeat != null ? firstOccurrence(repeat, today) : (time != null ? today : null));
+  // 每天8点吃药 typed at 10:00 starts tomorrow, not overdue.
+  if (dateHit == null &&
+      repeat != null &&
+      time != null &&
+      date == today &&
+      time <= now.hour * 60 + now.minute) {
+    date = nextOccurrence(repeat, today) ?? date;
+  }
 
   tokens.sort((a, b) => a.start.compareTo(b.start));
   final buf = StringBuffer();
@@ -315,5 +405,6 @@ QuickAddResult parseQuickAdd(String input, DateTime now) {
     tags: tags,
     priority: priority,
     tokens: tokens,
+    repeat: repeat,
   );
 }

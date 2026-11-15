@@ -60,7 +60,7 @@ class TaskTile extends ConsumerWidget {
               priority: task.priority,
               onChanged: trashed
                   ? null
-                  : (v) => ref.read(repoProvider).setCompleted(task.id, v),
+                  : (v) => setTaskDone(context, ref, task, v),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -89,14 +89,23 @@ class TaskTile extends ConsumerWidget {
                   style: TextStyle(fontSize: 11, color: scheme.outline),
                 ),
               ),
-            if (task.dueDate != null)
-              Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: Text(
-                  dueLabel(task.dueDate!, task.dueTime, today),
-                  style: TextStyle(fontSize: 12, color: dueColor()),
+            if (task.dueDate != null) ...[
+              const SizedBox(width: 8),
+              if (task.reminders.isNotEmpty && !done)
+                Padding(
+                  padding: const EdgeInsets.only(right: 3),
+                  child: Icon(Icons.alarm, size: 13, color: dueColor(), semanticLabel: '有提醒'),
                 ),
+              if (task.repeatRule != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 3),
+                  child: Icon(Icons.repeat, size: 13, color: dueColor(), semanticLabel: '重复'),
+                ),
+              Text(
+                dueLabel(task.dueDate!, task.dueTime, today),
+                style: TextStyle(fontSize: 12, color: dueColor()),
               ),
+            ],
             if (trashed) ...[
               IconButton(
                 tooltip: '恢复',

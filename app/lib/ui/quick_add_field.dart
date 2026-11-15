@@ -3,6 +3,8 @@ import 'package:material_ui/material_ui.dart';
 
 import '../domain/dates.dart';
 import '../domain/quick_add_parser.dart';
+import '../domain/recurrence.dart';
+import '../domain/reminders.dart';
 import '../domain/views.dart';
 import '../state/providers.dart';
 
@@ -72,7 +74,8 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
     _controller.tokens = parsed?.tokens ?? const [];
     if (parsed?.tokens.length != _parsed?.tokens.length ||
         parsed?.date != _parsed?.date ||
-        parsed?.time != _parsed?.time) {
+        parsed?.time != _parsed?.time ||
+        parsed?.repeat != _parsed?.repeat) {
       setState(() => _parsed = parsed);
     } else {
       _parsed = parsed;
@@ -92,6 +95,9 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
           dueTime: parsed.time,
           tags: {...defaults.tags, ...parsed.tags}.toList(),
           priority: parsed.priority ?? 0,
+          // A task with a time gets a reminder at that time.
+          reminders: parsed.time != null ? defaultTimedReminders : const [],
+          repeatRule: parsed.repeat?.toString(),
         );
     _controller.clear();
     // A task dated outside a date view won't show up in it; say where it went.
@@ -118,7 +124,10 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
     final parsed = _parsed;
     final preview = parsed?.date == null
         ? null
-        : fullDueLabel(dateKey(parsed!.date!), parsed.time, dateOnly(DateTime.now()));
+        : [
+            fullDueLabel(dateKey(parsed!.date!), parsed.time, dateOnly(DateTime.now())),
+            if (parsed.repeat != null) describeRepeat(parsed.repeat!, parsed.date!),
+          ].join(' · ');
 
     return TextField(
       controller: _controller,
@@ -137,7 +146,8 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
             : Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: Chip(
-                  avatar: Icon(Icons.event, size: 16, color: scheme.primary),
+                  avatar: Icon(parsed!.repeat != null ? Icons.repeat : Icons.event,
+                      size: 16, color: scheme.primary),
                   label: Text(preview, style: TextStyle(fontSize: 12, color: scheme.primary)),
                   visualDensity: VisualDensity.compact,
                   side: BorderSide.none,

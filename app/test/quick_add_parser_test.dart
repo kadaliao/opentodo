@@ -12,8 +12,10 @@ void expectParse(
   String? time,
   List<String> tags = const [],
   int? priority,
+  String? repeat,
 }) {
   final r = parseQuickAdd(input, now);
+  expect(r.repeat?.toString(), repeat, reason: 'repeat of "$input"');
   expect(r.title, title, reason: 'title of "$input"');
   expect(r.date == null ? null : dateKey(r.date!), date, reason: 'date of "$input"');
   expect(
@@ -159,5 +161,53 @@ void main() {
     expect(parseNumber('三十一'), 31);
     expect(parseNumber('两'), 2);
     expect(parseNumber('abc'), isNull);
+  });
+
+  group('repeat', () {
+    test('daily, with the time of day', () {
+      expectParse('每天吃药', title: '吃药', date: '2026-11-15', repeat: 'FREQ=DAILY');
+      // 8:00 has passed today, so it starts tomorrow.
+      expectParse('每天早上8点吃药', title: '吃药', date: '2026-11-16', time: '08:00', repeat: 'FREQ=DAILY');
+      expectParse('每天晚上9点吃药', title: '吃药', date: '2026-11-15', time: '21:00', repeat: 'FREQ=DAILY');
+      expectParse('每3天浇花', title: '浇花', date: '2026-11-15', repeat: 'FREQ=DAILY;INTERVAL=3');
+    });
+
+    test('weekly on given days starts on the first of them', () {
+      expectParse('每周一例会', title: '例会', date: '2026-11-16', repeat: 'FREQ=WEEKLY;BYDAY=MO');
+      expectParse('每周一三五跑步', title: '跑步', date: '2026-11-16', repeat: 'FREQ=WEEKLY;BYDAY=MO,WE,FR');
+      expectParse('每周二、四下午3点 网球', title: '网球', date: '2026-11-17', time: '15:00',
+          repeat: 'FREQ=WEEKLY;BYDAY=TU,TH');
+      expectParse('每个星期天大扫除', title: '大扫除', date: '2026-11-15', repeat: 'FREQ=WEEKLY;BYDAY=SU');
+      expectParse('每周写周报', title: '写周报', date: '2026-11-15', repeat: 'FREQ=WEEKLY');
+      expectParse('每两周 理发', title: '理发', date: '2026-11-15', repeat: 'FREQ=WEEKLY;INTERVAL=2');
+    });
+
+    test('workdays and weekends', () {
+      expectParse('每个工作日打卡', title: '打卡', date: '2026-11-16', repeat: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR');
+      expectParse('每周末爬山', title: '爬山', date: '2026-11-15', repeat: 'FREQ=WEEKLY;BYDAY=SA,SU');
+      // Without 每 it's just words.
+      expectParse('整理工作日志', title: '整理工作日志');
+    });
+
+    test('monthly and yearly', () {
+      expectParse('每月15号还信用卡', title: '还信用卡', date: '2026-11-15', repeat: 'FREQ=MONTHLY;BYMONTHDAY=15');
+      expectParse('每月1号交房租', title: '交房租', date: '2026-12-01', repeat: 'FREQ=MONTHLY;BYMONTHDAY=1');
+      expectParse('每月最后一天对账', title: '对账', date: '2026-11-30', repeat: 'FREQ=MONTHLY;BYMONTHDAY=-1');
+      expectParse('每个月体检', title: '体检', date: '2026-11-15', repeat: 'FREQ=MONTHLY');
+      expectParse('每3个月换滤芯', title: '换滤芯', date: '2026-11-15', repeat: 'FREQ=MONTHLY;INTERVAL=3');
+      expectParse('每年3月8日送花', title: '送花', date: '2027-03-08', repeat: 'FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=8');
+      expectParse('每年体检', title: '体检', date: '2026-11-15', repeat: 'FREQ=YEARLY');
+    });
+
+    test('an explicit date sets where it starts', () {
+      expectParse('下周三每天跑步', title: '跑步', date: '2026-11-18', repeat: 'FREQ=DAILY');
+      expectParse('明天 每周写周报 #工作', title: '写周报', date: '2026-11-16', tags: ['工作'], repeat: 'FREQ=WEEKLY');
+    });
+
+    test('highlighted as a token', () {
+      final r = parseQuickAdd('每周一例会', now);
+      expect(r.tokens.single.kind, QuickAddTokenKind.repeat);
+      expect((r.tokens.single.start, r.tokens.single.end), (0, 3));
+    });
   });
 }

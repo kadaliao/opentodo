@@ -23,6 +23,8 @@ func main() {
 	dbPath := flag.String("db", envOr("OPENTODO_DB", "data/opentodo.db"), "SQLite database file")
 	backupDir := flag.String("backup-dir", "", "write a backup of the database into this folder and exit")
 	keep := flag.Int("keep", 14, "with -backup-dir: how many backups to keep")
+	flag.IntVar(&api.AuthPerMinute, "auth-per-minute", api.AuthPerMinute,
+		"sign-in and sign-up attempts allowed per client IP per minute")
 	flag.Parse()
 
 	log := slog.New(slog.NewJSONHandler(os.Stderr, nil))

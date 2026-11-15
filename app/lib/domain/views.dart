@@ -163,6 +163,26 @@ bool matchesView(Task t, ViewRef view, String todayKey, String tomorrowKey,
   };
 }
 
+/// Where to show a task opened from elsewhere, such as a notification: the
+/// current view if it lists the task, else 今天 for one due by today, else
+/// its list.
+ViewRef viewForTask(Task t, ViewRef current, DateTime now) {
+  final today = dateOnly(now);
+  final todayKey = dateKey(today);
+  if (matchesView(t, current, todayKey, dateKey(addDays(today, 1)),
+      dateKey(addDays(today, 6)))) {
+    return current;
+  }
+  if (t.trashedAt != null) return const SmartViewRef(SmartKind.trash);
+  if (t.status != TaskStatus.open) return const SmartViewRef(SmartKind.completed);
+  if (t.dueDate != null && t.dueDate!.compareTo(todayKey) <= 0) {
+    return const SmartViewRef(SmartKind.today);
+  }
+  return t.listId == inboxListId
+      ? const SmartViewRef(SmartKind.inbox)
+      : ListViewRef(t.listId);
+}
+
 /// Number shown next to a view in the sidebar: its open tasks.
 int openCount(ViewRef view, List<Task> tasks, DateTime now) {
   final today = dateOnly(now);

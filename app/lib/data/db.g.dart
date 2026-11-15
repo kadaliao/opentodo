@@ -786,6 +786,39 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  @override
+  late final GeneratedColumnWithTypeConverter<List<int>, String> reminders =
+      GeneratedColumn<String>(
+        'reminders',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      ).withConverter<List<int>>($TasksTable.$converterreminders);
+  static const VerificationMeta _repeatRuleMeta = const VerificationMeta(
+    'repeatRule',
+  );
+  @override
+  late final GeneratedColumn<String> repeatRule = GeneratedColumn<String>(
+    'repeat_rule',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _repeatFromMeta = const VerificationMeta(
+    'repeatFrom',
+  );
+  @override
+  late final GeneratedColumn<int> repeatFrom = GeneratedColumn<int>(
+    'repeat_from',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _trashedAtMeta = const VerificationMeta(
     'trashedAt',
   );
@@ -827,6 +860,9 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     tags,
     status,
     completedAt,
+    reminders,
+    repeatRule,
+    repeatFrom,
     trashedAt,
     sortOrder,
   ];
@@ -945,6 +981,18 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         ),
       );
     }
+    if (data.containsKey('repeat_rule')) {
+      context.handle(
+        _repeatRuleMeta,
+        repeatRule.isAcceptableOrUnknown(data['repeat_rule']!, _repeatRuleMeta),
+      );
+    }
+    if (data.containsKey('repeat_from')) {
+      context.handle(
+        _repeatFromMeta,
+        repeatFrom.isAcceptableOrUnknown(data['repeat_from']!, _repeatFromMeta),
+      );
+    }
     if (data.containsKey('trashed_at')) {
       context.handle(
         _trashedAtMeta,
@@ -1032,6 +1080,20 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         DriftSqlType.int,
         data['${effectivePrefix}completed_at'],
       ),
+      reminders: $TasksTable.$converterreminders.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}reminders'],
+        )!,
+      ),
+      repeatRule: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}repeat_rule'],
+      ),
+      repeatFrom: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}repeat_from'],
+      )!,
       trashedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}trashed_at'],
@@ -1050,6 +1112,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
 
   static TypeConverter<List<String>, String> $convertertags =
       const StringListConverter();
+  static TypeConverter<List<int>, String> $converterreminders =
+      const IntListConverter();
 }
 
 class Task extends DataClass implements Insertable<Task> {
@@ -1077,6 +1141,17 @@ class Task extends DataClass implements Insertable<Task> {
   final int status;
   final int? completedAt;
 
+  /// Minutes relative to the due moment, negative = before; see
+  /// `domain/reminders.dart`.
+  final List<int> reminders;
+
+  /// RRULE text (`domain/recurrence.dart`); null for a one-off task.
+  final String? repeatRule;
+
+  /// A `RepeatFrom` value: count the next date from the due date or from
+  /// the day it was completed.
+  final int repeatFrom;
+
   /// Set when the task is moved to the trash (it can be restored); different
   /// from the sync tombstone [deletedAt], which is permanent.
   final int? trashedAt;
@@ -1098,6 +1173,9 @@ class Task extends DataClass implements Insertable<Task> {
     required this.tags,
     required this.status,
     this.completedAt,
+    required this.reminders,
+    this.repeatRule,
+    required this.repeatFrom,
     this.trashedAt,
     required this.sortOrder,
   });
@@ -1132,6 +1210,15 @@ class Task extends DataClass implements Insertable<Task> {
     if (!nullToAbsent || completedAt != null) {
       map['completed_at'] = Variable<int>(completedAt);
     }
+    {
+      map['reminders'] = Variable<String>(
+        $TasksTable.$converterreminders.toSql(reminders),
+      );
+    }
+    if (!nullToAbsent || repeatRule != null) {
+      map['repeat_rule'] = Variable<String>(repeatRule);
+    }
+    map['repeat_from'] = Variable<int>(repeatFrom);
     if (!nullToAbsent || trashedAt != null) {
       map['trashed_at'] = Variable<int>(trashedAt);
     }
@@ -1167,6 +1254,11 @@ class Task extends DataClass implements Insertable<Task> {
       completedAt: completedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(completedAt),
+      reminders: Value(reminders),
+      repeatRule: repeatRule == null && nullToAbsent
+          ? const Value.absent()
+          : Value(repeatRule),
+      repeatFrom: Value(repeatFrom),
       trashedAt: trashedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(trashedAt),
@@ -1196,6 +1288,9 @@ class Task extends DataClass implements Insertable<Task> {
       tags: serializer.fromJson<List<String>>(json['tags']),
       status: serializer.fromJson<int>(json['status']),
       completedAt: serializer.fromJson<int?>(json['completedAt']),
+      reminders: serializer.fromJson<List<int>>(json['reminders']),
+      repeatRule: serializer.fromJson<String?>(json['repeatRule']),
+      repeatFrom: serializer.fromJson<int>(json['repeatFrom']),
       trashedAt: serializer.fromJson<int?>(json['trashedAt']),
       sortOrder: serializer.fromJson<double>(json['sortOrder']),
     );
@@ -1220,6 +1315,9 @@ class Task extends DataClass implements Insertable<Task> {
       'tags': serializer.toJson<List<String>>(tags),
       'status': serializer.toJson<int>(status),
       'completedAt': serializer.toJson<int?>(completedAt),
+      'reminders': serializer.toJson<List<int>>(reminders),
+      'repeatRule': serializer.toJson<String?>(repeatRule),
+      'repeatFrom': serializer.toJson<int>(repeatFrom),
       'trashedAt': serializer.toJson<int?>(trashedAt),
       'sortOrder': serializer.toJson<double>(sortOrder),
     };
@@ -1242,6 +1340,9 @@ class Task extends DataClass implements Insertable<Task> {
     List<String>? tags,
     int? status,
     Value<int?> completedAt = const Value.absent(),
+    List<int>? reminders,
+    Value<String?> repeatRule = const Value.absent(),
+    int? repeatFrom,
     Value<int?> trashedAt = const Value.absent(),
     double? sortOrder,
   }) => Task(
@@ -1261,6 +1362,9 @@ class Task extends DataClass implements Insertable<Task> {
     tags: tags ?? this.tags,
     status: status ?? this.status,
     completedAt: completedAt.present ? completedAt.value : this.completedAt,
+    reminders: reminders ?? this.reminders,
+    repeatRule: repeatRule.present ? repeatRule.value : this.repeatRule,
+    repeatFrom: repeatFrom ?? this.repeatFrom,
     trashedAt: trashedAt.present ? trashedAt.value : this.trashedAt,
     sortOrder: sortOrder ?? this.sortOrder,
   );
@@ -1286,6 +1390,13 @@ class Task extends DataClass implements Insertable<Task> {
       completedAt: data.completedAt.present
           ? data.completedAt.value
           : this.completedAt,
+      reminders: data.reminders.present ? data.reminders.value : this.reminders,
+      repeatRule: data.repeatRule.present
+          ? data.repeatRule.value
+          : this.repeatRule,
+      repeatFrom: data.repeatFrom.present
+          ? data.repeatFrom.value
+          : this.repeatFrom,
       trashedAt: data.trashedAt.present ? data.trashedAt.value : this.trashedAt,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
     );
@@ -1310,6 +1421,9 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('tags: $tags, ')
           ..write('status: $status, ')
           ..write('completedAt: $completedAt, ')
+          ..write('reminders: $reminders, ')
+          ..write('repeatRule: $repeatRule, ')
+          ..write('repeatFrom: $repeatFrom, ')
           ..write('trashedAt: $trashedAt, ')
           ..write('sortOrder: $sortOrder')
           ..write(')'))
@@ -1317,7 +1431,7 @@ class Task extends DataClass implements Insertable<Task> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     createdAt,
     updatedAt,
     deletedAt,
@@ -1334,9 +1448,12 @@ class Task extends DataClass implements Insertable<Task> {
     tags,
     status,
     completedAt,
+    reminders,
+    repeatRule,
+    repeatFrom,
     trashedAt,
     sortOrder,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1357,6 +1474,9 @@ class Task extends DataClass implements Insertable<Task> {
           other.tags == this.tags &&
           other.status == this.status &&
           other.completedAt == this.completedAt &&
+          other.reminders == this.reminders &&
+          other.repeatRule == this.repeatRule &&
+          other.repeatFrom == this.repeatFrom &&
           other.trashedAt == this.trashedAt &&
           other.sortOrder == this.sortOrder);
 }
@@ -1378,6 +1498,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<List<String>> tags;
   final Value<int> status;
   final Value<int?> completedAt;
+  final Value<List<int>> reminders;
+  final Value<String?> repeatRule;
+  final Value<int> repeatFrom;
   final Value<int?> trashedAt;
   final Value<double> sortOrder;
   final Value<int> rowid;
@@ -1398,6 +1521,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.tags = const Value.absent(),
     this.status = const Value.absent(),
     this.completedAt = const Value.absent(),
+    this.reminders = const Value.absent(),
+    this.repeatRule = const Value.absent(),
+    this.repeatFrom = const Value.absent(),
     this.trashedAt = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1419,6 +1545,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.tags = const Value.absent(),
     this.status = const Value.absent(),
     this.completedAt = const Value.absent(),
+    this.reminders = const Value.absent(),
+    this.repeatRule = const Value.absent(),
+    this.repeatFrom = const Value.absent(),
     this.trashedAt = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1444,6 +1573,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<String>? tags,
     Expression<int>? status,
     Expression<int>? completedAt,
+    Expression<String>? reminders,
+    Expression<String>? repeatRule,
+    Expression<int>? repeatFrom,
     Expression<int>? trashedAt,
     Expression<double>? sortOrder,
     Expression<int>? rowid,
@@ -1465,6 +1597,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (tags != null) 'tags': tags,
       if (status != null) 'status': status,
       if (completedAt != null) 'completed_at': completedAt,
+      if (reminders != null) 'reminders': reminders,
+      if (repeatRule != null) 'repeat_rule': repeatRule,
+      if (repeatFrom != null) 'repeat_from': repeatFrom,
       if (trashedAt != null) 'trashed_at': trashedAt,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (rowid != null) 'rowid': rowid,
@@ -1488,6 +1623,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Value<List<String>>? tags,
     Value<int>? status,
     Value<int?>? completedAt,
+    Value<List<int>>? reminders,
+    Value<String?>? repeatRule,
+    Value<int>? repeatFrom,
     Value<int?>? trashedAt,
     Value<double>? sortOrder,
     Value<int>? rowid,
@@ -1509,6 +1647,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
       tags: tags ?? this.tags,
       status: status ?? this.status,
       completedAt: completedAt ?? this.completedAt,
+      reminders: reminders ?? this.reminders,
+      repeatRule: repeatRule ?? this.repeatRule,
+      repeatFrom: repeatFrom ?? this.repeatFrom,
       trashedAt: trashedAt ?? this.trashedAt,
       sortOrder: sortOrder ?? this.sortOrder,
       rowid: rowid ?? this.rowid,
@@ -1568,6 +1709,17 @@ class TasksCompanion extends UpdateCompanion<Task> {
     if (completedAt.present) {
       map['completed_at'] = Variable<int>(completedAt.value);
     }
+    if (reminders.present) {
+      map['reminders'] = Variable<String>(
+        $TasksTable.$converterreminders.toSql(reminders.value),
+      );
+    }
+    if (repeatRule.present) {
+      map['repeat_rule'] = Variable<String>(repeatRule.value);
+    }
+    if (repeatFrom.present) {
+      map['repeat_from'] = Variable<int>(repeatFrom.value);
+    }
     if (trashedAt.present) {
       map['trashed_at'] = Variable<int>(trashedAt.value);
     }
@@ -1599,6 +1751,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('tags: $tags, ')
           ..write('status: $status, ')
           ..write('completedAt: $completedAt, ')
+          ..write('reminders: $reminders, ')
+          ..write('repeatRule: $repeatRule, ')
+          ..write('repeatFrom: $repeatFrom, ')
           ..write('trashedAt: $trashedAt, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('rowid: $rowid')
@@ -2751,6 +2906,9 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   Value<List<String>> tags,
   Value<int> status,
   Value<int?> completedAt,
+  Value<List<int>> reminders,
+  Value<String?> repeatRule,
+  Value<int> repeatFrom,
   Value<int?> trashedAt,
   Value<double> sortOrder,
   Value<int> rowid,
@@ -2772,6 +2930,9 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<List<String>> tags,
   Value<int> status,
   Value<int?> completedAt,
+  Value<List<int>> reminders,
+  Value<String?> repeatRule,
+  Value<int> repeatFrom,
   Value<int?> trashedAt,
   Value<double> sortOrder,
   Value<int> rowid,
@@ -2863,6 +3024,22 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<int> get completedAt => $composableBuilder(
     column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<List<int>, List<int>, String> get reminders =>
+      $composableBuilder(
+        column: $table.reminders,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get repeatRule => $composableBuilder(
+    column: $table.repeatRule,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get repeatFrom => $composableBuilder(
+    column: $table.repeatFrom,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2966,6 +3143,21 @@ class $$TasksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get reminders => $composableBuilder(
+    column: $table.reminders,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get repeatRule => $composableBuilder(
+    column: $table.repeatRule,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get repeatFrom => $composableBuilder(
+    column: $table.repeatFrom,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get trashedAt => $composableBuilder(
     column: $table.trashedAt,
     builder: (column) => ColumnOrderings(column),
@@ -3038,6 +3230,19 @@ class $$TasksTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumnWithTypeConverter<List<int>, String> get reminders =>
+      $composableBuilder(column: $table.reminders, builder: (column) => column);
+
+  GeneratedColumn<String> get repeatRule => $composableBuilder(
+    column: $table.repeatRule,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get repeatFrom => $composableBuilder(
+    column: $table.repeatFrom,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get trashedAt =>
       $composableBuilder(column: $table.trashedAt, builder: (column) => column);
 
@@ -3089,6 +3294,9 @@ class $$TasksTableTableManager
                 Value<List<String>> tags = const Value.absent(),
                 Value<int> status = const Value.absent(),
                 Value<int?> completedAt = const Value.absent(),
+                Value<List<int>> reminders = const Value.absent(),
+                Value<String?> repeatRule = const Value.absent(),
+                Value<int> repeatFrom = const Value.absent(),
                 Value<int?> trashedAt = const Value.absent(),
                 Value<double> sortOrder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -3109,6 +3317,9 @@ class $$TasksTableTableManager
                 tags: tags,
                 status: status,
                 completedAt: completedAt,
+                reminders: reminders,
+                repeatRule: repeatRule,
+                repeatFrom: repeatFrom,
                 trashedAt: trashedAt,
                 sortOrder: sortOrder,
                 rowid: rowid,
@@ -3131,6 +3342,9 @@ class $$TasksTableTableManager
                 Value<List<String>> tags = const Value.absent(),
                 Value<int> status = const Value.absent(),
                 Value<int?> completedAt = const Value.absent(),
+                Value<List<int>> reminders = const Value.absent(),
+                Value<String?> repeatRule = const Value.absent(),
+                Value<int> repeatFrom = const Value.absent(),
                 Value<int?> trashedAt = const Value.absent(),
                 Value<double> sortOrder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -3151,6 +3365,9 @@ class $$TasksTableTableManager
                 tags: tags,
                 status: status,
                 completedAt: completedAt,
+                reminders: reminders,
+                repeatRule: repeatRule,
+                repeatFrom: repeatFrom,
                 trashedAt: trashedAt,
                 sortOrder: sortOrder,
                 rowid: rowid,

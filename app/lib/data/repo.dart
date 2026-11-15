@@ -4,8 +4,36 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../domain/dates.dart';
+import '../domain/recurrence.dart';
 import 'db.dart';
 import 'keys.dart';
+
+/// What finishing one occurrence of a repeating task did, so it can be
+/// undone.
+class RepeatCompletion {
+  const RepeatCompletion({
+    required this.before,
+    required this.copyId,
+    required this.next,
+    required this.reopenedItemIds,
+  });
+
+  /// The task as it was.
+  final Task before;
+
+  /// The finished copy left in 已完成.
+  final String copyId;
+
+  /// The task's new date.
+  final DateTime next;
+
+  /// Subtasks that were ticked and got reset for the next occurrence.
+  final List<String> reopenedItemIds;
+}
+
+/// Ids of finished occurrences are derived from the task and the date, so
+/// two devices finishing the same occurrence offline end up with one copy.
+const _occurrenceNamespace = 'b3e0b216-dc4f-4498-98bb-c1e895f8613a';
 
 /// Every read and write the app makes. Writes stamp `updatedAt` and mark the
 /// row dirty so the sync engine knows to push it.
@@ -57,9 +85,13 @@ class TaskRepo {
     int? dueTime,
     List<String> tags = const [],
     int priority = Priority.none,
+    List<int> reminders = const [],
+    String? repeatRule,
+    int repeatFrom = RepeatFrom.dueDate,
   }) async {
     id ??= newId();
     final now = _now;
+    final dated = dueDate != null;
     await db
         .into(db.tasks)
         .insert(
@@ -69,8 +101,11 @@ class TaskRepo {
             title: title,
             priority: Value(priority),
             dueDate: Value(dueDate == null ? null : dateKey(dueDate)),
-            dueTime: Value(dueDate == null ? null : dueTime),
+            dueTime: Value(dated ? dueTime : null),
             tags: Value(tags),
+            reminders: Value(dated ? reminders : const []),
+            repeatRule: Value(dated ? repeatRule : null),
+            repeatFrom: Value(dated ? repeatFrom : RepeatFrom.dueDate),
             sortOrder: Value(-now.toDouble()),
             createdAt: now,
             updatedAt: now,
@@ -90,13 +125,42 @@ class TaskRepo {
   Future<void> setContent(String id, String content) =>
       updateTask(id, TasksCompanion(content: Value(content)));
 
+  /// Moves the task to another day, keeping its reminders and repeat;
+  /// clearing the date clears those too.
   Future<void> setDue(String id, DateTime? date, int? time) => updateTask(
     id,
-    TasksCompanion(
-      dueDate: Value(date == null ? null : dateKey(date)),
-      dueTime: Value(date == null ? null : time),
-    ),
+    date == null
+        ? const TasksCompanion(
+            dueDate: Value(null),
+            dueTime: Value(null),
+            reminders: Value([]),
+            repeatRule: Value(null),
+            repeatFrom: Value(RepeatFrom.dueDate),
+          )
+        : TasksCompanion(dueDate: Value(dateKey(date)), dueTime: Value(time)),
   );
+
+  /// Date, time, reminders and repeat together, as the date dialog sets them.
+  Future<void> setSchedule(
+    String id, {
+    required DateTime? date,
+    int? time,
+    List<int> reminders = const [],
+    String? repeatRule,
+    int repeatFrom = RepeatFrom.dueDate,
+  }) {
+    if (date == null) return setDue(id, null, null);
+    return updateTask(
+      id,
+      TasksCompanion(
+        dueDate: Value(dateKey(date)),
+        dueTime: Value(time),
+        reminders: Value(reminders),
+        repeatRule: Value(repeatRule),
+        repeatFrom: Value(repeatFrom),
+      ),
+    );
+  }
 
   Future<void> setPriority(String id, int priority) =>
       updateTask(id, TasksCompanion(priority: Value(priority)));
@@ -107,13 +171,150 @@ class TaskRepo {
   Future<void> setTags(String id, List<String> tags) =>
       updateTask(id, TasksCompanion(tags: Value(tags)));
 
-  Future<void> setCompleted(String id, bool done) => updateTask(
-    id,
-    TasksCompanion(
-      status: Value(done ? TaskStatus.done : TaskStatus.open),
-      completedAt: Value(done ? _now : null),
-    ),
-  );
+  /// Ticks a task off or back on. A repeating task isn't closed: it moves
+  /// to its next date and a finished copy of this occurrence is left behind
+  /// (returned, for undo). The last occurrence of a series closes as usual.
+  Future<RepeatCompletion?> setCompleted(String id, bool done) async {
+    if (done) {
+      final t = await getTask(id);
+      if (t != null && t.status == TaskStatus.open) {
+        final advance = _advance(t);
+        if (advance != null) return _finishOccurrence(t, advance);
+      }
+    }
+    await updateTask(
+      id,
+      TasksCompanion(
+        status: Value(done ? TaskStatus.done : TaskStatus.open),
+        completedAt: Value(done ? _now : null),
+      ),
+    );
+    return null;
+  }
+
+  RepeatAdvance? _advance(Task t) {
+    final rule = RepeatRule.tryParse(t.repeatRule);
+    if (rule == null || t.dueDate == null) return null;
+    return advanceRepeat(
+      rule,
+      parseDateKey(t.dueDate!),
+      today: _clock(),
+      repeatFrom: t.repeatFrom,
+    );
+  }
+
+  Future<RepeatCompletion> _finishOccurrence(Task t, RepeatAdvance advance) =>
+      db.transaction(() async {
+        final now = _now;
+        String occurrenceId(String of) =>
+            _uuid.v5(_occurrenceNamespace, '$of/${t.dueDate}');
+        final copyId = occurrenceId(t.id);
+        // Upsert: undo leaves a tombstone under the same id. Companions keep
+        // nulls (deletedAt) instead of skipping them.
+        await db.into(db.tasks).insertOnConflictUpdate(
+          t.copyWith(
+            id: copyId,
+            status: TaskStatus.done,
+            completedAt: Value(now),
+            reminders: const [],
+            repeatRule: const Value(null),
+            repeatFrom: RepeatFrom.dueDate,
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: const Value(null),
+            trashedAt: const Value(null),
+            serverVersion: 0,
+            dirty: true,
+          ).toCompanion(false),
+        );
+        final items = await (db.select(
+          db.checklistItems,
+        )..where((c) => c.taskId.equals(t.id) & c.deletedAt.isNull())).get();
+        for (final item in items) {
+          await db.into(db.checklistItems).insertOnConflictUpdate(
+            item.copyWith(
+              id: occurrenceId(item.id),
+              taskId: copyId,
+              createdAt: now,
+              updatedAt: now,
+              deletedAt: const Value(null),
+              serverVersion: 0,
+              dirty: true,
+            ).toCompanion(false),
+          );
+        }
+        final reopened = [for (final i in items) if (i.done) i.id];
+        await _setChecklistDone(reopened, false);
+        await updateTask(
+          t.id,
+          TasksCompanion(
+            dueDate: Value(dateKey(advance.date)),
+            repeatRule: Value(advance.rule.toString()),
+          ),
+        );
+        return RepeatCompletion(
+          before: t,
+          copyId: copyId,
+          next: advance.date,
+          reopenedItemIds: reopened,
+        );
+      });
+
+  /// Puts a repeating task back the way it was before [c].
+  Future<void> undoRepeatCompletion(RepeatCompletion c) => db.transaction(() async {
+    await updateTask(
+      c.before.id,
+      TasksCompanion(
+        dueDate: Value(c.before.dueDate),
+        repeatRule: Value(c.before.repeatRule),
+      ),
+    );
+    await _setChecklistDone(c.reopenedItemIds, true);
+    await updateTask(c.copyId, TasksCompanion(deletedAt: Value(_now)));
+    await _tombstoneChecklists([c.copyId]);
+  });
+
+  /// Skips this occurrence of a repeating task: it moves to the next date
+  /// without a finished copy. Skipping the last one gives the task up.
+  /// Returns the new date, or null if the series is over.
+  Future<DateTime?> skipOccurrence(String id) async {
+    final t = await getTask(id);
+    if (t == null) return null;
+    final advance = _advance(t);
+    if (advance == null) {
+      await updateTask(
+        id,
+        TasksCompanion(status: const Value(TaskStatus.wontDo), completedAt: Value(_now)),
+      );
+      return null;
+    }
+    await db.transaction(() async {
+      final items = await (db.select(db.checklistItems)
+            ..where((c) => c.taskId.equals(id) & c.deletedAt.isNull() & c.done.equals(true)))
+          .map((c) => c.id)
+          .get();
+      await _setChecklistDone(items, false);
+      await updateTask(
+        id,
+        TasksCompanion(
+          dueDate: Value(dateKey(advance.date)),
+          repeatRule: Value(advance.rule.toString()),
+        ),
+      );
+    });
+    return advance.date;
+  }
+
+  Future<void> _setChecklistDone(List<String> ids, bool done) async {
+    if (ids.isEmpty) return;
+    await (db.update(db.checklistItems)..where((c) => c.id.isIn(ids))).write(
+      ChecklistItemsCompanion(
+        done: Value(done),
+        updatedAt: Value(_now),
+        dirty: const Value(true),
+      ),
+    );
+  }
 
   Future<void> trashTask(String id) =>
       updateTask(id, TasksCompanion(trashedAt: Value(_now)));

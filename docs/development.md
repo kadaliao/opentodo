@@ -13,9 +13,10 @@ OpenTodo 是一个多端待办应用，功能上参考了滴答清单。客户�
 | M1 本地核心 | 完成 | 清单、任务、子任务；智能清单（今天/明天/最近7天/收集箱/已完成/垃圾桶）；标签；中文自然语言快速添加；任务详情；电脑三栏 / 手机单栏 |
 | M2 同步与账号 | 完成 | 邮箱注册登录、推拉合一的增量同步、冲突“新者胜”、删除传播、登录限流、每日备份 |
 | 部署 | 完成 | 官方同步服务 `https://todo.liaoxingyi.com` |
+| M4 提醒与重复 | 主体完成 | 系统通知提醒（多个、自定义）、点通知打开任务；重复任务（RRULE 子集、按到期/完成日期、结束条件、跳过、撤销）；快速添加识别“每周一”等。还差的见第 8 节 |
 | M3 及以后 | 未开始 | 见下面第 8 节 |
 
-验证情况：Flutter 52 个测试（含 5 个“编译并启动真实 Go 服务、两台模拟设备同步”的集成测试）、Go 服务端测试全部通过；macOS 正式版和 iPhone 模拟器实际登录同一账号互相同步过。Android 没有编译过。
+验证情况：Flutter 100 个测试（含 7 个“编译并启动真实 Go 服务、两台模拟设备同步”的集成测试）、Go 服务端测试全部通过；macOS 正式版和 iPhone 模拟器实际登录同一账号互相同步过。M4 的新版本在 macOS 上对真实数据跑过 v3 迁移、启动无报错，iOS 模拟器版能编译；系统通知实际弹出还没在真机上看过。Android 没有编译过。
 
 代码在 GitHub：`kadaliao/opentodo`（公开，AGPL-3.0）。
 
@@ -31,10 +32,16 @@ app/                          Flutter 客户端
     repo.dart                 TaskRepo：所有写操作的唯一入口（会打 updatedAt / dirty）
   lib/domain/                 纯函数，单测覆盖
     dates.dart                日历日期工具、中文日期/时间标签
-    quick_add_parser.dart     快速添加解析（日期、时间、#标签、!优先级）
+    quick_add_parser.dart     快速添加解析（日期、时间、重复、#标签、!优先级）
+    recurrence.dart           重复规则（RRULE 子集）：解析、下一次日期、中文描述
+    reminders.dart            提醒：触发时刻、文案、接下来要交给系统的提醒
     views.dart                视图（智能清单/清单/标签）的筛选、分组、计数
+  lib/notify/
+    reminder_backend.dart     交给系统：iOS/macOS/Android 由系统定时，Windows/Linux 用计时器；测试里是空实现
+    reminder_scheduler.dart   和系统里已排上的通知比对，只动变了的
   lib/state/
     providers.dart            数据库流、当前视图、选中任务、每分钟刷新的时钟
+    reminder_providers.dart   提醒调度（ReminderController）、点通知打开任务
     sync_providers.dart       账号（AccountNotifier）、同步调度（SyncController）
   lib/sync/
     account.dart              登录接口、错误文案、默认服务器地址
@@ -46,10 +53,11 @@ app/                          Flutter 客户端
     sidebar.dart              侧栏；底部 account_ui.dart 的账号/同步状态
     task_list_pane.dart       中间列表、分组折叠、空状态
     task_tile.dart            任务行、优先级勾选框
-    task_detail.dart          详情（标题、备注、子任务、日期、优先级、清单）
+    task_detail.dart          详情（标题、备注、子任务、日期/提醒/重复、优先级、清单）
     quick_add_field.dart      快速添加输入框（高亮识别出的部分）
-    task_actions.dart         右键/长按菜单、日期选择、清单选择
-    dialogs.dart              确认框、清单编辑、日期时间选择器
+    task_actions.dart         右键/长按菜单、日期选择、完成（重复任务带撤销）、跳过此次、清单选择
+    schedule_dialog.dart      日期对话框：日期、时间、提醒、重复，自定义提醒、自定义重复
+    dialogs.dart              确认框、清单编辑
     theme.dart                配色（种子色 #14A38B）、优先级颜色、断点
   test/                       单元、界面、同步集成测试
 server/                       Go 同步服务
@@ -98,7 +106,13 @@ cd server && go run ./cmd/opentodo-server
 - 改了 `db.dart` 的表：`schemaVersion` 加一，在 `migration.onUpgrade` 里写迁移步骤，再跑 `dart run build_runner build`。已经发出去的版本里有用户数据，不能靠删库重建。
 - 界面测试里不要 `close()` drift 的内存数据库，也不要在 `tester.runAsync` 里关：它等的是模拟时钟里排队的操作，测试会一直卡住。
 - drift 生成的数据类、Dart 的 record 里装着 List 时，`==` 比的是引用。测试里比较要转成 JSON 或字符串再比。
-- 示例数据（欢迎清单）用固定 ID（`seed-welcome`、`seed-welcome-1..3`、`seed-today`），多设备才不会重复。别改回随机 ID。
+- 示例数据（欢迎清单）用固定 ID（`seed-welcome`、`seed-welcome-1..3`、`seed-today`），多设备才不会重复。别改回随机 ID。重复任务完成后留下的副本也是同样的道理，ID 由任务 ID 和日期算出（见 architecture.md）。
+- drift 的 `insertOnConflictUpdate` 传数据类时，值为 null 的字段会被当成“不更新”。要把字段写回 null（比如让带删除标记的行复活），传 `xxx.toCompanion(false)`。
+
+**提醒和通知**
+- 插件是 `flutter_local_notifications`。iOS 要在 `AppDelegate` 里设 `UNUserNotificationCenter.current().delegate`（已加），macOS 插件自己设。Android 要 compileSdk 37、core library desugaring、清单里的权限和两个 receiver（都已按插件文档加上，但还没编译过）。
+- 界面测试里 `reminderBackendProvider` 默认是空实现（检测到 `FLUTTER_TEST`）。要验证调度，像 `test/app_test.dart` 那样换成 `FakeBackend`。
+- 系统最多替应用保留 64 个待发通知，所以只排最近的 48 个，剩下的靠应用运行时补。
 
 **同步（改之前先读 architecture.md 的同步一节）**
 - 加字段：`codec.dart` 的 `xxxToWire` 和 `wireToXxx` 两边都加，读的一侧给默认值，旧客户端才不会因为新字段出错。
@@ -106,6 +120,7 @@ cd server && go run ./cmd/opentodo-server
 - 新者胜是按设备时钟比较的，设备时间不准会判错，以后要换成混合逻辑时钟（HLC）。
 - 新加一种要同步的数据（比如习惯），服务端 `store.Entities` 白名单里要加上它的名字。
 - iOS 应用切到后台时定时器会暂停，回到前台才同步（有 `AppLifecycleListener` 兜底）。
+- 同步集成测试每个用例都重新登录，超过服务端默认的每分钟 10 次登录限流，所以测试启动服务端时带 `-auth-per-minute 1000`。
 
 **界面验证**
 - 优先用界面测试（`test/app_test.dart` 的写法）。用模拟点击和键盘去操作真实应用时，先确认目标窗口在前台，否则按键会落进别的窗口。
@@ -138,6 +153,8 @@ cd server && go run ./cmd/opentodo-server
 - 登录令牌存在本地数据库，没进系统钥匙串。
 - 注册对任何人开放，没有邮箱验证、找回密码。限流只有登录注册（每 IP 每分钟 10 次），同步接口没有。
 - 冲突按设备时钟“新者胜”（见上）。
+- 整行“新者胜”的副作用：比这个版本旧的客户端改了任务，推上去的数据里没有提醒和重复字段，会把别的设备上的提醒和重复清掉。所有设备都要升级到带 M4 的版本。以后可以让客户端原样保留不认识的字段。
+- 任务在别的设备上完成或删除后，这台设备要等应用运行、同步之后才会取消它的提醒；应用一直没开的话，到点仍会弹。要彻底解决得有服务端推送。
 - 服务器恢复备份后，客户端的 cursor 不会自动回退。
 - iOS 的 `Info.plist` 为了开发放行了本地 HTTP（`NSAllowsLocalNetworking`），上架前评估是否去掉。
 - 应用图标还是 Flutter 默认的。
@@ -148,14 +165,11 @@ cd server && go run ./cmd/opentodo-server
 
 每项都可以对照 `reference/dida-app/` 里的截图做，索引见那里的 README。
 
-1. **提醒和重复任务（M4）**：待办应用的核心价值，建议排在日历前面。
-   - 本地通知：`flutter_local_notifications` + `timezone`，各平台申请通知权限；准时、提前 N 分钟。
-   - 重复：任务加一个 RRULE 字段（记得改 codec 和迁移），支持每天/每周/每月/每年/工作日/自定义；完成一次后生成下一次。
-   - 参考截图：`08-date-reminder`、`09-date-repeat`、`10-repeat-custom`、`11-date-range`。
-2. **日历视图（M3）**：月、周、日、日程；拖动改日期；点空白格子新建。参考 `31`–`45`。
+1. **日历视图（M3）**：月、周、日、日程；拖动改日期；点空白格子新建。重复任务要在日历里展开未来的日期（用 `recurrence.dart` 的 `nextOccurrence` 逐个算）。参考 `31`–`45`。
+2. **M4 收尾**：通知上的“完成”“稍后提醒”按钮（iOS/macOS 是通知分类 + 动作，后台处理要另起 isolate 访问数据库，先做成打开应用再处理也行）；设置页里的提醒默认值；时间段任务（开始–结束，参考 `11-date-range`）；法定节假日调休、农历重复（要节假日数据，每年更新）。
 3. **搜索和过滤器**：参考 `47-search`、`80-search-results`、`79-filter-new*`。
 4. **看板视图和手动排序**：清单里加分组（看板的列），拖动排序。参考 `17-view-kanban`、`15-list-more-menu`。
-5. **Android 环境**：装工具链，跑通 `flutter build apk`，真机试一遍同步。
+5. **Android 环境**：装工具链，跑通 `flutter build apk`，真机试一遍同步和提醒（Android 14+ 的精确闹钟权限默认没给，没给时提醒可能晚几分钟）。
 6. **账号完善**：找回密码、邮箱验证、Apple 登录；令牌改存钥匙串（`flutter_secure_storage`）。
 7. **电脑端小组件（M6）**：菜单栏小窗、全局快捷键快速添加、桌面便签。用 `window_manager`、`tray_manager`、`hotkey_manager`、`desktop_multi_window`；多窗口共享数据开 drift 的 `shareAcrossIsolates`。参考 `70*`、`71`、`81`。手机桌面小组件要写原生代码（SwiftUI WidgetKit、Android Glance），可以用 `home_widget` 传数据。
 8. **效率模块（M5）**：番茄专注、习惯打卡、倒数日、四象限。参考 `65`–`68`。

@@ -22,6 +22,9 @@ void main() {
       dueTime: 900,
       tags: ['工作', '重要'],
       priority: Priority.high,
+      reminders: [0, -30],
+      repeatRule: 'FREQ=WEEKLY;BYDAY=MO',
+      repeatFrom: 1,
     );
     await repo.setContent(id, '带上电脑');
     final original = (await repo.getTask(id))!;
@@ -51,5 +54,8 @@ void main() {
     expect(c.listId.value, inboxListId);
     expect(c.tags.value, isEmpty);
     expect(c.createdAt.value, 5);
+    expect(c.reminders.value, isEmpty);
+    expect(c.repeatRule.value, isNull);
+    expect(c.repeatFrom.value, 0);
   });
 }

@@ -34,7 +34,12 @@ Future<void> startServer() async {
   final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
   final port = probe.port;
   await probe.close();
-  _server = await Process.start(bin, ['-addr', '127.0.0.1:$port', '-db', '${_tmp!.path}/test.db']);
+  // Every test signs devices in afresh; more than the default limit allows.
+  _server = await Process.start(bin, [
+    '-addr', '127.0.0.1:$port',
+    '-db', '${_tmp!.path}/test.db',
+    '-auth-per-minute', '1000',
+  ]);
   _server!.stderr.drain<void>();
   serverUrl = 'http://127.0.0.1:$port';
   for (var i = 0; i < 100; i++) {
@@ -215,6 +220,65 @@ void main() {
     for (final d in [phone, mac]) {
       final titles = (await d.tasks()).map((t) => t.title).toList();
       expect(titles, ['看看“今天”和“最近7天”']);
+    }
+  }, skip: skip);
+
+  test('a repeating task: reminders and repeat travel, finishing it moves it on everywhere', () async {
+    final email = newEmail();
+    await phone.signIn(email, register: true);
+    await mac.signIn(email);
+    final id = await phone.repo.addTask(
+      title: '吃药',
+      dueDate: DateTime(2026, 11, 15),
+      dueTime: 8 * 60,
+      reminders: [0, -10],
+      repeatRule: 'FREQ=DAILY;INTERVAL=2',
+      repeatFrom: 1,
+    );
+    await phone.sync();
+    await mac.sync();
+    var t = (await mac.task(id))!;
+    expect(t.reminders, [0, -10]);
+    expect(t.repeatRule, 'FREQ=DAILY;INTERVAL=2');
+    expect(t.repeatFrom, 1);
+
+    mac.advance();
+    final done = (await mac.repo.setCompleted(id, true))!;
+    await mac.sync();
+    await phone.sync();
+    t = (await phone.task(id))!;
+    expect(t.dueDate, '2026-11-17');
+    expect(t.status, TaskStatus.open);
+    final copy = (await phone.task(done.copyId))!;
+    expect(copy.status, TaskStatus.done);
+    expect(copy.dueDate, '2026-11-15');
+  }, skip: skip);
+
+  test('both devices finishing the same occurrence offline leave one copy', () async {
+    final email = newEmail();
+    await phone.signIn(email, register: true);
+    await mac.signIn(email);
+    final id = await phone.repo.addTask(
+      title: '打卡',
+      dueDate: DateTime(2026, 11, 15),
+      repeatRule: 'FREQ=DAILY',
+    );
+    await phone.sync();
+    await mac.sync();
+
+    phone.advance();
+    mac.advance(const Duration(minutes: 2));
+    await phone.repo.setCompleted(id, true);
+    await mac.repo.setCompleted(id, true);
+    await phone.sync();
+    await mac.sync();
+    await phone.sync();
+
+    for (final d in [phone, mac]) {
+      final tasks = await d.tasks();
+      expect(tasks.length, 2, reason: 'the task and one finished copy');
+      expect((await d.task(id))!.dueDate, '2026-11-16');
+      expect(tasks.where((t) => t.status == TaskStatus.done).length, 1);
     }
   }, skip: skip);
 

@@ -72,6 +72,19 @@ class Tasks extends Table with SyncColumns {
   IntColumn get status => integer().withDefault(const Constant(0))();
   IntColumn get completedAt => integer().nullable()();
 
+  /// Minutes relative to the due moment, negative = before; see
+  /// `domain/reminders.dart`.
+  TextColumn get reminders => text()
+      .withDefault(const Constant('[]'))
+      .map(const IntListConverter())();
+
+  /// RRULE text (`domain/recurrence.dart`); null for a one-off task.
+  TextColumn get repeatRule => text().nullable()();
+
+  /// A `RepeatFrom` value: count the next date from the due date or from
+  /// the day it was completed.
+  IntColumn get repeatFrom => integer().withDefault(const Constant(0))();
+
   /// Set when the task is moved to the trash (it can be restored); different
   /// from the sync tombstone [deletedAt], which is permanent.
   IntColumn get trashedAt => integer().nullable()();
@@ -113,6 +126,17 @@ class StringListConverter extends TypeConverter<List<String>, String> {
   String toSql(List<String> value) => jsonEncode(value);
 }
 
+class IntListConverter extends TypeConverter<List<int>, String> {
+  const IntListConverter();
+
+  @override
+  List<int> fromSql(String fromDb) =>
+      (jsonDecode(fromDb) as List<dynamic>).map((e) => (e as num).toInt()).toList();
+
+  @override
+  String toSql(List<int> value) => jsonEncode(value);
+}
+
 @DriftDatabase(tables: [TaskLists, Tasks, ChecklistItems, KeyValues])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
@@ -125,12 +149,18 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onUpgrade: (m, from, to) async {
           if (from < 2) await m.createTable(keyValues);
+          if (from < 3) {
+            // Reminders and repeat (M4).
+            await m.addColumn(tasks, tasks.reminders);
+            await m.addColumn(tasks, tasks.repeatRule);
+            await m.addColumn(tasks, tasks.repeatFrom);
+          }
         },
       );
 

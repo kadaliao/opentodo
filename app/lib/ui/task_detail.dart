@@ -6,6 +6,8 @@ import 'package:material_ui/material_ui.dart';
 import '../data/db.dart';
 import '../data/repo.dart';
 import '../domain/dates.dart';
+import '../domain/recurrence.dart';
+import '../domain/reminders.dart';
 import '../domain/views.dart';
 import '../state/providers.dart';
 import 'task_actions.dart';
@@ -134,21 +136,41 @@ class _TaskDetailState extends ConsumerState<TaskDetail> {
           PriorityCheckbox(
             checked: done,
             priority: task.priority,
-            onChanged: trashed ? null : (v) => repo.setCompleted(task.id, v),
+            onChanged: trashed ? null : (v) => setTaskDone(context, ref, task, v),
           ),
           const SizedBox(width: 8),
           const SizedBox(height: 20, child: VerticalDivider(width: 16)),
-          TextButton.icon(
-            style: TextButton.styleFrom(
-              foregroundColor: task.dueDate == null
-                  ? scheme.onSurfaceVariant
-                  : (overdue ? scheme.error : scheme.primary),
+          Flexible(
+            child: Tooltip(
+              message: _scheduleTooltip(task),
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: task.dueDate == null
+                      ? scheme.onSurfaceVariant
+                      : (overdue ? scheme.error : scheme.primary),
+                ),
+                icon: const Icon(Icons.event_outlined, size: 18),
+                label: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Flexible(
+                    child: Text(
+                      task.dueDate == null
+                          ? '设置日期'
+                          : fullDueLabel(task.dueDate!, task.dueTime, today),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (task.dueDate != null && task.reminders.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.alarm, size: 15, semanticLabel: '有提醒'),
+                  ],
+                  if (task.dueDate != null && task.repeatRule != null) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.repeat, size: 15, semanticLabel: '重复'),
+                  ],
+                ]),
+                onPressed: trashed ? null : () => pickDueDate(context, ref, task),
+              ),
             ),
-            icon: const Icon(Icons.event_outlined, size: 18),
-            label: Text(task.dueDate == null
-                ? '设置日期'
-                : fullDueLabel(task.dueDate!, task.dueTime, today)),
-            onPressed: trashed ? null : () => pickDueDate(context, ref, task),
           ),
           const Spacer(),
           PopupMenuButton<int>(
@@ -176,6 +198,8 @@ class _TaskDetailState extends ConsumerState<TaskDetail> {
               switch (a) {
                 case 'restore':
                   await repo.restoreTask(task.id);
+                case 'skip':
+                  await skipOccurrence(context, ref, task);
                 case 'trash':
                   await repo.trashTask(task.id);
                   ref.read(selectedTaskProvider.notifier).select(null);
@@ -191,7 +215,11 @@ class _TaskDetailState extends ConsumerState<TaskDetail> {
                     PopupMenuItem(value: 'restore', child: Text('恢复')),
                     PopupMenuItem(value: 'purge', child: Text('永久删除')),
                   ]
-                : const [PopupMenuItem(value: 'trash', child: Text('删除'))],
+                : [
+                    if (task.repeatRule != null && task.dueDate != null && !done)
+                      const PopupMenuItem(value: 'skip', child: Text('跳过此次')),
+                    const PopupMenuItem(value: 'trash', child: Text('删除')),
+                  ],
           ),
         ]),
       ),
@@ -273,6 +301,18 @@ class _TaskDetailState extends ConsumerState<TaskDetail> {
         ]),
       ),
     ]);
+  }
+
+  /// 提醒：准时 / 重复：每周一, for hovering over the date.
+  String _scheduleTooltip(Task task) {
+    if (task.dueDate == null) return '设置日期、提醒和重复';
+    final lines = [
+      if (task.reminders.isNotEmpty)
+        '提醒：${remindersSummary(task.reminders, allDay: task.dueTime == null)}',
+      if (RepeatRule.tryParse(task.repeatRule) case final rule?)
+        '重复：${describeRepeat(rule, parseDateKey(task.dueDate!), repeatFrom: task.repeatFrom)}',
+    ];
+    return lines.isEmpty ? '修改日期' : lines.join('\n');
   }
 
   String _shortDate(DateTime at, DateTime today) {
