@@ -5,6 +5,7 @@ import '../data/db.dart';
 import '../domain/dates.dart';
 import '../domain/recurrence.dart';
 import '../state/providers.dart';
+import '../state/selection.dart';
 import 'schedule_dialog.dart';
 import 'theme.dart';
 
@@ -70,6 +71,7 @@ Future<void> showTaskMenu(
             ? entry('pin', Icons.push_pin_outlined, '置顶')
             : entry('unpin', Icons.push_pin, '取消置顶'),
       entry('move', Icons.drive_file_move_outline, '移动到…'),
+      entry('select', Icons.checklist, '多选'),
       entry('trash', Icons.delete_outline, '删除', color: scheme.error),
     ],
   );
@@ -91,6 +93,8 @@ Future<void> showTaskMenu(
       await repo.setPinned(task.id, true);
     case 'unpin':
       await repo.setPinned(task.id, false);
+    case 'select':
+      ref.read(taskSelectionProvider.notifier).start(task.id);
     case 'move':
       final listId = await pickList(context, ref, current: task.listId);
       if (listId != null) await repo.moveToList(task.id, listId);

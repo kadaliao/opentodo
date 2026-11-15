@@ -1,14 +1,15 @@
-import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../data/db.dart';
 
-import '../domain/views.dart' show arrangedListId;
+import '../domain/views.dart';
 import '../state/calendar_providers.dart';
 import '../state/providers.dart';
 import '../state/reminder_providers.dart';
+import '../state/selection.dart';
+import 'batch_actions.dart';
 import 'calendar/calendar_screen.dart';
 import 'quick_add_field.dart';
 import 'search_panel.dart';
@@ -63,6 +64,7 @@ class HomeShell extends ConsumerWidget {
       }
     }
     final module = ref.watch(moduleProvider);
+    final picking = ref.watch(taskSelectionProvider).active;
     return LayoutBuilder(builder: (context, constraints) {
       final layout = ShellLayout.of(constraints.maxWidth);
       if (layout != ShellLayout.phone) {
@@ -78,7 +80,10 @@ class HomeShell extends ConsumerWidget {
                   onOpenTask: (id) => ref.read(selectedTaskProvider.notifier).select(id),
                 ),
               ),
-              if (ref.watch(selectedTaskProvider) != null) ...[
+              if (picking) ...[
+                const VerticalDivider(width: 1),
+                const SizedBox(width: 400, child: BatchPanel()),
+              ] else if (ref.watch(selectedTaskProvider) != null) ...[
                 const VerticalDivider(width: 1),
                 SizedBox(
                   width: 400,
@@ -107,13 +112,16 @@ class HomeShell extends ConsumerWidget {
                 ),
               ),
               const VerticalDivider(width: 1),
-              const Expanded(flex: 4, child: TaskDetailPane()),
+              Expanded(flex: 4, child: picking ? const BatchPanel() : const TaskDetailPane()),
             ]),
           AppModule.tasks => Row(children: [
               const SizedBox(width: 220, child: Sidebar()),
               const VerticalDivider(width: 1),
               Expanded(
-                child: TaskListPane(onOpenTask: (id) => _openTaskPage(context, ref, id)),
+                child: TaskListPane(
+                  showBatchBar: true,
+                  onOpenTask: (id) => _openTaskPage(context, ref, id),
+                ),
               ),
             ]),
         };
@@ -146,16 +154,20 @@ class HomeShell extends ConsumerWidget {
               : TaskListPane(
                   showMenuButton: true,
                   showInlineQuickAdd: false,
+                  showBatchBar: true,
                   onOpenTask: (id) => _openTaskPage(context, ref, id),
                 ),
         ),
-        floatingActionButton: FloatingActionButton(
-          tooltip: '添加任务',
-          onPressed: () => calendar
-              ? showNewTaskDialog(context, date: ref.read(calendarAnchorProvider), sheet: true)
-              : showQuickAddSheet(context),
-          child: const Icon(Icons.add),
-        ),
+        // While picking tasks, the bar at the bottom has the room.
+        floatingActionButton: picking && !calendar
+            ? null
+            : FloatingActionButton(
+                tooltip: '添加任务',
+                onPressed: () => calendar
+                    ? showNewTaskDialog(context, date: ref.read(calendarAnchorProvider), sheet: true)
+                    : showQuickAddSheet(context),
+                child: const Icon(Icons.add),
+              ),
         bottomNavigationBar: NavigationBar(
           height: 64,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -228,22 +240,21 @@ class _ModuleRail extends ConsumerWidget {
   }
 }
 
-bool get _usesCommandKey =>
-    defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.iOS;
+String _searchKeyLabel() => usesCommandKey ? '⌘F' : 'Ctrl+F';
 
-String _searchKeyLabel() => _usesCommandKey ? '⌘F' : 'Ctrl+F';
-
-/// ⌘F (Ctrl+F elsewhere) opens search from anywhere in the main screen,
-/// even while typing in a field, but not over a dialog or another page.
-class _SearchShortcut extends StatefulWidget {
+/// Keys for the whole main screen on a computer, but not over a dialog or
+/// another page: ⌘F (Ctrl+F elsewhere) opens search, even while typing in
+/// a field; ⌘A picks every task in the view when not typing; Esc stops
+/// picking.
+class _SearchShortcut extends ConsumerStatefulWidget {
   const _SearchShortcut({required this.child});
   final Widget child;
 
   @override
-  State<_SearchShortcut> createState() => _SearchShortcutState();
+  ConsumerState<_SearchShortcut> createState() => _SearchShortcutState();
 }
 
-class _SearchShortcutState extends State<_SearchShortcut> {
+class _SearchShortcutState extends ConsumerState<_SearchShortcut> {
   @override
   void initState() {
     super.initState();
@@ -257,14 +268,35 @@ class _SearchShortcutState extends State<_SearchShortcut> {
   }
 
   bool _onKey(KeyEvent event) {
-    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyF) return false;
-    final keyboard = HardwareKeyboard.instance;
-    final modifier = _usesCommandKey ? keyboard.isMetaPressed : keyboard.isControlPressed;
-    if (!modifier || keyboard.isShiftPressed || keyboard.isAltPressed) return false;
+    if (event is! KeyDownEvent) return false;
     if (!mounted || ModalRoute.of(context)?.isCurrent != true) return false;
-    openSearch(context);
-    return true;
+    final keyboard = HardwareKeyboard.instance;
+    final modifier = usesCommandKey ? keyboard.isMetaPressed : keyboard.isControlPressed;
+    final plain = !keyboard.isShiftPressed && !keyboard.isAltPressed;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.keyF && modifier && plain) {
+      openSearch(context);
+      return true;
+    }
+    final selection = ref.read(taskSelectionProvider.notifier);
+    if (key == LogicalKeyboardKey.escape && ref.read(taskSelectionProvider).active) {
+      selection.clear();
+      return true;
+    }
+    if (key == LogicalKeyboardKey.keyA && modifier && plain && !_typing &&
+        ref.read(moduleProvider) == AppModule.tasks &&
+        ref.read(selectedViewProvider) != const SmartViewRef(SmartKind.trash)) {
+      selection.selectAll([
+        for (final s in ref.read(sectionsProvider)) for (final t in s.tasks) t.id,
+      ]);
+      return true;
+    }
+    return false;
   }
+
+  /// Whether a text field has the keyboard (⌘A selects its text then).
+  bool get _typing =>
+      FocusManager.instance.primaryFocus?.context?.findAncestorStateOfType<EditableTextState>() != null;
 
   @override
   Widget build(BuildContext context) => widget.child;

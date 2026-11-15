@@ -3,6 +3,8 @@ import 'package:material_ui/material_ui.dart';
 
 import '../domain/views.dart';
 import '../state/providers.dart';
+import '../state/selection.dart';
+import 'batch_actions.dart';
 import 'board_view.dart';
 import 'dialogs.dart';
 import 'filter_editor.dart';
@@ -18,11 +20,16 @@ class TaskListPane extends ConsumerStatefulWidget {
     required this.onOpenTask,
     this.showMenuButton = false,
     this.showInlineQuickAdd = true,
+    this.showBatchBar = false,
   });
 
   final ValueChanged<String> onOpenTask;
   final bool showMenuButton;
   final bool showInlineQuickAdd;
+
+  /// Batch actions for picked tasks along the bottom (where there's no
+  /// detail pane to show them).
+  final bool showBatchBar;
 
   @override
   ConsumerState<TaskListPane> createState() => _TaskListPaneState();
@@ -55,6 +62,16 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
     final listPrefs = arrangedList == null ? null : ref.watch(listPrefsProvider)[arrangedList];
     final board = listPrefs?.layout == ListLayout.board;
     final touch = dragsOnLongPress(context);
+    final picking = ref.watch(taskSelectionProvider).active;
+    // The tasks as shown, for Shift-click ranges and 全选.
+    final order = [
+      for (final s in sections)
+        if (!_isCollapsed(view, s)) for (final t in s.tasks) t.id,
+    ];
+    // In the trash, a click only opens.
+    void open(String id) => isTrash
+        ? widget.onOpenTask(id)
+        : tapTask(ref, id, order, widget.onOpenTask, touch: touch);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Padding(
@@ -153,7 +170,7 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
                                     key: ValueKey(t.id),
                                     task: t,
                                     showList: showList,
-                                    onOpen: widget.onOpenTask,
+                                    onOpen: open,
                                   );
                                 }
                                 final Widget row = TaskDraggable(
@@ -161,7 +178,7 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
                                   child: TaskTile(
                                     task: t,
                                     showList: showList,
-                                    onOpen: widget.onOpenTask,
+                                    onOpen: open,
                                     longPressMenu: !touch,
                                   ),
                                 );
@@ -174,6 +191,7 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
                     ],
                   ),
       ),
+      if (widget.showBatchBar && picking && !isTrash) BatchBar(order: order),
       if (isTrash && sections.isNotEmpty)
         Padding(
           padding: const EdgeInsets.all(12),

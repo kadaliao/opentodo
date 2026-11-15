@@ -5,6 +5,7 @@ import '../data/db.dart';
 import '../domain/dates.dart';
 import '../domain/views.dart';
 import '../state/providers.dart';
+import '../state/selection.dart';
 import 'quick_add_field.dart';
 import 'section_actions.dart';
 import 'task_actions.dart';
@@ -31,6 +32,11 @@ class BoardView extends ConsumerWidget {
       ref.watch(sectionsByListProvider)[listId] ?? const [],
       sort: sort,
     );
+    // Clicks with ⌘ / Shift pick cards; the order runs column by column.
+    final order = [
+      for (final c in columns) ...[for (final t in c.group.tasks) t.id, for (final t in c.done) t.id],
+    ];
+    void open(String id) => tapTask(ref, id, order, onOpenTask, touch: dragsOnLongPress(context));
     // A phone shows one column and a bit of the next.
     final width = MediaQuery.sizeOf(context).width < Breakpoints.twoPane
         ? MediaQuery.sizeOf(context).width * 0.82
@@ -49,7 +55,7 @@ class BoardView extends ConsumerWidget {
                 listId: listId,
                 column: c,
                 manual: sort == ListSort.manual,
-                onOpenTask: onOpenTask,
+                onOpenTask: open,
                 cardWidth: width,
               ),
             ),
@@ -222,7 +228,8 @@ class _Card extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final selected = ref.watch(selectedTaskProvider) == task.id;
+    final picking = ref.watch(taskSelectionProvider);
+    final selected = picking.active ? picking.ids.contains(task.id) : ref.watch(selectedTaskProvider) == task.id;
     final now = ref.watch(clockProvider);
     final done = task.status != TaskStatus.open;
     final overdue = isOverdue(task, now);

@@ -5,6 +5,7 @@ import '../data/db.dart';
 import '../domain/dates.dart';
 import '../domain/views.dart';
 import '../state/providers.dart';
+import '../state/selection.dart';
 import 'task_actions.dart';
 import 'theme.dart';
 
@@ -30,7 +31,8 @@ class TaskTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final selected = ref.watch(selectedTaskProvider) == task.id;
+    final picking = ref.watch(taskSelectionProvider);
+    final selected = picking.active ? picking.ids.contains(task.id) : ref.watch(selectedTaskProvider) == task.id;
     final now = ref.watch(clockProvider);
     final today = dateOnly(now);
     final done = task.status != TaskStatus.open;
