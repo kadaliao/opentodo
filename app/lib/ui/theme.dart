@@ -48,3 +48,8 @@ enum ShellLayout {
       ? wide
       : (width >= Breakpoints.twoPane ? medium : phone);
 }
+
+/// A task bar or chip that's picked (or open in the detail): a deeper shade
+/// of the usual fill, so it stands out rather than fading.
+Color pickedFill(ColorScheme scheme) =>
+    Color.alphaBlend(scheme.primary.withValues(alpha: 0.28), scheme.primaryContainer);

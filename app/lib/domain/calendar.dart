@@ -315,6 +315,67 @@ List<TimedPlacement> layoutTimed(List<CalendarEntry> entries, {int span = 30}) {
   return (date: dateOnly(start), time: start.hour * 60 + start.minute);
 }
 
+/// Where a task goes: the day it starts on, at a time or all day (null).
+typedef CalendarMove = ({String id, DateTime date, int? time});
+
+/// Where tasks dragged together (多选) go when the one under the pointer,
+/// [lead], is dropped on [day] as in [dropTarget]: [lead] first, then each
+/// of [others] that is open and has a date. They all move by as many days
+/// as [lead] does. Those of [lead]'s kind (timed, or all day) also do what
+/// it does: into the all-day row they lose their time, onto the hour grid
+/// a timed one moves by as many minutes and an all-day one takes the time
+/// it's dropped at. The rest keep their time, or stay all day; on a month
+/// cell everyone does.
+List<CalendarMove> dropTargets(
+  CalendarEntry lead,
+  Iterable<Task> others,
+  DateTime day, {
+  int? minute,
+  bool allDay = false,
+}) {
+  final to = dropTarget(lead, day, minute: minute, allDay: allDay);
+  final days = daysBetween(lead.occurrence, to.date);
+  // On the wall clock, as dropTarget counts.
+  final minutes = lead.allDay || to.time == null ? 0 : days * minutesPerDay + to.time! - lead.task.dueTime!;
+  final out = <CalendarMove>[(id: lead.task.id, date: to.date, time: to.time)];
+  for (final t in others) {
+    if (t.id == lead.task.id || t.dueDate == null || t.status != TaskStatus.open || t.trashedAt != null) {
+      continue;
+    }
+    final date = parseDateKey(t.dueDate!);
+    final shifted = addDays(date, days);
+    final sameKind = (t.dueTime == null) == lead.allDay;
+    if (!sameKind || (minute == null && !allDay)) {
+      out.add((id: t.id, date: shifted, time: t.dueTime));
+    } else if (allDay || lead.allDay) {
+      // Into the all-day row, or onto the hour at [minute] with an
+      // all-day lead.
+      out.add((id: t.id, date: shifted, time: to.time));
+    } else {
+      final start = DateTime(date.year, date.month, date.day, 0, t.dueTime! + minutes);
+      out.add((id: t.id, date: dateOnly(start), time: start.hour * 60 + start.minute));
+    }
+  }
+  return out;
+}
+
+/// The tasks behind [entries] in the order shown, each once and leaving out
+/// the later dates of repeating ones: what Shift-click ranges and 全选 on
+/// the calendar go by.
+List<String> entryOrder(Iterable<CalendarEntry> entries) => [
+      ...{
+        for (final e in entries)
+          if (!e.projected) e.task.id,
+      },
+    ];
+
+/// The first day the agenda shows of [range]: today in the current month,
+/// else the month's first day. The agenda looks ahead.
+DateTime agendaFrom(DayRange range, DateTime today) {
+  today = dateOnly(today);
+  return range.contains(today) ? today : range.start;
+}
+
 /// What a day on the calendar says beside its number: a festival's name or
 /// else the lunar day ([special] for a festival), and whether the holiday
 /// schedule has it off (休, true) or worked (班, false).

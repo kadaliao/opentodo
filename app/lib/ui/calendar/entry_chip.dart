@@ -1,12 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../data/db.dart';
 import '../../domain/calendar.dart';
 import '../../domain/dates.dart';
 import '../../domain/views.dart';
+import '../../state/calendar_providers.dart';
 import '../../state/providers.dart';
+import '../../state/selection.dart';
 import '../task_actions.dart';
+import '../task_drag.dart' show dragsOnLongPress, severalDragged;
 import '../task_tile.dart';
+import '../theme.dart' show pickedFill;
 
 /// What the calendar's views ask of the screen around them.
 class CalendarCallbacks {
@@ -31,19 +36,41 @@ class CalendarCallbacks {
 bool canMoveEntry(CalendarEntry e) =>
     !e.projected && !e.done && e.task.trashedAt == null;
 
-/// Touch screens drag after a long press, so a swipe still scrolls; a mouse
-/// drags straight away.
-bool _dragOnLongPress(BuildContext context) =>
-    switch (Theme.of(context).platform) {
-      TargetPlatform.iOS ||
-      TargetPlatform.android ||
-      TargetPlatform.fuchsia => true,
-      _ => false,
-    };
+/// What's dragged on the calendar: the entry under the pointer ([lead]),
+/// and with it the other picked tasks (多选) when it is one of them.
+class CalendarDrag {
+  const CalendarDrag(this.lead, [this.others = const []]);
+
+  final CalendarEntry lead;
+
+  /// The other picked tasks going along: open, with a date.
+  final List<Task> others;
+
+  int get count => others.length + 1;
+
+  bool has(String taskId) => lead.task.id == taskId || others.any((t) => t.id == taskId);
+
+  /// Where they all go when [lead] lands on [day] (see [dropTargets]).
+  List<CalendarMove> to(DateTime day, {int? minute, bool allDay = false}) =>
+      dropTargets(lead, others, day, minute: minute, allDay: allDay);
+}
+
+/// The drag under way, and where its dragged copy started.
+final _dragging = ValueNotifier<({CalendarDrag drag, Offset start})?>(null);
+
+/// Whether a drop with the dragged copy's top left at [topLeft] is where the
+/// drag began: a long press let go without moving (or a nudge), which moves
+/// nothing. Drop targets hear of a drop before the drag ends.
+bool droppedInPlace(Offset topLeft) {
+  final d = _dragging.value;
+  return d != null && (topLeft - d.start).distance < 8;
+}
 
 /// Lets the person drag [child], an entry on the calendar, to another day or
-/// time. Drop targets receive the [CalendarEntry].
-class EntryDraggable extends StatelessWidget {
+/// time; when its task is one of the picked ones, they all go together.
+/// Drop targets receive a [CalendarDrag]. On a touch screen the drag starts
+/// with a long press, and letting go without moving opens the task's menu.
+class EntryDraggable extends ConsumerStatefulWidget {
   const EntryDraggable({
     super.key,
     required this.entry,
@@ -58,27 +85,81 @@ class EntryDraggable extends StatelessWidget {
   final Widget child;
 
   @override
+  ConsumerState<EntryDraggable> createState() => _EntryDraggableState();
+}
+
+class _EntryDraggableState extends ConsumerState<EntryDraggable> {
+  /// This entry started the drag under way.
+  bool _owns = false;
+
+  void _started(CalendarDrag data) {
+    final box = context.findRenderObject()! as RenderBox;
+    _dragging.value = (drag: data, start: box.localToGlobal(Offset.zero));
+    _owns = true;
+  }
+
+  void _ended(Offset offset) {
+    final start = _dragging.value?.start;
+    _dragging.value = null;
+    _owns = false;
+    if (start != null && (offset - start).distance < 8 && dragsOnLongPress(context) && mounted) {
+      final box = context.findRenderObject()! as RenderBox;
+      showTaskMenu(context, ref, widget.entry.task, box.localToGlobal(box.size.center(Offset.zero)));
+    }
+  }
+
+  @override
+  void dispose() {
+    // Gone mid-drag (the day changed under it): the drag ends unheard.
+    if (_owns) _dragging.value = null;
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (!canMoveEntry(entry)) return child;
-    final feedback = Material(
-      elevation: 6,
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(4),
-      child: SizedBox.fromSize(size: size, child: child),
+    final entry = widget.entry;
+    if (!canMoveEntry(entry)) return widget.child;
+    final picked = ref.watch(calendarPickedProvider);
+    final data = picked.length > 1 && picked.any((t) => t.id == entry.task.id)
+        ? CalendarDrag(entry, [for (final t in picked) if (t.id != entry.task.id) t])
+        : CalendarDrag(entry);
+    final feedback = severalDragged(
+      Theme.of(context).colorScheme,
+      Material(
+        elevation: 6,
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(4),
+        child: SizedBox.fromSize(size: widget.size, child: widget.child),
+      ),
+      data.count,
+      radius: 4,
     );
-    final dimmed = Opacity(opacity: 0.35, child: child);
-    if (_dragOnLongPress(context)) {
-      return LongPressDraggable<CalendarEntry>(
-        data: entry,
+    final dimmed = Opacity(opacity: 0.35, child: widget.child);
+    // The other picked tasks dim too while they're dragged along.
+    final child = ValueListenableBuilder(
+      valueListenable: _dragging,
+      builder: (context, dragging, child) => Opacity(
+        opacity: dragging != null && dragging.drag.count > 1 && dragging.drag.has(entry.task.id) ? 0.35 : 1,
+        child: child,
+      ),
+      child: widget.child,
+    );
+    if (dragsOnLongPress(context)) {
+      return LongPressDraggable<CalendarDrag>(
+        data: data,
         feedback: feedback,
         childWhenDragging: dimmed,
+        onDragStarted: () => _started(data),
+        onDragEnd: (d) => _ended(d.offset),
         child: child,
       );
     }
-    return Draggable<CalendarEntry>(
-      data: entry,
+    return Draggable<CalendarDrag>(
+      data: data,
       feedback: feedback,
       childWhenDragging: dimmed,
+      onDragStarted: () => _started(data),
+      onDragEnd: (d) => _ended(d.offset),
       child: child,
     );
   }
@@ -112,6 +193,10 @@ class EntryChip extends ConsumerWidget {
     final task = entry.task;
     final overdue =
         !entry.projected && isOverdue(task, ref.watch(clockProvider));
+    final picking = ref.watch(taskSelectionProvider);
+    // The picked tasks, or else the one open in the detail.
+    final selected = !entry.projected &&
+        (picking.active ? picking.ids.contains(task.id) : ref.watch(selectedTaskProvider) == task.id);
     final (bg, fg) = entry.done
         ? (scheme.surfaceContainerHighest, scheme.outline)
         : entry.projected
@@ -119,18 +204,30 @@ class EntryChip extends ConsumerWidget {
             scheme.primaryContainer.withValues(alpha: 0.4),
             scheme.onSurfaceVariant,
           )
+        : selected
+        ? (pickedFill(scheme), scheme.onPrimaryContainer)
         : (scheme.primaryContainer, scheme.onPrimaryContainer);
     final title = task.title.isEmpty ? '无标题' : task.title;
+    void menu() {
+      final box = context.findRenderObject()! as RenderBox;
+      showTaskMenu(context, ref, task, box.localToGlobal(box.size.center(Offset.zero)));
+    }
 
     return Material(
       color: bg,
-      borderRadius: BorderRadius.circular(4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+        side: selected ? BorderSide(color: scheme.primary, width: 1.5) : BorderSide.none,
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => onOpen(task.id),
         onSecondaryTapDown: entry.projected
             ? null
             : (d) => showTaskMenu(context, ref, task, d.globalPosition),
+        // On a touch screen a long press drags a task that can move; the
+        // menu comes from letting go without moving (EntryDraggable).
+        onLongPress: entry.projected || (dragsOnLongPress(context) && canMoveEntry(entry)) ? null : menu,
         child: SizedBox(
           height: height,
           child: LayoutBuilder(

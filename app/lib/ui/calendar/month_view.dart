@@ -88,11 +88,9 @@ class _DayCell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final border = BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6), width: 0.5);
-    return DragTarget<CalendarEntry>(
-      onWillAcceptWithDetails: (d) => canMoveEntry(d.data),
+    return DragTarget<CalendarDrag>(
       onAcceptWithDetails: (d) {
-        final to = dropTarget(d.data, date);
-        ref.read(repoProvider).moveTo(d.data.task.id, to.date, to.time);
+        if (!droppedInPlace(d.offset)) ref.read(repoProvider).moveAll(d.data.to(date));
       },
       builder: (context, candidates, _) => LayoutBuilder(builder: (context, c) {
         final room = math.max(0, ((c.maxHeight - _headerHeight - 4) / (_chipHeight + _gap)).floor());

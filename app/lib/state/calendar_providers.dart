@@ -2,10 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/db.dart';
 import '../data/keys.dart';
 import '../domain/calendar.dart';
 import '../domain/dates.dart';
 import 'providers.dart';
+import 'selection.dart';
 
 /// How the calendar looks, kept on this device (never synced).
 class CalendarPrefs {
@@ -128,4 +130,27 @@ final calendarEntriesProvider = Provider.family<List<CalendarEntry>, DayRange>((
     today: parseDateKey(ref.watch(clockProvider.select(dateKey))),
     filter: ref.watch(calendarPrefsProvider).filter,
   );
+});
+
+/// The tasks on the calendar's page in the order shown, for Shift-click
+/// ranges and 全选: in the agenda only the days it shows.
+final calendarOrderProvider = Provider<List<String>>((ref) {
+  final range = ref.watch(calendarRangeProvider);
+  var entries = ref.watch(calendarEntriesProvider(range));
+  if (ref.watch(calendarPrefsProvider.select((p) => p.mode)) == CalendarMode.agenda) {
+    final from = agendaFrom(range, ref.watch(clockProvider));
+    entries = [for (final e in entries) if (!e.date.isBefore(from)) e];
+  }
+  return entryOrder(entries);
+});
+
+/// The picked tasks (多选) a drag on the calendar takes along: the open
+/// ones with a date.
+final calendarPickedProvider = Provider<List<Task>>((ref) {
+  final ids = ref.watch(taskSelectionProvider).ids;
+  if (ids.isEmpty) return const [];
+  return [
+    for (final t in ref.watch(tasksProvider).value ?? const <Task>[])
+      if (ids.contains(t.id) && t.dueDate != null && t.status == TaskStatus.open && t.trashedAt == null) t,
+  ];
 });

@@ -146,6 +146,40 @@ class _EdgeScroll {
   }
 }
 
+/// The dragged copy of [card] when [count] things go together: a card
+/// behind it and how many (on a Material, for its text style).
+Widget severalDragged(ColorScheme scheme, Widget card, int count, {double radius = 8}) {
+  if (count < 2) return card;
+  return Material(
+    type: MaterialType.transparency,
+    child: Stack(clipBehavior: Clip.none, children: [
+      Positioned.fill(
+        child: Transform.translate(
+          offset: const Offset(6, 6),
+          child: Material(
+            elevation: 2,
+            color: scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(radius),
+          ),
+        ),
+      ),
+      card,
+      Positioned(
+        top: -8,
+        right: -8,
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 22),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(11)),
+          child: Text('$count',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onPrimary)),
+        ),
+      ),
+    ]),
+  );
+}
+
 /// Lets the person drag [child], the row or card of [task], to another
 /// place; when [task] is one of the picked tasks ([picked], in the order
 /// shown), they all go together. On a touch screen the drag starts with a
@@ -216,38 +250,7 @@ class _TaskDraggableState extends ConsumerState<TaskDraggable> {
           borderRadius: BorderRadius.circular(8),
           child: SizedBox(width: widget.width ?? dragging?.size.width ?? 320, child: child),
         );
-        final count = dragging?.drag.count ?? 1;
-        if (count < 2) return card;
-        // Several: a card behind, and how many (on a Material, for its
-        // text style).
-        return Material(
-          type: MaterialType.transparency,
-          child: Stack(clipBehavior: Clip.none, children: [
-            Positioned.fill(
-              child: Transform.translate(
-                offset: const Offset(6, 6),
-                child: Material(
-                  elevation: 2,
-                  color: scheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            card,
-            Positioned(
-              top: -8,
-              right: -8,
-              child: Container(
-                constraints: const BoxConstraints(minWidth: 22),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(11)),
-                child: Text('$count',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onPrimary)),
-              ),
-            ),
-          ]),
-        );
+        return severalDragged(scheme, card, dragging?.drag.count ?? 1);
       },
       child: widget.child,
     );

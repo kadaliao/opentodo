@@ -217,6 +217,14 @@ class TaskRepo {
     );
   }
 
+  /// [moveTo] for several tasks dragged together on the calendar, in one
+  /// transaction.
+  Future<void> moveAll(Iterable<({String id, DateTime date, int? time})> moves) => db.transaction(() async {
+        for (final m in moves) {
+          await moveTo(m.id, m.date, m.time);
+        }
+      });
+
   /// Sets how long a task with a date lasts (null: no span), as dragging the
   /// bottom edge of a task on the calendar does.
   Future<void> setDuration(String id, int? duration) async {

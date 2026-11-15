@@ -186,11 +186,9 @@ class _AllDayStrip extends ConsumerWidget {
         ),
         for (final d in days)
           Expanded(
-            child: DragTarget<CalendarEntry>(
-              onWillAcceptWithDetails: (det) => canMoveEntry(det.data),
+            child: DragTarget<CalendarDrag>(
               onAcceptWithDetails: (det) {
-                final to = dropTarget(det.data, d, allDay: true);
-                ref.read(repoProvider).moveTo(det.data.task.id, to.date, null);
+                if (!droppedInPlace(det.offset)) ref.read(repoProvider).moveAll(det.data.to(d, allDay: true));
               },
               builder: (context, candidates, _) => LayoutBuilder(builder: (context, c) {
                 final entries = on(d).where((e) => e.allDay).toList();
@@ -271,9 +269,9 @@ class _DayColumn extends ConsumerStatefulWidget {
 class _DayColumnState extends ConsumerState<_DayColumn> {
   final _stackKey = GlobalKey();
 
-  /// Where a dragged task would land, and for how many minutes it shows,
-  /// while it hovers over this day.
-  ({int minute, int length})? _hover;
+  /// Where a dragged task would land, for how many minutes it shows and
+  /// how many go with it, while it hovers over this day.
+  ({int minute, int length, int count})? _hover;
 
   /// The end a task's bottom edge is being dragged to: the entry's key and
   /// the minute.
@@ -297,17 +295,16 @@ class _DayColumnState extends ConsumerState<_DayColumn> {
     final now = ref.watch(clockProvider);
     double y(int minute) => minute / 60 * hourHeight;
 
-    return DragTarget<CalendarEntry>(
-      onWillAcceptWithDetails: (d) => canMoveEntry(d.data),
+    return DragTarget<CalendarDrag>(
       onMove: (d) {
-        final h = (minute: _minuteAt(d.offset), length: _lengthOf(d.data));
+        final h = (minute: _minuteAt(d.offset), length: _lengthOf(d.data.lead), count: d.data.count);
         if (h != _hover) setState(() => _hover = h);
       },
       onLeave: (_) => setState(() => _hover = null),
       onAcceptWithDetails: (d) {
-        final to = dropTarget(d.data, widget.date, minute: _minuteAt(d.offset));
         setState(() => _hover = null);
-        ref.read(repoProvider).moveTo(d.data.task.id, to.date, to.time);
+        if (droppedInPlace(d.offset)) return;
+        ref.read(repoProvider).moveAll(d.data.to(widget.date, minute: _minuteAt(d.offset)));
       },
       builder: (context, _, _) => LayoutBuilder(builder: (context, c) {
         final width = c.maxWidth;
@@ -383,7 +380,7 @@ class _DayColumnState extends ConsumerState<_DayColumn> {
                   ),
               ];
             }(),
-          if (_hover case (:final minute, :final length))
+          if (_hover case (:final minute, :final length, :final count))
             Positioned(
               top: y(minute),
               height: y(math.min(length, minutesPerDay - minute)),
@@ -398,7 +395,9 @@ class _DayColumnState extends ConsumerState<_DayColumn> {
                     border: Border.all(color: scheme.primary),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(clockLabel(minute),
+                  child: Text(count > 1 ? '${clockLabel(minute)} · $count 项' : clockLabel(minute),
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
                       style: TextStyle(fontSize: 10, color: scheme.primary, fontWeight: FontWeight.w600)),
                 ),
               ),

@@ -6,6 +6,7 @@ import '../../domain/dates.dart';
 import '../../domain/views.dart';
 import '../../state/calendar_providers.dart';
 import '../../state/providers.dart';
+import '../../state/selection.dart';
 import '../task_actions.dart';
 import '../task_tile.dart';
 import 'entry_chip.dart';
@@ -22,7 +23,7 @@ class AgendaView extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final range = ref.watch(calendarRangeProvider);
     final today = dateOnly(ref.watch(clockProvider));
-    final from = dateKey(range.contains(today) ? today : range.start);
+    final from = dateKey(agendaFrom(range, today));
     final byDay = entriesByDay(ref.watch(calendarEntriesProvider(range)));
     final days = [for (final k in byDay.keys) if (k.compareTo(from) >= 0) k];
 
@@ -86,55 +87,68 @@ class _AgendaRow extends ConsumerWidget {
     final task = entry.task;
     final faded = entry.done || entry.projected;
     final overdue = !entry.projected && isOverdue(task, ref.watch(clockProvider));
-    return InkWell(
+    final picking = ref.watch(taskSelectionProvider);
+    final selected = !entry.projected &&
+        (picking.active ? picking.ids.contains(task.id) : ref.watch(selectedTaskProvider) == task.id);
+    void menu() {
+      final box = context.findRenderObject()! as RenderBox;
+      showTaskMenu(context, ref, task, box.localToGlobal(box.size.center(Offset.zero)));
+    }
+
+    return Material(
+      color: selected ? scheme.secondaryContainer.withValues(alpha: 0.6) : Colors.transparent,
       borderRadius: BorderRadius.circular(8),
-      onTap: () => callbacks.openTask(task.id),
-      onSecondaryTapDown:
-          entry.projected ? null : (d) => showTaskMenu(context, ref, task, d.globalPosition),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        child: Row(children: [
-          SizedBox(
-            width: 52,
-            child: Text(
-              entry.allDay
-                  ? '全天'
-                  : entry.endTime == null
-                      ? clockLabel(entry.time!)
-                      : '${clockLabel(entry.time!)}\n${clockLabel(entry.endTime!)}',
-              style: TextStyle(fontSize: 12, color: overdue ? scheme.error : scheme.outline),
-            ),
-          ),
-          SizedBox(
-            width: 18,
-            child: entry.projected
-                ? Icon(Icons.repeat, size: 16, color: scheme.outline, semanticLabel: '重复')
-                : PriorityCheckbox(
-                    checked: entry.done,
-                    priority: task.priority,
-                    onChanged: (v) => setTaskDone(context, ref, task, v),
-                  ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              task.title.isEmpty ? '无标题' : task.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 14,
-                color: faded ? scheme.outline : scheme.onSurface,
-                decoration: entry.done ? TextDecoration.lineThrough : null,
-                decorationColor: scheme.outline,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => callbacks.openTask(task.id),
+        onSecondaryTapDown:
+            entry.projected ? null : (d) => showTaskMenu(context, ref, task, d.globalPosition),
+        onLongPress: entry.projected ? null : menu,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          child: Row(children: [
+            SizedBox(
+              width: 52,
+              child: Text(
+                entry.allDay
+                    ? '全天'
+                    : entry.endTime == null
+                        ? clockLabel(entry.time!)
+                        : '${clockLabel(entry.time!)}\n${clockLabel(entry.endTime!)}',
+                style: TextStyle(fontSize: 12, color: overdue ? scheme.error : scheme.outline),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: Text(listName(task.listId, ref.watch(listsByIdProvider)),
-                style: TextStyle(fontSize: 11, color: scheme.outline)),
-          ),
-        ]),
+            SizedBox(
+              width: 18,
+              child: entry.projected
+                  ? Icon(Icons.repeat, size: 16, color: scheme.outline, semanticLabel: '重复')
+                  : PriorityCheckbox(
+                      checked: entry.done,
+                      priority: task.priority,
+                      onChanged: (v) => setTaskDone(context, ref, task, v),
+                    ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                task.title.isEmpty ? '无标题' : task.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: faded ? scheme.outline : scheme.onSurface,
+                  decoration: entry.done ? TextDecoration.lineThrough : null,
+                  decorationColor: scheme.outline,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text(listName(task.listId, ref.watch(listsByIdProvider)),
+                  style: TextStyle(fontSize: 11, color: scheme.outline)),
+            ),
+          ]),
+        ),
       ),
     );
   }

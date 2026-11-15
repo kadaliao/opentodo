@@ -8,10 +8,13 @@ import '../../domain/dates.dart';
 import '../../domain/views.dart';
 import '../../state/calendar_providers.dart';
 import '../../state/providers.dart';
+import '../../state/selection.dart';
 import '../account_ui.dart';
+import '../batch_actions.dart';
 import '../quick_add_field.dart';
 import '../task_actions.dart';
 import '../task_detail.dart';
+import '../task_drag.dart' show dragsOnLongPress;
 import '../theme.dart';
 import 'agenda_view.dart';
 import 'entry_chip.dart';
@@ -38,10 +41,34 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   bool get _sidebar => !_phone && (_sidebarOpen ?? widget.layout == ShellLayout.wide);
 
   late final _callbacks = CalendarCallbacks(
-    openTask: _openTask,
-    newTask: _newTask,
+    openTask: _tapTask,
+    newTask: _tapEmpty,
     showDay: _showDay,
   );
+
+  /// The tasks shown, in order, for Shift-click ranges and 全选: on the
+  /// phone's month, the day below it.
+  List<String> _order() {
+    if (_phone && ref.read(calendarPrefsProvider).mode == CalendarMode.month) {
+      final day = ref.read(calendarAnchorProvider);
+      return entryOrder(ref.read(calendarEntriesProvider(ref.read(calendarRangeProvider))).where((e) => e.date == day));
+    }
+    return ref.read(calendarOrderProvider);
+  }
+
+  /// A click opens the task; with ⌘ (Ctrl) or Shift it picks (多选), as in
+  /// the lists.
+  void _tapTask(String id) => tapTask(ref, id, _order(), _openTask, touch: dragsOnLongPress(context));
+
+  /// A click on an empty part of a day adds a task there, or while tasks
+  /// are picked, stops picking.
+  void _tapEmpty(DateTime date, int? time) {
+    if (ref.read(taskSelectionProvider).active) {
+      ref.read(taskSelectionProvider.notifier).clear();
+    } else {
+      _newTask(date, time);
+    }
+  }
 
   void _openTask(String id) {
     if (widget.layout == ShellLayout.wide) {
@@ -67,7 +94,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       CalendarMode.agenda => AgendaView(callbacks: _callbacks),
       _ => TimeGrid(key: ValueKey(mode), callbacks: _callbacks),
     };
-    final selectedId = widget.layout == ShellLayout.wide ? ref.watch(selectedTaskProvider) : null;
+    final wide = widget.layout == ShellLayout.wide;
+    final picking = ref.watch(taskSelectionProvider).active;
+    final selectedId = wide ? ref.watch(selectedTaskProvider) : null;
     final selected = selectedId == null ? null : ref.watch(taskByIdProvider(selectedId));
 
     return Row(children: [
@@ -85,10 +114,21 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               onNewTask: () => _newTask(_defaultNewDay(), null),
             ),
             Expanded(child: body),
+            // Narrower, the picked tasks' actions go along the bottom.
+            if (picking && !wide)
+              Consumer(builder: (context, ref, _) {
+                // Kept up to date for its 全选.
+                ref.watch(calendarOrderProvider);
+                ref.watch(calendarAnchorProvider);
+                return BatchBar(order: _order());
+              }),
           ]),
         ),
       ),
-      if (selected != null) ...[
+      if (picking && wide) ...[
+        const VerticalDivider(width: 1),
+        const SizedBox(width: 380, child: BatchPanel()),
+      ] else if (selected != null) ...[
         const VerticalDivider(width: 1),
         SizedBox(width: 380, child: _DetailPane(task: selected)),
       ],

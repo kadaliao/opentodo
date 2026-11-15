@@ -17,7 +17,7 @@ import 'calendar/calendar_screen.dart' show showNewTaskDialog;
 import 'task_actions.dart';
 import 'task_drag.dart';
 import 'task_tile.dart' show PriorityCheckbox;
-import 'theme.dart' show Breakpoints;
+import 'theme.dart' show Breakpoints, pickedFill;
 
 const _rowHeight = 32.0;
 const _barHeight = 26.0;
@@ -967,7 +967,7 @@ class _Bar extends ConsumerWidget {
     final (bg, fg) = done
         ? (scheme.surfaceContainerHighest, scheme.outline)
         : selected
-            ? (scheme.secondaryContainer, scheme.onSecondaryContainer)
+            ? (pickedFill(scheme), scheme.onPrimaryContainer)
             : (scheme.primaryContainer, scheme.onPrimaryContainer);
     final overdue = isOverdue(task, ref.watch(clockProvider));
     return Material(

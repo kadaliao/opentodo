@@ -159,7 +159,7 @@ class HomeShell extends ConsumerWidget {
                 ),
         ),
         // While picking tasks, the bar at the bottom has the room.
-        floatingActionButton: picking && !calendar
+        floatingActionButton: picking
             ? null
             : FloatingActionButton(
                 tooltip: '添加任务',
@@ -245,8 +245,8 @@ String _searchKeyLabel() => usesCommandKey ? '⌘F' : 'Ctrl+F';
 
 /// Keys for the whole main screen on a computer, but not over a dialog or
 /// another page: ⌘F (Ctrl+F elsewhere) opens search, even while typing in
-/// a field; ⌘A picks every task in the view when not typing; Esc stops
-/// picking.
+/// a field; ⌘A picks every task in the view (or on the calendar's page)
+/// when not typing; Esc stops picking.
 class _SearchShortcut extends ConsumerStatefulWidget {
   const _SearchShortcut({required this.child});
   final Widget child;
@@ -284,13 +284,18 @@ class _SearchShortcutState extends ConsumerState<_SearchShortcut> {
       selection.clear();
       return true;
     }
-    if (key == LogicalKeyboardKey.keyA && modifier && plain && !_typing &&
-        ref.read(moduleProvider) == AppModule.tasks &&
-        ref.read(selectedViewProvider) != const SmartViewRef(SmartKind.trash)) {
-      selection.selectAll([
-        for (final s in ref.read(sectionsProvider)) for (final t in s.tasks) t.id,
-      ]);
-      return true;
+    if (key == LogicalKeyboardKey.keyA && modifier && plain && !_typing) {
+      switch (ref.read(moduleProvider)) {
+        case AppModule.calendar:
+          selection.selectAll(ref.read(calendarOrderProvider));
+          return true;
+        case AppModule.tasks when ref.read(selectedViewProvider) != const SmartViewRef(SmartKind.trash):
+          selection.selectAll([
+            for (final s in ref.read(sectionsProvider)) for (final t in s.tasks) t.id,
+          ]);
+          return true;
+        case AppModule.tasks:
+      }
     }
     return false;
   }
