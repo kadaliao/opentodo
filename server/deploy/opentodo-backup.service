@@ -1,0 +1,13 @@
+[Unit]
+Description=opentodo database backup
+
+[Service]
+Type=oneshot
+User=opentodo
+Group=opentodo
+ExecStart=/opt/opentodo/opentodo-server -db /var/lib/opentodo/opentodo.db -backup-dir /var/lib/opentodo/backups -keep 14
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/opentodo

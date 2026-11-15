@@ -1,0 +1,28 @@
+[Unit]
+Description=opentodo sync server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=opentodo
+Group=opentodo
+Environment=OPENTODO_ADDR=127.0.0.1:8686
+Environment=OPENTODO_DB=/var/lib/opentodo/opentodo.db
+ExecStart=/opt/opentodo/opentodo-server
+Restart=on-failure
+RestartSec=3
+
+# Hardening: it only needs its own data folder and a loopback port.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/var/lib/opentodo
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

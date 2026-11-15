@@ -1,0 +1,169 @@
+# 开发文档
+
+接手这个项目先读这一篇。命令速查在 [README](../README.md)，设计细节在 [architecture.md](architecture.md)，完整功能清单在 [roadmap.md](roadmap.md)。
+
+更新于 2026-11-15。
+
+## 1. 现在做到哪了
+
+OpenTodo 是一个多端待办应用，功能上参考了滴答清单。客户端全部用 Flutter，同步服务用 Go。
+
+| 阶段 | 状态 | 内容 |
+|---|---|---|
+| M1 本地核心 | 完成 | 清单、任务、子任务；智能清单（今天/明天/最近7天/收集箱/已完成/垃圾桶）；标签；中文自然语言快速添加；任务详情；电脑三栏 / 手机单栏 |
+| M2 同步与账号 | 完成 | 邮箱注册登录、推拉合一的增量同步、冲突“新者胜”、删除传播、登录限流、每日备份 |
+| 部署 | 完成 | 官方同步服务 `https://todo.liaoxingyi.com` |
+| M3 及以后 | 未开始 | 见下面第 8 节 |
+
+验证情况：Flutter 52 个测试（含 5 个“编译并启动真实 Go 服务、两台模拟设备同步”的集成测试）、Go 服务端测试全部通过；macOS 正式版和 iPhone 模拟器实际登录同一账号互相同步过。Android 没有编译过。
+
+代码在 GitHub：`kadaliao/opentodo`（公开，AGPL-3.0）。
+
+## 2. 代码地图
+
+```
+app/                          Flutter 客户端
+  lib/main.dart               入口：ProviderScope + OpenTodoApp
+  lib/data/
+    db.dart                   drift 表：TaskLists / Tasks / ChecklistItems（都带同步字段）、KeyValues（本地设置）
+    db.g.dart                 drift 生成，别手改
+    keys.dart                 KeyValues 的键名
+    repo.dart                 TaskRepo：所有写操作的唯一入口（会打 updatedAt / dirty）
+  lib/domain/                 纯函数，单测覆盖
+    dates.dart                日历日期工具、中文日期/时间标签
+    quick_add_parser.dart     快速添加解析（日期、时间、#标签、!优先级）
+    views.dart                视图（智能清单/清单/标签）的筛选、分组、计数
+  lib/state/
+    providers.dart            数据库流、当前视图、选中任务、每分钟刷新的时钟
+    sync_providers.dart       账号（AccountNotifier）、同步调度（SyncController）
+  lib/sync/
+    account.dart              登录接口、错误文案、默认服务器地址
+    codec.dart                本地行 ↔ 网络格式（逐字段）
+    sync_engine.dart          一次同步、首次登录清理、退出清空
+  lib/ui/
+    app.dart                  MaterialApp、主题、本地化；挂着同步控制器
+    home_shell.dart           自适应布局（≥1000 三栏，≥640 两栏，否则抽屉）
+    sidebar.dart              侧栏；底部 account_ui.dart 的账号/同步状态
+    task_list_pane.dart       中间列表、分组折叠、空状态
+    task_tile.dart            任务行、优先级勾选框
+    task_detail.dart          详情（标题、备注、子任务、日期、优先级、清单）
+    quick_add_field.dart      快速添加输入框（高亮识别出的部分）
+    task_actions.dart         右键/长按菜单、日期选择、清单选择
+    dialogs.dart              确认框、清单编辑、日期时间选择器
+    theme.dart                配色（种子色 #14A38B）、优先级颜色、断点
+  test/                       单元、界面、同步集成测试
+server/                       Go 同步服务
+  cmd/opentodo-server/        入口；-backup-dir 是备份命令
+  internal/store/store.go     SQLite：用户、会话、记录、Sync()
+  internal/api/               HTTP 接口、限流、测试
+  deploy/                     systemd 单元、Caddy 片段、deploy.sh
+docs/                         本文、架构、路线图
+reference/                    滴答清单截图（gitignore，只在本机）
+```
+
+## 3. 开发环境
+
+- **Flutter 3.50 / Dart 3.14**。Flutter SDK 和 pub 缓存（`PUB_CACHE`）都很大，系统盘紧张的话放到别的盘。
+- **Xcode**：iOS、macOS。
+- **Go 1.27**：服务端；客户端的同步集成测试也要用它编译服务端。
+- **Android 还没配过**：需要 Android Studio（或命令行工具）和 JDK，设 `ANDROID_HOME`。
+
+本机特有的环境信息（SDK 装在哪、端口占用、代理之类）写在仓库根目录的 `CLAUDE.local.md`，这个文件不进仓库。
+
+## 4. 常用操作
+
+README 里有基本命令。另外几个：
+
+```sh
+# macOS 正式版（日常自己用这个）
+cd app && flutter build macos --release
+open build/macos/Build/Products/Release/OpenTodo.app
+
+# 装到 iPhone 模拟器
+flutter build ios --simulator --debug
+xcrun simctl install booted build/ios/iphonesimulator/Runner.app
+xcrun simctl launch booted com.liaoxingyi.opentodo
+
+# 看 Mac 版本地数据库（只读；别打印 account.token）
+sqlite3 "file:$HOME/Library/Containers/com.liaoxingyi.opentodo/Data/Library/Application Support/com.liaoxingyi.opentodo/opentodo.sqlite?mode=ro"
+
+# 本地跑服务端（登录框“服务器”里填 http://127.0.0.1:8686）
+cd server && go run ./cmd/opentodo-server
+```
+
+## 5. 约定和踩过的坑
+
+**Flutter**
+- Material 组件从 3.50 起是独立包：一律 `import 'package:material_ui/material_ui.dart'`。中文本地化用 `material_ui` 里的 `GlobalMaterialLocalizations.delegates`。
+- 改了 `db.dart` 的表：`schemaVersion` 加一，在 `migration.onUpgrade` 里写迁移步骤，再跑 `dart run build_runner build`。已经发出去的版本里有用户数据，不能靠删库重建。
+- 界面测试里不要 `close()` drift 的内存数据库，也不要在 `tester.runAsync` 里关：它等的是模拟时钟里排队的操作，测试会一直卡住。
+- drift 生成的数据类、Dart 的 record 里装着 List 时，`==` 比的是引用。测试里比较要转成 JSON 或字符串再比。
+- 示例数据（欢迎清单）用固定 ID（`seed-welcome`、`seed-welcome-1..3`、`seed-today`），多设备才不会重复。别改回随机 ID。
+
+**同步（改之前先读 architecture.md 的同步一节）**
+- 加字段：`codec.dart` 的 `xxxToWire` 和 `wireToXxx` 两边都加，读的一侧给默认值，旧客户端才不会因为新字段出错。
+- 同步引擎必须**先应用拉回的记录，再标记推送成功**。顺序反了会让旧记录盖掉刚推上去的新改动；集成测试 `the newer edit wins a conflict` 专门盯着这一点。
+- 新者胜是按设备时钟比较的，设备时间不准会判错，以后要换成混合逻辑时钟（HLC）。
+- 新加一种要同步的数据（比如习惯），服务端 `store.Entities` 白名单里要加上它的名字。
+- iOS 应用切到后台时定时器会暂停，回到前台才同步（有 `AppLifecycleListener` 兜底）。
+
+**界面验证**
+- 优先用界面测试（`test/app_test.dart` 的写法）。用模拟点击和键盘去操作真实应用时，先确认目标窗口在前台，否则按键会落进别的窗口。
+
+## 6. 部署和运维
+
+同步服务部署在一台带 systemd 的 Linux 服务器上，前面用 Caddy 反向代理并自动签 HTTPS 证书。官方服务的地址是 `https://todo.liaoxingyi.com`；服务器的具体信息在 `CLAUDE.local.md`（不进仓库）。
+
+| 项 | 内容 |
+|---|---|
+| 程序 | `/opt/opentodo/opentodo-server`，systemd 服务 `opentodo.service`，专用用户 `opentodo`，只监听 `127.0.0.1:8686` |
+| 数据 | `/var/lib/opentodo/opentodo.db`（SQLite，WAL 模式） |
+| 备份 | `opentodo-backup.timer` 每天约 4:30 写到 `/var/lib/opentodo/backups/`，留 14 份 |
+| 反代 | Caddy 站点配置见 `server/deploy/Caddyfile.snippet` |
+
+- 第一次部署：DNS 指向服务器，把 `Caddyfile.snippet` 加进服务器的 Caddyfile 并重载 Caddy，然后在 `server/` 下运行 `OPENTODO_HOST=<ssh 主机> ./deploy/deploy.sh --setup`（建用户和目录、装 systemd 单元）。
+- 之后更新：`OPENTODO_HOST=<ssh 主机> ./deploy/deploy.sh`（交叉编译、上传、重启、等健康检查）。
+- 看日志：`ssh <主机> sudo journalctl -u opentodo -f`。
+- 从备份恢复：
+  ```sh
+  sudo systemctl stop opentodo
+  sudo -u opentodo cp /var/lib/opentodo/backups/opentodo-<时间>.db /var/lib/opentodo/opentodo.db
+  sudo rm -f /var/lib/opentodo/opentodo.db-wal /var/lib/opentodo/opentodo.db-shm
+  sudo systemctl start opentodo
+  ```
+  恢复后各设备的 cursor 可能比服务器新，目前没有自动处理；要让客户端退出重登，从头同步。
+
+## 7. 已知问题和技术债
+
+- 登录令牌存在本地数据库，没进系统钥匙串。
+- 注册对任何人开放，没有邮箱验证、找回密码。限流只有登录注册（每 IP 每分钟 10 次），同步接口没有。
+- 冲突按设备时钟“新者胜”（见上）。
+- 服务器恢复备份后，客户端的 cursor 不会自动回退。
+- iOS 的 `Info.plist` 为了开发放行了本地 HTTP（`NSAllowsLocalNetworking`），上架前评估是否去掉。
+- 应用图标还是 Flutter 默认的。
+- 没有 CI。
+- macOS 正式版是本机临时签名，发给别人用需要开发者证书签名和公证。
+
+## 8. 下一步（建议顺序）
+
+每项都可以对照 `reference/dida-app/` 里的截图做，索引见那里的 README。
+
+1. **提醒和重复任务（M4）**：待办应用的核心价值，建议排在日历前面。
+   - 本地通知：`flutter_local_notifications` + `timezone`，各平台申请通知权限；准时、提前 N 分钟。
+   - 重复：任务加一个 RRULE 字段（记得改 codec 和迁移），支持每天/每周/每月/每年/工作日/自定义；完成一次后生成下一次。
+   - 参考截图：`08-date-reminder`、`09-date-repeat`、`10-repeat-custom`、`11-date-range`。
+2. **日历视图（M3）**：月、周、日、日程；拖动改日期；点空白格子新建。参考 `31`–`45`。
+3. **搜索和过滤器**：参考 `47-search`、`80-search-results`、`79-filter-new*`。
+4. **看板视图和手动排序**：清单里加分组（看板的列），拖动排序。参考 `17-view-kanban`、`15-list-more-menu`。
+5. **Android 环境**：装工具链，跑通 `flutter build apk`，真机试一遍同步。
+6. **账号完善**：找回密码、邮箱验证、Apple 登录；令牌改存钥匙串（`flutter_secure_storage`）。
+7. **电脑端小组件（M6）**：菜单栏小窗、全局快捷键快速添加、桌面便签。用 `window_manager`、`tray_manager`、`hotkey_manager`、`desktop_multi_window`；多窗口共享数据开 drift 的 `shareAcrossIsolates`。参考 `70*`、`71`、`81`。手机桌面小组件要写原生代码（SwiftUI WidgetKit、Android Glance），可以用 `home_widget` 传数据。
+8. **效率模块（M5）**：番茄专注、习惯打卡、倒数日、四象限。参考 `65`–`68`。
+
+还没定、需要用户拍板的：应用图标和配色。
+
+## 9. 参考资料
+
+- `reference/dida-app/`：滴答清单 Mac 版 8.2.50 的 109 张界面截图，按功能编号，`README.md` 是索引。
+- `reference/dida-official/`：官网宣传图。
+- 这些图只作内部参考：滴答的名字、图标、插画、文案都不能进产品。
