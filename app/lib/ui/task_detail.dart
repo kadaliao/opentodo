@@ -138,39 +138,41 @@ class _TaskDetailState extends ConsumerState<TaskDetail> {
           ),
           const SizedBox(width: 8),
           const SizedBox(height: 20, child: VerticalDivider(width: 16)),
-          Flexible(
-            child: Tooltip(
-              message: _scheduleTooltip(task),
-              child: TextButton.icon(
-                style: TextButton.styleFrom(
-                  foregroundColor: task.dueDate == null
-                      ? scheme.onSurfaceVariant
-                      : (overdue ? scheme.error : scheme.primary),
-                ),
-                icon: const Icon(Icons.event_outlined, size: 18),
-                label: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Flexible(
-                    child: Text(
-                      task.dueDate == null
-                          ? '设置日期'
-                          : fullDueLabel(task.dueDate!, task.dueTime, today),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Tooltip(
+                message: _scheduleTooltip(task),
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    foregroundColor: task.dueDate == null
+                        ? scheme.onSurfaceVariant
+                        : (overdue ? scheme.error : scheme.primary),
                   ),
-                  if (task.dueDate != null && task.reminders.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    const Icon(Icons.alarm, size: 15, semanticLabel: '有提醒'),
-                  ],
-                  if (task.dueDate != null && task.repeatRule != null) ...[
-                    const SizedBox(width: 4),
-                    const Icon(Icons.repeat, size: 15, semanticLabel: '重复'),
-                  ],
-                ]),
-                onPressed: trashed ? null : () => pickDueDate(context, ref, task),
+                  icon: const Icon(Icons.event_outlined, size: 18),
+                  label: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Flexible(
+                      child: Text(
+                        task.dueDate == null
+                            ? '设置日期'
+                            : fullDueLabel(task.dueDate!, task.dueTime, today),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (task.dueDate != null && task.reminders.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.alarm, size: 15, semanticLabel: '有提醒'),
+                    ],
+                    if (task.dueDate != null && task.repeatRule != null) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.repeat, size: 15, semanticLabel: '重复'),
+                    ],
+                  ]),
+                  onPressed: trashed ? null : () => pickDueDate(context, ref, task),
+                ),
               ),
             ),
           ),
-          const Spacer(),
           PopupMenuButton<int>(
             tooltip: '优先级',
             icon: Icon(task.priority == Priority.none ? Icons.outlined_flag : Icons.flag,

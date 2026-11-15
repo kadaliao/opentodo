@@ -269,6 +269,22 @@ DateTime? nextOccurrence(RepeatRule rule, DateTime date) {
   return next;
 }
 
+/// The occurrences after [date], in order, as long as the series runs: the
+/// dates a calendar shows ahead of a repeating task. [rule]'s count includes
+/// [date] itself.
+Iterable<DateTime> occurrencesAfter(RepeatRule rule, DateTime date) sync* {
+  var left = rule.count;
+  var at = dateOnly(date);
+  while (left == null || left > 1) {
+    final next = _stepAfter(rule, at);
+    if (next == null) return;
+    if (rule.until != null && next.isAfter(rule.until!)) return;
+    if (left != null) left--;
+    at = next;
+    yield next;
+  }
+}
+
 /// Where a repeating task goes when one occurrence is done or skipped.
 class RepeatAdvance {
   const RepeatAdvance(this.date, this.rule);

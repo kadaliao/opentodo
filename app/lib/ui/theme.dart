@@ -37,3 +37,19 @@ abstract final class Breakpoints {
   static const threePane = 1000.0;
   static const twoPane = 640.0;
 }
+
+/// Which of the three layouts a window width gets.
+enum ShellLayout {
+  /// One pane, lists in a drawer, modules in a bottom bar.
+  phone,
+
+  /// Two panes; a task opens as its own page.
+  medium,
+
+  /// Three panes; a task opens beside the list.
+  wide;
+
+  static ShellLayout of(double width) => width >= Breakpoints.threePane
+      ? wide
+      : (width >= Breakpoints.twoPane ? medium : phone);
+}

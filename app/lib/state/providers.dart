@@ -69,6 +69,18 @@ class Clock extends Notifier<DateTime> {
 
 final clockProvider = NotifierProvider<Clock, DateTime>(Clock.new);
 
+/// The part of the app on screen: tasks (lists) or the calendar.
+enum AppModule { tasks, calendar }
+
+class CurrentModule extends Notifier<AppModule> {
+  @override
+  AppModule build() => AppModule.tasks;
+
+  void select(AppModule module) => state = module;
+}
+
+final moduleProvider = NotifierProvider<CurrentModule, AppModule>(CurrentModule.new);
+
 class SelectedView extends Notifier<ViewRef> {
   @override
   ViewRef build() => const SmartViewRef(SmartKind.today);
@@ -82,8 +94,9 @@ final selectedViewProvider =
 class SelectedTask extends Notifier<String?> {
   @override
   String? build() {
-    // Changing views clears the selection.
+    // Changing views or modules clears the selection.
     ref.watch(selectedViewProvider);
+    ref.watch(moduleProvider);
     return null;
   }
 

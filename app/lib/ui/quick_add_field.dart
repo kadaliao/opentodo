@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../data/db.dart';
 import '../domain/dates.dart';
 import '../domain/quick_add_parser.dart';
 import '../domain/recurrence.dart';
@@ -40,11 +41,33 @@ class _HighlightController extends TextEditingController {
   }
 }
 
+/// Where a task typed into the field goes when the text doesn't say: a
+/// calendar slot's day and time, say, instead of the current view's.
+class QuickAddTarget {
+  const QuickAddTarget({this.listId = inboxListId, this.date, this.time});
+
+  final String listId;
+  final DateTime? date;
+
+  /// Used only with [date], and only when the text names no date.
+  final int? time;
+}
+
 class QuickAddField extends ConsumerStatefulWidget {
-  const QuickAddField({super.key, this.autofocus = false, this.onAdded});
+  const QuickAddField({
+    super.key,
+    this.autofocus = false,
+    this.onAdded,
+    this.target,
+    this.hintText,
+  });
 
   final bool autofocus;
   final VoidCallback? onAdded;
+
+  /// Null: the current view decides, and the new task is selected.
+  final QuickAddTarget? target;
+  final String? hintText;
 
   @override
   ConsumerState<QuickAddField> createState() => _QuickAddFieldState();
@@ -85,21 +108,29 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
   Future<void> _submit() async {
     final parsed = _parsed;
     if (parsed == null || parsed.title.isEmpty) return;
+    final target = widget.target;
     final view = ref.read(selectedViewProvider);
-    final defaults = quickAddDefaults(view, dateOnly(DateTime.now()));
+    final defaults = target == null
+        ? quickAddDefaults(view, dateOnly(DateTime.now()))
+        : (listId: target.listId, date: target.date, tags: const <String>[]);
     final dueDate = parsed.date ?? defaults.date;
+    final dueTime = parsed.time ?? (parsed.date == null ? target?.time : null);
     final id = await ref.read(repoProvider).addTask(
           title: parsed.title,
           listId: defaults.listId,
           dueDate: dueDate,
-          dueTime: parsed.time,
+          dueTime: dueTime,
           tags: {...defaults.tags, ...parsed.tags}.toList(),
           priority: parsed.priority ?? 0,
           // A task with a time gets a reminder at that time.
-          reminders: parsed.time != null ? defaultTimedReminders : const [],
+          reminders: dueTime != null ? defaultTimedReminders : const [],
           repeatRule: parsed.repeat?.toString(),
         );
     _controller.clear();
+    if (target != null) {
+      widget.onAdded?.call();
+      return;
+    }
     // A task dated outside a date view won't show up in it; say where it went.
     final today = dateOnly(DateTime.now());
     if (dueDate != null && !dateViewShows(view, dueDate, today) && mounted) {
@@ -120,7 +151,8 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
     final scheme = Theme.of(context).colorScheme;
     final view = ref.watch(selectedViewProvider);
     final lists = ref.watch(listsByIdProvider);
-    final target = quickAddDefaults(view, dateOnly(DateTime.now()));
+    final targetList =
+        widget.target?.listId ?? quickAddDefaults(view, dateOnly(DateTime.now())).listId;
     final parsed = _parsed;
     final preview = parsed?.date == null
         ? null
@@ -139,7 +171,7 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
         filled: true,
         fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
         prefixIcon: Icon(Icons.add, color: scheme.onSurfaceVariant),
-        hintText: '添加任务至“${listName(target.listId, lists)}”，回车创建',
+        hintText: widget.hintText ?? '添加任务至“${listName(targetList, lists)}”，回车创建',
         hintStyle: TextStyle(color: scheme.outline, fontSize: 14),
         suffixIcon: preview == null
             ? null

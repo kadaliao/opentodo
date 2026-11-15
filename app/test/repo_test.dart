@@ -225,4 +225,34 @@ void main() {
       expect(t.repeatRule, isNull);
     });
   });
+  test('moving a task on the calendar starts reminders over between timed and all-day', () async {
+    final id = await repo.addTask(
+      title: '开会',
+      dueDate: DateTime(2026, 11, 16),
+      dueTime: 9 * 60,
+      reminders: [0, -30],
+      repeatRule: 'FREQ=WEEKLY',
+    );
+    // Another time keeps them: they count from the time.
+    await repo.moveTo(id, DateTime(2026, 11, 17), 14 * 60);
+    var t = (await repo.getTask(id))!;
+    expect('${(t.dueDate, t.dueTime, t.reminders)}', '(2026-11-17, 840, [0, -30])');
+    expect(t.repeatRule, 'FREQ=WEEKLY');
+
+    // All day: 准时 would mean midnight, so they go.
+    await repo.moveTo(id, DateTime(2026, 11, 18), null);
+    t = (await repo.getTask(id))!;
+    expect('${(t.dueDate, t.dueTime, t.reminders)}', '(2026-11-18, null, [])');
+
+    // Back to a time: 准时.
+    await repo.moveTo(id, DateTime(2026, 11, 18), 10 * 60);
+    t = (await repo.getTask(id))!;
+    expect('${(t.dueTime, t.reminders)}', '(600, [0])');
+
+    // Dropping it where it already is changes nothing.
+    final before = t.updatedAt;
+    clock = clock.add(const Duration(minutes: 1));
+    await repo.moveTo(id, DateTime(2026, 11, 18), 10 * 60);
+    expect((await repo.getTask(id))!.updatedAt, before);
+  });
 }

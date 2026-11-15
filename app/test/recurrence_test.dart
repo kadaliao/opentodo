@@ -157,6 +157,16 @@ void main() {
     });
   });
 
+  test('occurrences after a date, as far as the series runs', () {
+    expect(occurrencesAfter(RepeatRule.daily, d(11, 15)).take(3), [d(11, 16), d(11, 17), d(11, 18)]);
+    // COUNT counts the date itself.
+    expect(occurrencesAfter(rule('FREQ=WEEKLY;COUNT=3'), d(11, 15)), [d(11, 22), d(11, 29)]);
+    expect(occurrencesAfter(rule('FREQ=DAILY;COUNT=1'), d(11, 15)), isEmpty);
+    expect(occurrencesAfter(rule('FREQ=DAILY;UNTIL=20261117'), d(11, 15)), [d(11, 16), d(11, 17)]);
+    expect(occurrencesAfter(rule('FREQ=MONTHLY;BYMONTHDAY=31'), d(10, 31)).take(3),
+        [d(12, 31), d(1, 31, 2027), d(3, 31, 2027)]);
+  });
+
   test('first occurrence for a new task', () {
     expect(firstOccurrence(RepeatRule.daily, today()), today());
     expect(firstOccurrence(RepeatRule.weekly, today()), today());

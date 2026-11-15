@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../domain/dates.dart';
 import '../domain/recurrence.dart';
+import '../domain/reminders.dart';
 import 'db.dart';
 import 'keys.dart';
 
@@ -139,6 +140,29 @@ class TaskRepo {
           )
         : TasksCompanion(dueDate: Value(dateKey(date)), dueTime: Value(time)),
   );
+
+  /// Moves the task to [date] at [time] (null: all day), as dragging it on
+  /// the calendar does. Reminders count from the due time, so going between
+  /// timed and all-day starts them over, as the date dialog does: 准时 for a
+  /// timed task, none for an all-day one.
+  Future<void> moveTo(String id, DateTime date, int? time) async {
+    final t = await getTask(id);
+    if (t == null) return;
+    final key = dateKey(date);
+    if (t.dueDate == key && t.dueTime == time) return;
+    final wasTimed = t.dueDate != null && t.dueTime != null;
+    final reminders = t.dueDate == null || wasTimed != (time != null)
+        ? (time == null ? const <int>[] : defaultTimedReminders)
+        : t.reminders;
+    await updateTask(
+      id,
+      TasksCompanion(
+        dueDate: Value(key),
+        dueTime: Value(time),
+        reminders: Value(reminders),
+      ),
+    );
+  }
 
   /// Date, time, reminders and repeat together, as the date dialog sets them.
   Future<void> setSchedule(
