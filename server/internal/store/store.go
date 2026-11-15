@@ -26,7 +26,7 @@ var (
 )
 
 // Entities lists the record types clients may sync.
-var Entities = map[string]bool{"list": true, "task": true, "checklist": true}
+var Entities = map[string]bool{"list": true, "task": true, "checklist": true, "filter": true}
 
 type Store struct {
 	db  *sql.DB

@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart' show AppLifecycleListener;
 
 import '../data/db.dart';
 import '../data/repo.dart';
+import '../domain/filters.dart';
 import '../domain/views.dart';
 import 'settings_providers.dart';
 
@@ -32,6 +33,33 @@ final tasksProvider =
 
 final checklistProvider = StreamProvider.family<List<ChecklistItem>, String>(
     (ref, taskId) => ref.watch(repoProvider).watchChecklist(taskId));
+
+final filtersProvider = StreamProvider<List<TaskFilter>>(
+    (ref) => ref.watch(repoProvider).watchFilters());
+
+final filtersByIdProvider = Provider<Map<String, TaskFilter>>((ref) {
+  final filters = ref.watch(filtersProvider).value ?? const [];
+  return {for (final f in filters) f.id: f};
+});
+
+/// Each saved filter's rule, read from its JSON.
+final filterRulesProvider = Provider<Map<String, FilterRule>>((ref) => {
+      for (final f in ref.watch(filtersProvider).value ?? const <TaskFilter>[])
+        f.id: FilterRule.parse(f.rule),
+    });
+
+/// Every subtask by task id; only watched while searching.
+final allChecklistProvider =
+    StreamProvider.autoDispose<Map<String, List<ChecklistItem>>>((ref) => ref
+        .watch(repoProvider)
+        .watchAllChecklistItems()
+        .map((items) {
+          final byTask = <String, List<ChecklistItem>>{};
+          for (final i in items) {
+            byTask.putIfAbsent(i.taskId, () => []).add(i);
+          }
+          return byTask;
+        }));
 
 /// Every tag used by a task that isn't trashed, sorted.
 final tagsProvider = Provider<List<String>>((ref) {
@@ -124,5 +152,6 @@ final sectionsProvider = Provider<List<TaskSection>>((ref) {
     tasks: ref.watch(tasksProvider).value ?? const [],
     lists: ref.watch(listsByIdProvider),
     now: ref.watch(clockProvider),
+    filters: ref.watch(filterRulesProvider),
   );
 });

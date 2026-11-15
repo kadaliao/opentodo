@@ -1,14 +1,16 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../data/db.dart';
 
-import '../domain/views.dart';
 import '../state/calendar_providers.dart';
 import '../state/providers.dart';
 import '../state/reminder_providers.dart';
 import 'calendar/calendar_screen.dart';
 import 'quick_add_field.dart';
+import 'search_panel.dart';
 import 'settings_page.dart';
 import 'sidebar.dart';
 import 'task_detail.dart';
@@ -44,15 +46,8 @@ class HomeShell extends ConsumerWidget {
     ref.read(openTaskRequestProvider.notifier).clear();
     final task = tasks.where((t) => t.id == id).firstOrNull;
     if (task == null || !context.mounted) return;
-    ref.read(moduleProvider.notifier).select(AppModule.tasks);
-    final view = viewForTask(task, ref.read(selectedViewProvider), DateTime.now());
-    ref.read(selectedViewProvider.notifier).select(view);
-    if (MediaQuery.sizeOf(context).width >= Breakpoints.threePane) {
-      ref.read(selectedTaskProvider.notifier).select(id);
-    } else {
-      Navigator.of(context).popUntil((r) => r.isFirst);
-      _openTaskPage(context, ref, id);
-    }
+    revealTask(ref, Navigator.of(context), task,
+        wide: MediaQuery.sizeOf(context).width >= Breakpoints.threePane);
   }
 
   @override
@@ -92,12 +87,14 @@ class HomeShell extends ConsumerWidget {
               ),
             ]),
         };
-        return Scaffold(
-          body: Row(children: [
-            const _ModuleRail(),
-            const VerticalDivider(width: 1),
-            Expanded(child: body),
-          ]),
+        return _SearchShortcut(
+          child: Scaffold(
+            body: Row(children: [
+              const _ModuleRail(),
+              const VerticalDivider(width: 1),
+              Expanded(child: body),
+            ]),
+          ),
         );
       }
       final calendar = module == AppModule.calendar;
@@ -173,6 +170,15 @@ class _ModuleRail extends ConsumerWidget {
                 onPressed: () => ref.read(moduleProvider.notifier).select(m),
               ),
             ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: IconButton(
+              tooltip: '搜索（${_searchKeyLabel()}）',
+              icon: const Icon(Icons.search),
+              color: scheme.onSurfaceVariant,
+              onPressed: () => openSearch(context),
+            ),
+          ),
           const Spacer(),
           IconButton(
             tooltip: '设置',
@@ -185,4 +191,46 @@ class _ModuleRail extends ConsumerWidget {
       ),
     );
   }
+}
+
+bool get _usesCommandKey =>
+    defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.iOS;
+
+String _searchKeyLabel() => _usesCommandKey ? '⌘F' : 'Ctrl+F';
+
+/// ⌘F (Ctrl+F elsewhere) opens search from anywhere in the main screen,
+/// even while typing in a field, but not over a dialog or another page.
+class _SearchShortcut extends StatefulWidget {
+  const _SearchShortcut({required this.child});
+  final Widget child;
+
+  @override
+  State<_SearchShortcut> createState() => _SearchShortcutState();
+}
+
+class _SearchShortcutState extends State<_SearchShortcut> {
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    super.dispose();
+  }
+
+  bool _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyF) return false;
+    final keyboard = HardwareKeyboard.instance;
+    final modifier = _usesCommandKey ? keyboard.isMetaPressed : keyboard.isControlPressed;
+    if (!modifier || keyboard.isShiftPressed || keyboard.isAltPressed) return false;
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return false;
+    openSearch(context);
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

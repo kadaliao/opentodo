@@ -111,6 +111,18 @@ class ChecklistItems extends Table with SyncColumns {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// A saved filter (过滤器): a named rule that gathers tasks from anywhere.
+/// [rule] is JSON; see `domain/filters.dart`.
+class TaskFilters extends Table with SyncColumns {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get rule => text().withDefault(const Constant('{}'))();
+  RealColumn get sortOrder => real().withDefault(const Constant(0))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Local-only settings: the signed-in account, the sync cursor and so on.
 /// Never synced.
 class KeyValues extends Table {
@@ -143,7 +155,7 @@ class IntListConverter extends TypeConverter<List<int>, String> {
   String toSql(List<int> value) => jsonEncode(value);
 }
 
-@DriftDatabase(tables: [TaskLists, Tasks, ChecklistItems, KeyValues])
+@DriftDatabase(tables: [TaskLists, Tasks, ChecklistItems, TaskFilters, KeyValues])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
@@ -155,7 +167,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -173,6 +185,14 @@ class AppDatabase extends _$AppDatabase {
           }
           // Time spans.
           if (from < 4) await m.addColumn(tasks, tasks.duration);
+          if (from < 5) {
+            // Saved filters. An older version skipped filter records other
+            // devices synced but still moved its cursor past them: pull
+            // everything again once so they arrive.
+            await m.createTable(taskFilters);
+            await customStatement(
+                "UPDATE key_values SET value = '0' WHERE key = 'sync.cursor'");
+          }
         },
       );
 

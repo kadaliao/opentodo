@@ -100,6 +100,13 @@ class SyncEngine {
           .get();
       out.addAll(items.map(checklistToWire));
     }
+    if (out.length < limit) {
+      final filters = await (db.select(db.taskFilters)
+            ..where((t) => t.dirty.equals(true))
+            ..limit(limit - out.length))
+          .get();
+      out.addAll(filters.map(filterToWire));
+    }
     return out;
   }
 
@@ -149,6 +156,10 @@ class SyncEngine {
           await (db.update(db.checklistItems)
                 ..where((t) => t.id.equals(a.id) & t.updatedAt.equals(updatedAt)))
               .write(ChecklistItemsCompanion(dirty: const Value(false), serverVersion: Value(a.version)));
+        case Entity.filter:
+          await (db.update(db.taskFilters)
+                ..where((t) => t.id.equals(a.id) & t.updatedAt.equals(updatedAt)))
+              .write(TaskFiltersCompanion(dirty: const Value(false), serverVersion: Value(a.version)));
       }
     }
   }
@@ -171,6 +182,11 @@ class SyncEngine {
             await (db.select(db.checklistItems)..where((t) => t.id.equals(r.id))).getSingleOrNull();
         if (keepLocal(local?.updatedAt, local?.dirty)) return;
         await db.into(db.checklistItems).insertOnConflictUpdate(wireToChecklist(r));
+      case Entity.filter:
+        final local =
+            await (db.select(db.taskFilters)..where((t) => t.id.equals(r.id))).getSingleOrNull();
+        if (keepLocal(local?.updatedAt, local?.dirty)) return;
+        await db.into(db.taskFilters).insertOnConflictUpdate(wireToFilter(r));
       default:
       // A kind of record this version doesn't know yet: skip it.
     }
@@ -182,6 +198,7 @@ class SyncEngine {
     await (db.delete(db.taskLists)..where((t) => t.deletedAt.isNotNull() & t.dirty.equals(false))).go();
     await (db.delete(db.tasks)..where((t) => t.deletedAt.isNotNull() & t.dirty.equals(false))).go();
     await (db.delete(db.checklistItems)..where((t) => t.deletedAt.isNotNull() & t.dirty.equals(false))).go();
+    await (db.delete(db.taskFilters)..where((t) => t.deletedAt.isNotNull() & t.dirty.equals(false))).go();
   }
 }
 
@@ -190,8 +207,9 @@ Stream<int> watchDirtyCount(AppDatabase db) => db
     .customSelect(
       'SELECT (SELECT COUNT(*) FROM task_lists WHERE dirty)'
       ' + (SELECT COUNT(*) FROM tasks WHERE dirty)'
-      ' + (SELECT COUNT(*) FROM checklist_items WHERE dirty) AS n',
-      readsFrom: {db.taskLists, db.tasks, db.checklistItems},
+      ' + (SELECT COUNT(*) FROM checklist_items WHERE dirty)'
+      ' + (SELECT COUNT(*) FROM task_filters WHERE dirty) AS n',
+      readsFrom: {db.taskLists, db.tasks, db.checklistItems, db.taskFilters},
     )
     .watchSingle()
     .map((row) => row.read<int>('n'));
@@ -226,6 +244,7 @@ Future<void> completeSignIn(AppDatabase db, Account account) => db.transaction((
 /// Signing out removes this account's data from the device.
 Future<void> clearLocalData(AppDatabase db) => db.transaction(() async {
       await db.delete(db.checklistItems).go();
+      await db.delete(db.taskFilters).go();
       await db.delete(db.tasks).go();
       await db.delete(db.taskLists).go();
       await db.delete(db.keyValues).go();

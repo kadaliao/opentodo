@@ -282,6 +282,37 @@ void main() {
     }
   }, skip: skip);
 
+  test('filters sync: create, edit, delete', () async {
+    final email = newEmail();
+    await phone.signIn(email, register: true);
+    await mac.signIn(email);
+
+    final id = await phone.repo.addFilter(
+        '本周重要', '{"match":"all","conditions":[{"field":"date","values":["thisWeek"]}]}');
+    expect(await watchDirtyCount(phone.db).first, 1);
+    await phone.sync();
+    await mac.sync();
+    final onMac = (await mac.repo.watchFilters().first).single;
+    expect(onMac.name, '本周重要');
+    expect(onMac.rule, contains('thisWeek'));
+    expect(await watchDirtyCount(mac.db).first, 0);
+
+    mac.advance();
+    await mac.repo.updateFilter(id, name: '本周', rule: '{"match":"any","conditions":[]}');
+    await mac.sync();
+    await phone.sync();
+    final onPhone = (await phone.repo.watchFilters().first).single;
+    expect(onPhone.name, '本周');
+    expect(onPhone.rule, '{"match":"any","conditions":[]}');
+
+    phone.advance();
+    await phone.repo.deleteFilter(id);
+    await phone.sync();
+    await mac.sync();
+    expect(await mac.repo.watchFilters().first, isEmpty);
+    expect(await mac.db.select(mac.db.taskFilters).get(), isEmpty); // tombstone purged
+  }, skip: skip);
+
   test('a bad token reports that sign-in is needed', () async {
     await phone.signIn(newEmail(), register: true);
     await phone.db.setValue(Keys.token, 'expired');

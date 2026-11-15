@@ -1,9 +1,10 @@
-/// What the middle pane shows: a smart list, a list of the person's own, or a
-/// tag, and how its tasks are grouped into sections.
+/// What the middle pane shows: a smart list, a list of the person's own, a
+/// tag or a saved filter, and how its tasks are grouped into sections.
 library;
 
 import '../data/db.dart';
 import 'dates.dart';
+import 'filters.dart';
 
 enum SmartKind { today, tomorrow, next7, inbox, completed, trash }
 
@@ -46,6 +47,19 @@ final class TagViewRef extends ViewRef {
   int get hashCode => tag.hashCode;
   @override
   String toString() => 'tag:$tag';
+}
+
+final class FilterViewRef extends ViewRef {
+  const FilterViewRef(this.filterId);
+  final String filterId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is FilterViewRef && other.filterId == filterId;
+  @override
+  int get hashCode => filterId.hashCode;
+  @override
+  String toString() => 'filter:$filterId';
 }
 
 class TaskSection {
@@ -94,7 +108,9 @@ bool isDone(Task t) => t.status != TaskStatus.open && t.trashedAt == null;
 String listName(String listId, Map<String, TaskList> lists) =>
     listId == inboxListId ? '收集箱' : (lists[listId]?.name ?? '收集箱');
 
-String viewTitle(ViewRef view, Map<String, TaskList> lists) => switch (view) {
+String viewTitle(ViewRef view, Map<String, TaskList> lists,
+        [Map<String, TaskFilter> filters = const {}]) =>
+    switch (view) {
       SmartViewRef(kind: SmartKind.today) => '今天',
       SmartViewRef(kind: SmartKind.tomorrow) => '明天',
       SmartViewRef(kind: SmartKind.next7) => '最近7天',
@@ -103,29 +119,43 @@ String viewTitle(ViewRef view, Map<String, TaskList> lists) => switch (view) {
       SmartViewRef(kind: SmartKind.trash) => '垃圾桶',
       ListViewRef(:final listId) => listName(listId, lists),
       TagViewRef(:final tag) => '#$tag',
+      FilterViewRef(:final filterId) => filters[filterId]?.name ?? '过滤器',
     };
 
 /// Where a task typed into this view's quick-add field goes.
-({String listId, DateTime? date, List<String> tags}) quickAddDefaults(
-    ViewRef view, DateTime today) {
+({String listId, DateTime? date, List<String> tags, int? priority}) quickAddDefaults(
+    ViewRef view, DateTime today,
+    [Map<String, FilterRule> filters = const {}]) {
   return switch (view) {
     SmartViewRef(kind: SmartKind.today || SmartKind.next7) => (
         listId: inboxListId,
         date: today,
         tags: const <String>[],
+        priority: null,
       ),
     SmartViewRef(kind: SmartKind.tomorrow) => (
         listId: inboxListId,
         date: addDays(today, 1),
         tags: const <String>[],
+        priority: null,
       ),
     ListViewRef(:final listId) => (
         listId: listId,
         date: null,
         tags: const <String>[],
+        priority: null,
       ),
-    TagViewRef(:final tag) => (listId: inboxListId, date: null, tags: [tag]),
-    _ => (listId: inboxListId, date: null, tags: const <String>[]),
+    TagViewRef(:final tag) => (listId: inboxListId, date: null, tags: [tag], priority: null),
+    FilterViewRef(:final filterId) when filters[filterId] != null => () {
+        final h = filters[filterId]!.quickAddHints(today);
+        return (
+          listId: h.listId ?? inboxListId,
+          date: h.date,
+          tags: [?h.tag],
+          priority: h.priority,
+        );
+      }(),
+    _ => (listId: inboxListId, date: null, tags: const <String>[], priority: null),
   };
 }
 
@@ -168,7 +198,24 @@ int compareByPriority(Task a, Task b) {
 int _compareCompleted(Task a, Task b) =>
     (b.completedAt ?? 0).compareTo(a.completedAt ?? 0);
 
-bool matchesView(Task t, ViewRef view, String todayKey, String tomorrowKey,
+/// A test for the tasks [view] lists as of [now], finished ones included.
+/// A filter that isn't in [filters] (deleted, or not loaded yet) lists
+/// nothing.
+bool Function(Task) viewMatcher(ViewRef view, DateTime now,
+    [Map<String, FilterRule> filters = const {}]) {
+  if (view case FilterViewRef(:final filterId)) {
+    return filters[filterId]?.matcher(now) ?? (_) => false;
+  }
+  final today = dateOnly(now);
+  final keys = (
+    dateKey(today),
+    dateKey(addDays(today, 1)),
+    dateKey(addDays(today, 6)),
+  );
+  return (t) => _matchesView(t, view, keys.$1, keys.$2, keys.$3);
+}
+
+bool _matchesView(Task t, ViewRef view, String todayKey, String tomorrowKey,
     String weekEndKey) {
   if (t.trashedAt != null) {
     return view == const SmartViewRef(SmartKind.trash);
@@ -186,19 +233,17 @@ bool matchesView(Task t, ViewRef view, String todayKey, String tomorrowKey,
     SmartViewRef(kind: SmartKind.trash) => false,
     ListViewRef(:final listId) => t.listId == listId,
     TagViewRef(:final tag) => t.tags.contains(tag),
+    FilterViewRef() => false, // see viewMatcher
   };
 }
 
 /// Where to show a task opened from elsewhere, such as a notification: the
 /// current view if it lists the task, else 今天 for one due by today, else
 /// its list.
-ViewRef viewForTask(Task t, ViewRef current, DateTime now) {
-  final today = dateOnly(now);
-  final todayKey = dateKey(today);
-  if (matchesView(t, current, todayKey, dateKey(addDays(today, 1)),
-      dateKey(addDays(today, 6)))) {
-    return current;
-  }
+ViewRef viewForTask(Task t, ViewRef current, DateTime now,
+    [Map<String, FilterRule> filters = const {}]) {
+  final todayKey = dateKey(now);
+  if (viewMatcher(current, now, filters)(t)) return current;
   if (t.trashedAt != null) return const SmartViewRef(SmartKind.trash);
   if (t.status != TaskStatus.open) return const SmartViewRef(SmartKind.completed);
   if (t.dueDate != null && t.dueDate!.compareTo(todayKey) <= 0) {
@@ -210,17 +255,10 @@ ViewRef viewForTask(Task t, ViewRef current, DateTime now) {
 }
 
 /// Number shown next to a view in the sidebar: its open tasks.
-int openCount(ViewRef view, List<Task> tasks, DateTime now) {
-  final today = dateOnly(now);
-  final keys = (
-    dateKey(today),
-    dateKey(addDays(today, 1)),
-    dateKey(addDays(today, 6)),
-  );
-  return tasks
-      .where((t) =>
-          isOpen(t) && matchesView(t, view, keys.$1, keys.$2, keys.$3))
-      .length;
+int openCount(ViewRef view, List<Task> tasks, DateTime now,
+    [Map<String, FilterRule> filters = const {}]) {
+  final matches = viewMatcher(view, now, filters);
+  return tasks.where((t) => isOpen(t) && matches(t)).length;
 }
 
 List<TaskSection> buildSections({
@@ -228,14 +266,13 @@ List<TaskSection> buildSections({
   required List<Task> tasks,
   required Map<String, TaskList> lists,
   required DateTime now,
+  Map<String, FilterRule> filters = const {},
 }) {
   final today = dateOnly(now);
   final todayKey = dateKey(today);
   final tomorrowKey = dateKey(addDays(today, 1));
   final weekEndKey = dateKey(addDays(today, 6));
-  final inView = tasks
-      .where((t) => matchesView(t, view, todayKey, tomorrowKey, weekEndKey))
-      .toList();
+  final inView = tasks.where(viewMatcher(view, now, filters)).toList();
 
   if (view == const SmartViewRef(SmartKind.trash)) {
     inView.sort((a, b) => (b.trashedAt ?? 0).compareTo(a.trashedAt ?? 0));
@@ -302,6 +339,38 @@ List<TaskSection> buildSections({
           title: daySectionTitle(parseDateKey(e.key), today),
           tasks: e.value,
         ));
+      }
+    case FilterViewRef():
+      // By date: overdue, each of the next seven days, later, undated.
+      open.sort(compareByDue);
+      final byKey = <String, List<Task>>{};
+      for (final t in open) {
+        final String key;
+        if (t.dueDate == null) {
+          key = 'none';
+        } else if (lastDueKey(t).compareTo(todayKey) < 0) {
+          key = 'overdue';
+        } else if (t.dueDate!.compareTo(weekEndKey) > 0) {
+          key = 'later';
+        } else {
+          key = t.dueDate!.compareTo(todayKey) < 0 ? todayKey : t.dueDate!;
+        }
+        byKey.putIfAbsent(key, () => []).add(t);
+      }
+      final keys = byKey.keys.toList()
+        ..sort((a, b) {
+          int rank(String k) => switch (k) { 'overdue' => 0, 'later' => 2, 'none' => 3, _ => 1 };
+          final c = rank(a).compareTo(rank(b));
+          return c != 0 ? c : a.compareTo(b);
+        });
+      for (final k in keys) {
+        sections.add(switch (k) {
+          'overdue' => TaskSection(id: k, title: '已过期', tasks: byKey[k]!, alert: true),
+          'later' => TaskSection(id: k, title: '以后', tasks: byKey[k]!),
+          'none' => TaskSection(id: k, title: '无日期', tasks: byKey[k]!),
+          _ => TaskSection(
+              id: 'day-$k', title: daySectionTitle(parseDateKey(k), today), tasks: byKey[k]!),
+        });
       }
     case TagViewRef():
       open.sort(compareByDue);

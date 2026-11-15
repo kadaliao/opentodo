@@ -6,6 +6,7 @@ import '../domain/views.dart';
 import '../state/providers.dart';
 import 'account_ui.dart';
 import 'dialogs.dart';
+import 'filter_editor.dart';
 import 'settings_page.dart';
 
 class Sidebar extends ConsumerWidget {
@@ -21,7 +22,8 @@ class Sidebar extends ConsumerWidget {
     final tags = ref.watch(tagsProvider);
     final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
     final now = ref.watch(clockProvider);
-    int count(ViewRef v) => openCount(v, tasks, now);
+    final rules = ref.watch(filterRulesProvider);
+    int count(ViewRef v) => openCount(v, tasks, now, rules);
 
     Widget item(
       ViewRef view,
@@ -135,6 +137,37 @@ class Sidebar extends ConsumerWidget {
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
           ),
+        const SizedBox(height: 8),
+        _SectionHeader(
+          title: '过滤器',
+          action: IconButton(
+            tooltip: '添加过滤器',
+            iconSize: 18,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.add),
+            onPressed: () async {
+              final id = await addFilter(context, ref);
+              if (id == null) return;
+              ref.read(selectedViewProvider.notifier).select(FilterViewRef(id));
+              onSelected?.call();
+            },
+          ),
+        ),
+        for (final f in ref.watch(filtersProvider).value ?? const <TaskFilter>[])
+          item(
+            FilterViewRef(f.id),
+            const Icon(Icons.filter_alt_outlined),
+            f.name,
+            onMenu: () => _filterMenu(context, ref, f),
+          ),
+        if ((ref.watch(filtersProvider).value ?? const []).isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Text(
+              '按清单、日期、优先级、标签筛出任务，比如“本周的重要工作”',
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ),
         if (tags.isNotEmpty) ...[
           const SizedBox(height: 8),
           const _SectionHeader(title: '标签'),
@@ -209,6 +242,35 @@ class Sidebar extends ConsumerWidget {
             .select(const SmartViewRef(SmartKind.inbox));
       }
     }
+  }
+}
+
+Future<void> _filterMenu(BuildContext context, WidgetRef ref, TaskFilter filter) async {
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('编辑过滤器'),
+            onTap: () => Navigator.pop(context, 'edit'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline),
+            title: const Text('删除过滤器'),
+            onTap: () => Navigator.pop(context, 'delete'),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (!context.mounted) return;
+  if (action == 'edit') {
+    await editFilter(context, ref, filter);
+  } else if (action == 'delete') {
+    await deleteFilter(context, ref, filter);
   }
 }
 

@@ -77,6 +77,19 @@ class TaskRepo {
             ]))
           .watch();
 
+  /// Every subtask that isn't deleted (for search).
+  Stream<List<ChecklistItem>> watchAllChecklistItems() =>
+      (db.select(db.checklistItems)..where((c) => c.deletedAt.isNull())).watch();
+
+  Stream<List<TaskFilter>> watchFilters() =>
+      (db.select(db.taskFilters)
+            ..where((f) => f.deletedAt.isNull())
+            ..orderBy([
+              (f) => OrderingTerm(expression: f.sortOrder),
+              (f) => OrderingTerm(expression: f.createdAt),
+            ]))
+          .watch();
+
   Future<Task?> getTask(String id) =>
       (db.select(db.tasks)..where((t) => t.id.equals(id))).getSingleOrNull();
 
@@ -474,6 +487,45 @@ class TaskRepo {
       ),
     );
   });
+
+  // ---- filters ----
+
+  /// [rule] is the JSON from `FilterRule.encode`.
+  Future<String> addFilter(String name, String rule, {String? id}) async {
+    id ??= newId();
+    final now = _now;
+    await db.into(db.taskFilters).insert(TaskFiltersCompanion.insert(
+          id: id,
+          name: name,
+          rule: Value(rule),
+          sortOrder: Value(now.toDouble()),
+          createdAt: now,
+          updatedAt: now,
+        ));
+    return id;
+  }
+
+  Future<void> updateFilter(String id, {String? name, String? rule}) =>
+      (db.update(db.taskFilters)..where((f) => f.id.equals(id))).write(
+        TaskFiltersCompanion(
+          name: name == null ? const Value.absent() : Value(name),
+          rule: rule == null ? const Value.absent() : Value(rule),
+          updatedAt: Value(_now),
+          dirty: const Value(true),
+        ),
+      );
+
+  /// Deletes the filter; its tasks stay where they are.
+  Future<void> deleteFilter(String id) {
+    final now = _now;
+    return (db.update(db.taskFilters)..where((f) => f.id.equals(id))).write(
+      TaskFiltersCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+        dirty: const Value(true),
+      ),
+    );
+  }
 
   // ---- checklist ----
 

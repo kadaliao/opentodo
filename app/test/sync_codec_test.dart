@@ -60,4 +60,31 @@ void main() {
     expect(c.repeatFrom.value, 0);
     expect(c.duration.value, isNull);
   });
+
+  test('a filter travels with its rule as an object', () async {
+    final a = AppDatabase(NativeDatabase.memory());
+    final b = AppDatabase(NativeDatabase.memory());
+    addTearDown(a.close);
+    addTearDown(b.close);
+    final repo = TaskRepo(a, clock: () => DateTime(2026, 11, 15, 10));
+    const rule = '{"match":"all","conditions":[{"field":"priority","values":["high"]}]}';
+    final id = await repo.addFilter('重要', rule);
+    final original = (await repo.watchFilters().first).single;
+
+    final wire = filterToWire(original).toJson();
+    expect((wire['data'] as Map)['rule'], isA<Map>());
+    final back = WireRecord.fromJson(
+        jsonDecode(jsonEncode({...wire, 'version': 3})) as Map<String, dynamic>);
+    await b.into(b.taskFilters).insert(wireToFilter(back));
+    final copy = await (b.select(b.taskFilters)..where((f) => f.id.equals(id))).getSingle();
+    expect(copy.copyWith(dirty: true, serverVersion: 0).toJson(), original.toJson());
+    expect(copy.rule, rule);
+
+    // A record without a rule, or with a broken one, reads as "everything".
+    final bare = wireToFilter(WireRecord.fromJson({
+      'entity': 'filter', 'id': 'y', 'updatedAt': 5, 'deletedAt': null,
+      'data': {'name': '旧的', 'rule': 'oops'},
+    }));
+    expect(bare.rule.value, '{}');
+  });
 }

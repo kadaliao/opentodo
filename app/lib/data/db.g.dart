@@ -1162,7 +1162,7 @@ class Task extends DataClass implements Insertable<Task> {
   /// For a task that spans a while (时间段), minutes from its start (the
   /// due date and time above) to its end, which is exclusive. An all-day
   /// span is whole days: 2880 covers the due date and the day after. Null
-  /// for a task at one moment or on one day; see `domain/spans.dart`.
+  /// for a task at one moment or on one day; see `domain/dates.dart`.
   final int? duration;
   final String? timeZone;
   final List<String> tags;
@@ -2420,6 +2420,561 @@ class ChecklistItemsCompanion extends UpdateCompanion<ChecklistItem> {
   }
 }
 
+class $TaskFiltersTable extends TaskFilters
+    with TableInfo<$TaskFiltersTable, TaskFilter> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TaskFiltersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _serverVersionMeta = const VerificationMeta(
+    'serverVersion',
+  );
+  @override
+  late final GeneratedColumn<int> serverVersion = GeneratedColumn<int>(
+    'server_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _dirtyMeta = const VerificationMeta('dirty');
+  @override
+  late final GeneratedColumn<bool> dirty = GeneratedColumn<bool>(
+    'dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ruleMeta = const VerificationMeta('rule');
+  @override
+  late final GeneratedColumn<String> rule = GeneratedColumn<String>(
+    'rule',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<double> sortOrder = GeneratedColumn<double>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    createdAt,
+    updatedAt,
+    deletedAt,
+    serverVersion,
+    dirty,
+    id,
+    name,
+    rule,
+    sortOrder,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'task_filters';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TaskFilter> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('server_version')) {
+      context.handle(
+        _serverVersionMeta,
+        serverVersion.isAcceptableOrUnknown(
+          data['server_version']!,
+          _serverVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dirty')) {
+      context.handle(
+        _dirtyMeta,
+        dirty.isAcceptableOrUnknown(data['dirty']!, _dirtyMeta),
+      );
+    }
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('rule')) {
+      context.handle(
+        _ruleMeta,
+        rule.isAcceptableOrUnknown(data['rule']!, _ruleMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TaskFilter map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TaskFilter(
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      serverVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_version'],
+      )!,
+      dirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}dirty'],
+      )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      rule: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rule'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $TaskFiltersTable createAlias(String alias) {
+    return $TaskFiltersTable(attachedDatabase, alias);
+  }
+}
+
+class TaskFilter extends DataClass implements Insertable<TaskFilter> {
+  final int createdAt;
+  final int updatedAt;
+  final int? deletedAt;
+  final int serverVersion;
+  final bool dirty;
+  final String id;
+  final String name;
+  final String rule;
+  final double sortOrder;
+  const TaskFilter({
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.serverVersion,
+    required this.dirty,
+    required this.id,
+    required this.name,
+    required this.rule,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['server_version'] = Variable<int>(serverVersion);
+    map['dirty'] = Variable<bool>(dirty);
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['rule'] = Variable<String>(rule);
+    map['sort_order'] = Variable<double>(sortOrder);
+    return map;
+  }
+
+  TaskFiltersCompanion toCompanion(bool nullToAbsent) {
+    return TaskFiltersCompanion(
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      serverVersion: Value(serverVersion),
+      dirty: Value(dirty),
+      id: Value(id),
+      name: Value(name),
+      rule: Value(rule),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory TaskFilter.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TaskFilter(
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      serverVersion: serializer.fromJson<int>(json['serverVersion']),
+      dirty: serializer.fromJson<bool>(json['dirty']),
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      rule: serializer.fromJson<String>(json['rule']),
+      sortOrder: serializer.fromJson<double>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'serverVersion': serializer.toJson<int>(serverVersion),
+      'dirty': serializer.toJson<bool>(dirty),
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'rule': serializer.toJson<String>(rule),
+      'sortOrder': serializer.toJson<double>(sortOrder),
+    };
+  }
+
+  TaskFilter copyWith({
+    int? createdAt,
+    int? updatedAt,
+    Value<int?> deletedAt = const Value.absent(),
+    int? serverVersion,
+    bool? dirty,
+    String? id,
+    String? name,
+    String? rule,
+    double? sortOrder,
+  }) => TaskFilter(
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    serverVersion: serverVersion ?? this.serverVersion,
+    dirty: dirty ?? this.dirty,
+    id: id ?? this.id,
+    name: name ?? this.name,
+    rule: rule ?? this.rule,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  TaskFilter copyWithCompanion(TaskFiltersCompanion data) {
+    return TaskFilter(
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      serverVersion: data.serverVersion.present
+          ? data.serverVersion.value
+          : this.serverVersion,
+      dirty: data.dirty.present ? data.dirty.value : this.dirty,
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      rule: data.rule.present ? data.rule.value : this.rule,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskFilter(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('serverVersion: $serverVersion, ')
+          ..write('dirty: $dirty, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('rule: $rule, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    createdAt,
+    updatedAt,
+    deletedAt,
+    serverVersion,
+    dirty,
+    id,
+    name,
+    rule,
+    sortOrder,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TaskFilter &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.serverVersion == this.serverVersion &&
+          other.dirty == this.dirty &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.rule == this.rule &&
+          other.sortOrder == this.sortOrder);
+}
+
+class TaskFiltersCompanion extends UpdateCompanion<TaskFilter> {
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int?> deletedAt;
+  final Value<int> serverVersion;
+  final Value<bool> dirty;
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> rule;
+  final Value<double> sortOrder;
+  final Value<int> rowid;
+  const TaskFiltersCompanion({
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.serverVersion = const Value.absent(),
+    this.dirty = const Value.absent(),
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.rule = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TaskFiltersCompanion.insert({
+    required int createdAt,
+    required int updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.serverVersion = const Value.absent(),
+    this.dirty = const Value.absent(),
+    required String id,
+    required String name,
+    this.rule = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       id = Value(id),
+       name = Value(name);
+  static Insertable<TaskFilter> custom({
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? deletedAt,
+    Expression<int>? serverVersion,
+    Expression<bool>? dirty,
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? rule,
+    Expression<double>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (serverVersion != null) 'server_version': serverVersion,
+      if (dirty != null) 'dirty': dirty,
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (rule != null) 'rule': rule,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TaskFiltersCompanion copyWith({
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int?>? deletedAt,
+    Value<int>? serverVersion,
+    Value<bool>? dirty,
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? rule,
+    Value<double>? sortOrder,
+    Value<int>? rowid,
+  }) {
+    return TaskFiltersCompanion(
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      serverVersion: serverVersion ?? this.serverVersion,
+      dirty: dirty ?? this.dirty,
+      id: id ?? this.id,
+      name: name ?? this.name,
+      rule: rule ?? this.rule,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (serverVersion.present) {
+      map['server_version'] = Variable<int>(serverVersion.value);
+    }
+    if (dirty.present) {
+      map['dirty'] = Variable<bool>(dirty.value);
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (rule.present) {
+      map['rule'] = Variable<String>(rule.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<double>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskFiltersCompanion(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('serverVersion: $serverVersion, ')
+          ..write('dirty: $dirty, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('rule: $rule, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $KeyValuesTable extends KeyValues
     with TableInfo<$KeyValuesTable, KeyValue> {
   @override
@@ -2632,6 +3187,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TaskListsTable taskLists = $TaskListsTable(this);
   late final $TasksTable tasks = $TasksTable(this);
   late final $ChecklistItemsTable checklistItems = $ChecklistItemsTable(this);
+  late final $TaskFiltersTable taskFilters = $TaskFiltersTable(this);
   late final $KeyValuesTable keyValues = $KeyValuesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -2641,6 +3197,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     taskLists,
     tasks,
     checklistItems,
+    taskFilters,
     keyValues,
   ];
 }
@@ -3784,6 +4341,293 @@ typedef $$ChecklistItemsTableProcessedTableManager =
       ChecklistItem,
       PrefetchHooks Function()
     >;
+typedef $$TaskFiltersTableCreateCompanionBuilder =
+    TaskFiltersCompanion Function({
+      required int createdAt,
+      required int updatedAt,
+      Value<int?> deletedAt,
+      Value<int> serverVersion,
+      Value<bool> dirty,
+      required String id,
+      required String name,
+      Value<String> rule,
+      Value<double> sortOrder,
+      Value<int> rowid,
+    });
+typedef $$TaskFiltersTableUpdateCompanionBuilder =
+    TaskFiltersCompanion Function({
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int?> deletedAt,
+      Value<int> serverVersion,
+      Value<bool> dirty,
+      Value<String> id,
+      Value<String> name,
+      Value<String> rule,
+      Value<double> sortOrder,
+      Value<int> rowid,
+    });
+
+class $$TaskFiltersTableFilterComposer
+    extends Composer<_$AppDatabase, $TaskFiltersTable> {
+  $$TaskFiltersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverVersion => $composableBuilder(
+    column: $table.serverVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get dirty => $composableBuilder(
+    column: $table.dirty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rule => $composableBuilder(
+    column: $table.rule,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TaskFiltersTableOrderingComposer
+    extends Composer<_$AppDatabase, $TaskFiltersTable> {
+  $$TaskFiltersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get serverVersion => $composableBuilder(
+    column: $table.serverVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get dirty => $composableBuilder(
+    column: $table.dirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rule => $composableBuilder(
+    column: $table.rule,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TaskFiltersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TaskFiltersTable> {
+  $$TaskFiltersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get serverVersion => $composableBuilder(
+    column: $table.serverVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get dirty =>
+      $composableBuilder(column: $table.dirty, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get rule =>
+      $composableBuilder(column: $table.rule, builder: (column) => column);
+
+  GeneratedColumn<double> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+}
+
+class $$TaskFiltersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TaskFiltersTable,
+          TaskFilter,
+          $$TaskFiltersTableFilterComposer,
+          $$TaskFiltersTableOrderingComposer,
+          $$TaskFiltersTableAnnotationComposer,
+          $$TaskFiltersTableCreateCompanionBuilder,
+          $$TaskFiltersTableUpdateCompanionBuilder,
+          (
+            TaskFilter,
+            BaseReferences<_$AppDatabase, $TaskFiltersTable, TaskFilter>,
+          ),
+          TaskFilter,
+          PrefetchHooks Function()
+        > {
+  $$TaskFiltersTableTableManager(_$AppDatabase db, $TaskFiltersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TaskFiltersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TaskFiltersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TaskFiltersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> serverVersion = const Value.absent(),
+                Value<bool> dirty = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> rule = const Value.absent(),
+                Value<double> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TaskFiltersCompanion(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                serverVersion: serverVersion,
+                dirty: dirty,
+                id: id,
+                name: name,
+                rule: rule,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int createdAt,
+                required int updatedAt,
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> serverVersion = const Value.absent(),
+                Value<bool> dirty = const Value.absent(),
+                required String id,
+                required String name,
+                Value<String> rule = const Value.absent(),
+                Value<double> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TaskFiltersCompanion.insert(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                serverVersion: serverVersion,
+                dirty: dirty,
+                id: id,
+                name: name,
+                rule: rule,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$TaskFiltersTable, TaskFilter>(table),
+                  BaseReferences<_$AppDatabase, $TaskFiltersTable, TaskFilter>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TaskFiltersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TaskFiltersTable,
+      TaskFilter,
+      $$TaskFiltersTableFilterComposer,
+      $$TaskFiltersTableOrderingComposer,
+      $$TaskFiltersTableAnnotationComposer,
+      $$TaskFiltersTableCreateCompanionBuilder,
+      $$TaskFiltersTableUpdateCompanionBuilder,
+      (
+        TaskFilter,
+        BaseReferences<_$AppDatabase, $TaskFiltersTable, TaskFilter>,
+      ),
+      TaskFilter,
+      PrefetchHooks Function()
+    >;
 typedef $$KeyValuesTableCreateCompanionBuilder = KeyValuesCompanion Function({
   required String key,
   required String value,
@@ -3928,6 +4772,8 @@ class $AppDatabaseManager {
       $$TasksTableTableManager(_db, _db.tasks);
   $$ChecklistItemsTableTableManager get checklistItems =>
       $$ChecklistItemsTableTableManager(_db, _db.checklistItems);
+  $$TaskFiltersTableTableManager get taskFilters =>
+      $$TaskFiltersTableTableManager(_db, _db.taskFilters);
   $$KeyValuesTableTableManager get keyValues =>
       $$KeyValuesTableTableManager(_db, _db.keyValues);
 }

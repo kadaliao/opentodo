@@ -4,7 +4,9 @@ import 'package:material_ui/material_ui.dart';
 import '../domain/views.dart';
 import '../state/providers.dart';
 import 'dialogs.dart';
+import 'filter_editor.dart';
 import 'quick_add_field.dart';
+import 'search_panel.dart';
 import 'task_tile.dart';
 
 class TaskListPane extends ConsumerStatefulWidget {
@@ -32,9 +34,19 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
     final scheme = Theme.of(context).colorScheme;
     final view = ref.watch(selectedViewProvider);
     final lists = ref.watch(listsByIdProvider);
+    final filters = ref.watch(filtersByIdProvider);
     final loading = ref.watch(tasksProvider).isLoading;
     final sections = ref.watch(sectionsProvider);
-    final showList = view is SmartViewRef || view is TagViewRef;
+    final showList = view is SmartViewRef || view is TagViewRef || view is FilterViewRef;
+    final filter = view is FilterViewRef ? filters[view.filterId] : null;
+    // Deleted on another device while on screen.
+    if (view is FilterViewRef && filter == null && ref.watch(filtersProvider).hasValue) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && ref.read(selectedViewProvider) == view) {
+          ref.read(selectedViewProvider.notifier).select(const SmartViewRef(SmartKind.today));
+        }
+      });
+    }
     final isTrash = view == const SmartViewRef(SmartKind.trash);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -50,12 +62,24 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
           const SizedBox(width: 4),
           Expanded(
             child: Text(
-              viewTitle(view, lists),
+              viewTitle(view, lists, filters),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
+          if (filter != null)
+            IconButton(
+              tooltip: '编辑过滤器',
+              icon: const Icon(Icons.tune),
+              onPressed: () => editFilter(context, ref, filter),
+            ),
+          if (widget.showMenuButton)
+            IconButton(
+              tooltip: '搜索',
+              icon: const Icon(Icons.search),
+              onPressed: () => openSearch(context),
+            ),
           if (isTrash && sections.isNotEmpty)
             TextButton.icon(
               icon: const Icon(Icons.delete_sweep_outlined, size: 18),
@@ -173,6 +197,7 @@ class _EmptyState extends StatelessWidget {
       SmartViewRef(kind: SmartKind.completed) => (Icons.task_alt, '还没有完成的任务', '完成的任务会出现在这里'),
       SmartViewRef(kind: SmartKind.trash) => (Icons.delete_outline, '垃圾桶是空的', '删除的任务会在这里保留，可以恢复'),
       SmartViewRef(kind: SmartKind.inbox) => (Icons.inbox_outlined, '收集箱是空的', '想到什么先记在这里，之后再整理'),
+      FilterViewRef() => (Icons.filter_alt_outlined, '没有符合条件的任务', '可以点右上角调整条件'),
       _ => (Icons.checklist, '没有任务', '在上面的输入框添加任务'),
     };
     return Center(

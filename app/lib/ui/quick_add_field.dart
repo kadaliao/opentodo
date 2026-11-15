@@ -112,8 +112,8 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
     final target = widget.target;
     final view = ref.read(selectedViewProvider);
     final defaults = target == null
-        ? quickAddDefaults(view, dateOnly(DateTime.now()))
-        : (listId: target.listId, date: target.date, tags: const <String>[]);
+        ? quickAddDefaults(view, dateOnly(DateTime.now()), ref.read(filterRulesProvider))
+        : (listId: target.listId, date: target.date, tags: const <String>[], priority: null);
     final dueDate = parsed.date ?? defaults.date;
     final dueTime = parsed.time ?? (parsed.date == null ? target?.time : null);
     final id = await ref.read(repoProvider).addTask(
@@ -123,7 +123,7 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
           dueTime: dueTime,
           duration: parsed.time == null ? null : parsed.duration,
           tags: {...defaults.tags, ...parsed.tags}.toList(),
-          priority: parsed.priority ?? 0,
+          priority: parsed.priority ?? defaults.priority ?? Priority.none,
           // Out of the box, a task with a time gets a reminder at that time.
           reminders: dueDate == null
               ? const []
@@ -135,16 +135,28 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
       widget.onAdded?.call();
       return;
     }
-    // A task dated outside a date view won't show up in it; say where it went.
+    // A task dated outside a date view, or one the filter doesn't take,
+    // won't show up in it; say where it went.
     final today = dateOnly(DateTime.now());
-    if (dueDate != null && !dateViewShows(view, dueDate, today) && mounted) {
+    String? note;
+    if (view case FilterViewRef(:final filterId)) {
+      final task = await ref.read(repoProvider).getTask(id);
+      final rule = ref.read(filterRulesProvider)[filterId];
+      if (task != null && rule != null && !rule.matcher(DateTime.now())(task)) {
+        note = '已添加到“${listName(task.listId, ref.read(listsByIdProvider))}”，不符合这个过滤器的条件';
+      }
+    } else if (dueDate != null && !dateViewShows(view, dueDate, today)) {
+      note = '已添加到${dateLabel(dueDate, today)}';
+    }
+    if (note != null && mounted) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
-        content: Text('已添加到${dateLabel(dueDate, today)}'),
+        content: Text(note),
         behavior: SnackBarBehavior.floating,
-        width: 280,
-        duration: const Duration(seconds: 2),
+        width: 360,
+        duration: const Duration(seconds: 3),
       ));
     }
+    if (!mounted) return;
     _focus.requestFocus();
     ref.read(selectedTaskProvider.notifier).select(id);
     widget.onAdded?.call();
@@ -155,8 +167,8 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
     final scheme = Theme.of(context).colorScheme;
     final view = ref.watch(selectedViewProvider);
     final lists = ref.watch(listsByIdProvider);
-    final targetList =
-        widget.target?.listId ?? quickAddDefaults(view, dateOnly(DateTime.now())).listId;
+    final targetList = widget.target?.listId ??
+        quickAddDefaults(view, dateOnly(DateTime.now()), ref.watch(filterRulesProvider)).listId;
     final parsed = _parsed;
     final preview = parsed?.date == null
         ? null

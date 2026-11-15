@@ -6,6 +6,8 @@
 /// ignored, missing ones fall back to defaults).
 library;
 
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import '../data/db.dart';
@@ -14,6 +16,7 @@ abstract final class Entity {
   static const list = 'list';
   static const task = 'task';
   static const checklist = 'checklist';
+  static const filter = 'filter';
 }
 
 /// One record as it travels to and from the server.
@@ -106,6 +109,28 @@ WireRecord checklistToWire(ChecklistItem c) => WireRecord(
       },
     );
 
+/// The rule travels as a JSON object, not as the text it's stored in.
+WireRecord filterToWire(TaskFilter f) {
+  Object? rule;
+  try {
+    rule = jsonDecode(f.rule);
+  } on FormatException {
+    rule = null;
+  }
+  return WireRecord(
+    entity: Entity.filter,
+    id: f.id,
+    updatedAt: f.updatedAt,
+    deletedAt: f.deletedAt,
+    data: {
+      'name': f.name,
+      'rule': rule is Map ? rule : const <String, dynamic>{},
+      'sortOrder': f.sortOrder,
+      'createdAt': f.createdAt,
+    },
+  );
+}
+
 int? _int(Object? v) => (v as num?)?.toInt();
 double _double(Object? v, [double fallback = 0]) => (v as num?)?.toDouble() ?? fallback;
 
@@ -173,6 +198,22 @@ ChecklistItemsCompanion wireToChecklist(WireRecord r) {
     taskId: Value(d['taskId'] as String? ?? ''),
     title: Value(d['title'] as String? ?? ''),
     done: Value(d['done'] as bool? ?? false),
+    sortOrder: Value(_double(d['sortOrder'])),
+    createdAt: Value(_int(d['createdAt']) ?? r.updatedAt),
+    updatedAt: s.updatedAt,
+    deletedAt: s.deletedAt,
+    serverVersion: s.serverVersion,
+    dirty: s.dirty,
+  );
+}
+
+TaskFiltersCompanion wireToFilter(WireRecord r) {
+  final d = r.data, s = _syncFields(r);
+  final rule = d['rule'];
+  return TaskFiltersCompanion(
+    id: Value(r.id),
+    name: Value(d['name'] as String? ?? ''),
+    rule: Value(rule is Map ? jsonEncode(rule) : '{}'),
     sortOrder: Value(_double(d['sortOrder'])),
     createdAt: Value(_int(d['createdAt']) ?? r.updatedAt),
     updatedAt: s.updatedAt,
