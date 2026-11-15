@@ -7,6 +7,13 @@ abstract final class Keys {
   static const cursor = 'sync.cursor';
   static const lastSyncedAt = 'sync.lastSyncedAt';
 
+  /// Reminders put off with 稍后提醒: task id → epoch milliseconds (JSON).
+  static const snoozes = 'reminders.snoozed';
+
+  /// What the notifications the system holds look like; when it changes,
+  /// they are all handed over again (see `ReminderController`).
+  static const reminderFormat = 'reminders.format';
+
   /// The person's settings (JSON); see `AppSettings`.
   static const settings = 'settings';
 

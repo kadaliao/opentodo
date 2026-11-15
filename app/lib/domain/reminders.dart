@@ -95,27 +95,31 @@ int notificationId(String taskId, DateTime at) {
 /// the app reschedules.
 const maxScheduledReminders = 48;
 
-/// The reminders still to come for open tasks, soonest first.
+/// The reminders still to come for open tasks, soonest first, with the
+/// ones put off with 稍后提醒 ([snoozed]: task id → when it comes back).
 List<ReminderEvent> upcomingReminders(
   Iterable<Task> tasks,
   DateTime now, {
   int limit = maxScheduledReminders,
+  Map<String, DateTime> snoozed = const {},
 }) {
   final out = <ReminderEvent>[];
-  for (final t in tasks) {
-    final due = t.dueDate;
-    if (due == null || t.reminders.isEmpty) continue;
-    if (t.status != TaskStatus.open || t.trashedAt != null || t.deletedAt != null) continue;
-    for (final offset in t.reminders.toSet()) {
-      final at = reminderTime(due, t.dueTime, offset);
-      if (!at.isAfter(now)) continue;
-      out.add(ReminderEvent(
+  ReminderEvent event(Task t, DateTime at) => ReminderEvent(
         taskId: t.id,
         at: at,
         title: t.title.trim().isEmpty ? '无标题' : t.title.trim(),
         body: _body(t, dateOnly(at)),
-      ));
+      );
+  for (final t in tasks) {
+    final due = t.dueDate;
+    if (due == null) continue;
+    if (t.status != TaskStatus.open || t.trashedAt != null || t.deletedAt != null) continue;
+    for (final offset in t.reminders.toSet()) {
+      final at = reminderTime(due, t.dueTime, offset);
+      if (at.isAfter(now)) out.add(event(t, at));
     }
+    final snooze = snoozed[t.id];
+    if (snooze != null && snooze.isAfter(now)) out.add(event(t, snooze));
   }
   out.sort((a, b) => a.at.compareTo(b.at));
   return out.length > limit ? out.sublist(0, limit) : out;

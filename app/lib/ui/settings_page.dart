@@ -38,7 +38,8 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final defaults = ref.watch(settingsProvider.select((s) => s.defaults));
+    final settings = ref.watch(settingsProvider);
+    final defaults = settings.defaults;
     final allowed = ref.watch(reminderControllerProvider);
     void setDefaults(TaskDefaults d) => ref.read(settingsProvider.notifier).setDefaults(d);
 
@@ -71,6 +72,14 @@ class SettingsPage extends ConsumerWidget {
                 onPressed: () => ref.read(reminderControllerProvider.notifier).openSettings(),
                 child: Text(allowed == false ? '去开启' : '系统设置'),
               ),
+            ),
+            _Choice<int>(
+              title: '稍后提醒',
+              subtitle: '通知上点“稍后提醒”，过多久再提醒',
+              value: settings.snoozeMinutes,
+              options: const [5, 10, 15, 30, 60],
+              label: (m) => '${_spanLabel(m)}后',
+              onChanged: (m) => ref.read(settingsProvider.notifier).setSnoozeMinutes(m),
             ),
           ]),
           const _Heading('任务默认值'),
@@ -147,6 +156,7 @@ class _Group extends StatelessWidget {
 class _Choice<T> extends StatelessWidget {
   const _Choice({
     required this.title,
+    this.subtitle,
     required this.value,
     required this.options,
     required this.label,
@@ -155,6 +165,7 @@ class _Choice<T> extends StatelessWidget {
   });
 
   final String title;
+  final String? subtitle;
   final T value;
   final List<T> options;
   final String Function(T) label;
@@ -169,6 +180,9 @@ class _Choice<T> extends StatelessWidget {
     final all = [...options, if (!options.any((o) => _same(o, value))) value];
     return ListTile(
       title: Text(title),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle!, style: TextStyle(fontSize: 12, color: scheme.outline)),
       trailing: PopupMenuButton<int>(
         tooltip: title,
         initialValue: all.indexWhere((o) => _same(o, value)),

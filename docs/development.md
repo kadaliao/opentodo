@@ -2,7 +2,7 @@
 
 接手这个项目先读这一篇。命令速查在 [README](../README.md)，设计细节在 [architecture.md](architecture.md)，完整功能清单在 [roadmap.md](roadmap.md)。
 
-更新于 2026-11-15（时间段、设置）。
+更新于 2026-11-15（时间段、设置、通知按钮）。
 
 ## 1. 现在做到哪了
 
@@ -14,10 +14,10 @@ OpenTodo 是一个多端待办应用，功能上参考了滴答清单。客户�
 | M2 同步与账号 | 完成 | 邮箱注册登录、推拉合一的增量同步、冲突“新者胜”、删除传播、登录限流、每日备份 |
 | 部署 | 完成 | 官方同步服务 `https://todo.liaoxingyi.com` |
 | M3 日历 | 完成 | 月、周、3 天、日、日程；拖动改日期和时间、点空白处新建；重复任务展开以后的日期；按清单筛选；电脑左侧图标栏 / 手机底部栏切换任务和日历 |
-| M4 提醒与重复 | 主体完成 | 系统通知提醒（多个、自定义）、点通知打开任务；重复任务（RRULE 子集、按到期/完成日期、结束条件、跳过、撤销）；快速添加识别“每周一”等；时间段任务（开始–结束）。还差的见第 8 节 |
+| M4 提醒与重复 | 主体完成 | 系统通知提醒（多个、自定义）、点通知打开任务、通知上的“完成”“稍后提醒”；重复任务（RRULE 子集、按到期/完成日期、结束条件、跳过、撤销）；快速添加识别“每周一”等；时间段任务（开始–结束）。还差的见第 8 节 |
 | M3 其余、M5 及以后 | 未开始 | 看板、搜索等，见下面第 8 节 |
 
-验证情况：Flutter 152 个测试（含 7 个“编译并启动真实 Go 服务、两台模拟设备同步”的集成测试）、Go 服务端测试全部通过；macOS 正式版和 iPhone 模拟器实际登录同一账号互相同步过。M4 的新版本在 macOS 上对真实数据跑过 v3 迁移、启动无报错，iOS 模拟器版能编译；系统通知实际弹出还没在真机上看过。日历的各个模式在界面测试里渲染、拖动、新建都验证过（含手机尺寸和深色模式的截图检查），还没在真机上用手拖过。时间段（v4 迁移）在真实数据库的副本上迁移过，对话框和日历看过截图，还没装进 macOS 正式版。Android 没有编译过。
+验证情况：Flutter 161 个测试（含 7 个“编译并启动真实 Go 服务、两台模拟设备同步”的集成测试）、Go 服务端测试全部通过；macOS 正式版和 iPhone 模拟器实际登录同一账号互相同步过。M4 的新版本在 macOS 上对真实数据跑过 v3 迁移、启动无报错，iOS 模拟器版能编译；系统通知实际弹出还没在真机上看过。日历的各个模式在界面测试里渲染、拖动、新建都验证过（含手机尺寸和深色模式的截图检查），还没在真机上用手拖过。时间段（v4 迁移）在真实数据库的副本上迁移过，对话框和日历看过截图，还没装进 macOS 正式版。通知按钮的处理逻辑有单测和界面测试，iOS 模拟器版和 macOS 调试版能编译，但还没有在系统通知上实际按过（iOS 后台引擎那条路只能真机或模拟器上手动试）。Android 没有编译过。
 
 代码在 GitHub：`kadaliao/opentodo`（公开，AGPL-3.0）。
 
@@ -40,7 +40,8 @@ app/                          Flutter 客户端
     task_defaults.dart        任务默认值（默认提醒、时间段默认时长）
     views.dart                视图（智能清单/清单/标签）的筛选、分组、计数
   lib/notify/
-    reminder_backend.dart     交给系统：iOS/macOS/Android 由系统定时，Windows/Linux 用计时器；测试里是空实现
+    reminder_backend.dart     交给系统：iOS/macOS/Android 由系统定时，Windows/Linux 用计时器；通知上的按钮；测试里是空实现
+    reminder_actions.dart     通知按钮“完成”“稍后提醒”做什么、稍后提醒的存储、后台入口
     reminder_scheduler.dart   和系统里已排上的通知比对，只动变了的
   lib/state/
     providers.dart            数据库流、当前模块（任务/日历）、当前视图、选中任务、每分钟刷新的时钟
@@ -120,6 +121,8 @@ cd server && go run ./cmd/opentodo-server
 - 插件是 `flutter_local_notifications`。iOS 要在 `AppDelegate` 里设 `UNUserNotificationCenter.current().delegate`（已加），macOS 插件自己设。Android 要 compileSdk 37、core library desugaring、清单里的权限和两个 receiver（都已按插件文档加上，但还没编译过）。
 - 界面测试里 `reminderBackendProvider` 默认是空实现（检测到 `FLUTTER_TEST`）。要验证调度，像 `test/app_test.dart` 那样换成 `FakeBackend`。
 - 系统最多替应用保留 64 个待发通知，所以只排最近的 48 个，剩下的靠应用运行时补。
+- 通知按钮在 iOS / Android 上由插件另起的后台引擎处理（`reminderActionInBackground`，必须是带 `@pragma('vm:entry-point')` 的顶层函数）。iOS 的 `AppDelegate` 里要 `FlutterLocalNotificationsPlugin.setPluginRegistrantCallback`，后台引擎才有插件可用（已加）。macOS 插件不支持后台 isolate，按钮总是交给应用。
+- 改了交给系统的通知的样子（按钮、分类、频道），把 `_reminderFormat` 加一，已经排上的老通知才会被换掉。
 
 **同步（改之前先读 architecture.md 的同步一节）**
 - 加字段：`codec.dart` 的 `xxxToWire` 和 `wireToXxx` 两边都加，读的一侧给默认值，旧客户端才不会因为新字段出错。
@@ -174,7 +177,7 @@ cd server && go run ./cmd/opentodo-server
 
 每项都可以对照 `reference/dida-app/` 里的截图做，索引见那里的 README。
 
-1. **M4 收尾**：通知上的“完成”“稍后提醒”按钮（iOS/macOS 是通知分类 + 动作，后台处理要另起 isolate 访问数据库，先做成打开应用再处理也行）；法定节假日调休、农历重复（要节假日数据，每年更新）。设置现在只存本机，以后可以做成同步的。
+1. **M4 收尾**：法定节假日调休、农历重复（要节假日数据，每年更新）；通知按钮在 iPhone 真机上按一遍（应用开着、在后台、被杀掉三种情况）。设置现在只存本机，以后可以做成同步的；Windows 的通知还没加按钮。
 2. **搜索和过滤器**：参考 `47-search`、`80-search-results`、`79-filter-new*`。
 3. **看板视图和手动排序**：清单里加分组（看板的列），拖动排序。参考 `17-view-kanban`、`15-list-more-menu`。
 4. **Android 环境**：装工具链，跑通 `flutter build apk`，真机试一遍同步和提醒（Android 14+ 的精确闹钟权限默认没给，没给时提醒可能晚几分钟）。

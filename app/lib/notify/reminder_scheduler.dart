@@ -6,7 +6,8 @@ import 'reminder_backend.dart';
 /// left alone: cancelling one would also pull it out of the notification
 /// centre.
 class ReminderScheduler {
-  ReminderScheduler(this.backend);
+  /// [allowed]: already known, so permission isn't asked for.
+  ReminderScheduler(this.backend, {this._allowed});
 
   final ReminderBackend backend;
   bool? _allowed;
@@ -20,7 +21,9 @@ class ReminderScheduler {
     if (_allowed == false) _allowed = null;
   }
 
-  Future<void> apply(List<ReminderEvent> events) async {
+  /// [replaceAll] hands every reminder over again, as when the way they are
+  /// set up has changed (buttons added, say).
+  Future<void> apply(List<ReminderEvent> events, {bool replaceAll = false}) async {
     if (events.isNotEmpty && _allowed == null) {
       _allowed = await backend.requestPermission();
     }
@@ -28,7 +31,7 @@ class ReminderScheduler {
     final keep = <int>{};
     for (final p in await backend.pending()) {
       final e = want[p.id];
-      if (e != null && e.title == p.title && e.body == p.body) {
+      if (!replaceAll && e != null && e.title == p.title && e.body == p.body) {
         keep.add(p.id);
       } else {
         await backend.cancel(p.id);

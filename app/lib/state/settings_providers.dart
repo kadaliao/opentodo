@@ -2,25 +2,49 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/db.dart';
 import '../data/keys.dart';
 import '../domain/task_defaults.dart';
 import 'providers.dart';
 
 /// The person's settings, kept on this device (not synced yet).
 class AppSettings {
-  const AppSettings({this.defaults = TaskDefaults.standard});
+  const AppSettings({this.defaults = TaskDefaults.standard, this.snoozeMinutes = 15});
 
   final TaskDefaults defaults;
 
-  AppSettings copyWith({TaskDefaults? defaults}) => AppSettings(defaults: defaults ?? this.defaults);
+  /// How long 稍后提醒 on a notification puts the reminder off.
+  final int snoozeMinutes;
 
-  Map<String, Object> toJson() => {'defaults': defaults.toJson()};
-
-  factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
-        defaults: json['defaults'] is Map
-            ? TaskDefaults.fromJson((json['defaults'] as Map).cast<String, dynamic>())
-            : TaskDefaults.standard,
+  AppSettings copyWith({TaskDefaults? defaults, int? snoozeMinutes}) => AppSettings(
+        defaults: defaults ?? this.defaults,
+        snoozeMinutes: snoozeMinutes ?? this.snoozeMinutes,
       );
+
+  Map<String, Object> toJson() => {'defaults': defaults.toJson(), 'snoozeMinutes': snoozeMinutes};
+
+  /// Unknown or missing values fall back to the defaults.
+  factory AppSettings.fromJson(Map<String, dynamic> json) {
+    final snooze = json['snoozeMinutes'];
+    return AppSettings(
+      defaults: json['defaults'] is Map
+          ? TaskDefaults.fromJson((json['defaults'] as Map).cast<String, dynamic>())
+          : TaskDefaults.standard,
+      snoozeMinutes: snooze is num && snooze > 0 ? snooze.toInt() : 15,
+    );
+  }
+}
+
+/// The settings as stored, for code outside the app's providers (a
+/// notification button handled in the background).
+Future<AppSettings> loadSettings(AppDatabase db) async {
+  final raw = await db.getValue(Keys.settings);
+  if (raw == null) return const AppSettings();
+  try {
+    return AppSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+  } on Object {
+    return const AppSettings();
+  }
 }
 
 class SettingsNotifier extends Notifier<AppSettings> {
@@ -34,13 +58,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> _load() async {
-    final raw = await ref.read(databaseProvider).getValue(Keys.settings);
-    if (raw == null || _changed || !ref.mounted) return;
-    try {
-      state = AppSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-    } on Object {
-      // Written by a newer version, or damaged: keep the defaults.
-    }
+    final loaded = await loadSettings(ref.read(databaseProvider));
+    if (_changed || !ref.mounted) return;
+    state = loaded;
   }
 
   void set(AppSettings settings) {
@@ -50,6 +70,8 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   void setDefaults(TaskDefaults defaults) => set(state.copyWith(defaults: defaults));
+
+  void setSnoozeMinutes(int minutes) => set(state.copyWith(snoozeMinutes: minutes));
 }
 
 final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);

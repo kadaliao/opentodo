@@ -45,6 +45,15 @@
 - 点通知：`openTaskRequestProvider` 记下任务，首页切到能看到它的视图并选中（窄屏打开详情页）。被通知唤起时同样处理。
 - 已知限制：任务在别的设备上完成后，这台设备要等应用运行、同步之后才会取消它的提醒；应用一直没开的话，到点仍会弹。
 
+#### 通知上的按钮
+
+通知带“完成”和“稍后提醒”两个按钮（`lib/notify/reminder_actions.dart`）。iOS / macOS 用通知分类（初始化时登记一次，通知上写分类名），Android / Linux 直接写在通知上；Windows 没加。
+
+- 完成：任务没完成、没删时把它勾掉，重复任务照常挪到下一次（和列表里勾选一样，`TaskRepo.setCompleted`），同时去掉它的稍后提醒。
+- 稍后提醒：过“设置 → 稍后提醒”的时间（出厂 15 分钟）再提醒一次。稍后提醒存在本机 `KeyValues` 的 `reminders.snoozed`（任务 ID → 时刻），不同步；`upcomingReminders` 把它们和任务自己的提醒一起排，所以调度器比对时不会把它当多余的取消。过了时间的在下一次调度时清掉。
+- 谁来处理：macOS 和 Linux 总是交给应用的主 isolate（应用没开就先启动它，按钮记在启动信息里）。iOS 和 Android 上按钮不打开应用，插件另起一个后台引擎跑 `reminderActionInBackground`：应用在运行时（主 isolate 用 `IsolateNameServer` 登记了端口）只把按钮转给应用处理，界面马上跟着变；应用没在运行时自己打开数据库、执行、再按数据库重排系统通知（不申请权限，能按按钮说明已经允许）。两个连接可能同时开着同一个数据库文件，所以打开时设了 `busy_timeout`。
+- 交给系统的通知样子变了（比如加了按钮），把 `reminder_providers.dart` 的 `_reminderFormat` 加一：下次调度时把系统里已排上的全部换掉，老通知也有新按钮。
+
 ### 设置和任务默认值
 
 设置在 `lib/state/settings_providers.dart`（`AppSettings`），存在本机 `KeyValues` 的 `settings`（JSON），不同步；读不出来或字段不认识时用默认值。入口：电脑上左侧图标栏最下面的齿轮，手机上抽屉里的“设置”。

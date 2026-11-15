@@ -12,8 +12,17 @@ class FakeBackend implements ReminderBackend {
   final log = <String>[];
   int permissionRequests = 0;
 
+  /// Where the app hears about notifications the person responds to.
+  void Function(ReminderResponse r)? respond;
+
+  /// What the app was "launched from".
+  ReminderResponse? launchedFrom;
+
   @override
-  Future<String?> init(void Function(String taskId) onOpen) async => null;
+  Future<ReminderResponse?> init(void Function(ReminderResponse r) onResponse) async {
+    respond = onResponse;
+    return launchedFrom;
+  }
 
   @override
   Future<bool> requestPermission() async {

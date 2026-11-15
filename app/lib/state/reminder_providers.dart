@@ -4,10 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart' show AppLifecycleListener;
 
+import '../data/keys.dart';
 import '../domain/reminders.dart';
+import '../notify/reminder_actions.dart';
 import '../notify/reminder_backend.dart';
 import '../notify/reminder_scheduler.dart';
 import 'providers.dart';
+import 'settings_providers.dart';
 
 final reminderBackendProvider = Provider<ReminderBackend>((ref) => platformReminderBackend());
 
@@ -23,10 +26,15 @@ class OpenTaskRequest extends Notifier<String?> {
 
 final openTaskRequestProvider = NotifierProvider<OpenTaskRequest, String?>(OpenTaskRequest.new);
 
+/// Bumped when the notifications handed to the system change shape, so the
+/// ones already there are replaced: 2 added the 完成 and 稍后提醒 buttons.
+const _reminderFormat = '2';
+
 /// Schedules reminders whenever tasks change, when the app comes back to
 /// the foreground, and every so often as later reminders move into the
-/// window the system holds. Its state: whether notifications are allowed
-/// (null until there was a reminder to ask about).
+/// window the system holds; carries out what the person does with a
+/// notification. Its state: whether notifications are allowed (null until
+/// there was a reminder to ask about).
 class ReminderController extends Notifier<bool?> {
   static const debounce = Duration(milliseconds: 500);
   static const refresh = Duration(minutes: 15);
@@ -43,10 +51,10 @@ class ReminderController extends Notifier<bool?> {
     _backend = ref.watch(reminderBackendProvider);
     _scheduler = ReminderScheduler(_backend);
     _ready = false;
-    _backend.init((id) => ref.read(openTaskRequestProvider.notifier).open(id)).then(
+    _backend.init(_respond).then(
       (launchedFrom) {
         if (!ref.mounted) return;
-        if (launchedFrom != null) ref.read(openTaskRequestProvider.notifier).open(launchedFrom);
+        if (launchedFrom != null) _respond(launchedFrom);
         _ready = true;
         _kick();
       },
@@ -71,6 +79,25 @@ class ReminderController extends Notifier<bool?> {
     _debounce = Timer(debounce, _run);
   }
 
+  /// A notification clicked (show its task) or one of its buttons pressed.
+  void _respond(ReminderResponse r) {
+    if (!ref.mounted) return;
+    if (r.action == ReminderAction.open) {
+      ref.read(openTaskRequestProvider.notifier).open(r.taskId);
+      return;
+    }
+    applyReminderAction(
+      ref.read(repoProvider),
+      Snoozes(ref.read(databaseProvider)),
+      r,
+      now: DateTime.now(),
+      snoozeMinutes: ref.read(settingsProvider).snoozeMinutes,
+    ).then((_) {
+      // A finished task reschedules as the tasks change; a snooze doesn't.
+      if (ref.mounted) _kick();
+    }, onError: (Object e) => debugPrint('reminder action failed: $e'));
+  }
+
   Future<void> _run() async {
     if (!_ready || !ref.mounted) return;
     if (_running) {
@@ -83,7 +110,13 @@ class ReminderController extends Notifier<bool?> {
         _again = false;
         final tasks = ref.read(tasksProvider).value;
         if (tasks == null) break;
-        await _scheduler.apply(upcomingReminders(tasks, DateTime.now()));
+        final db = ref.read(databaseProvider);
+        final now = DateTime.now();
+        // Snoozes may also come from a button pressed in the background.
+        final snoozed = await Snoozes(db).upcoming(now);
+        final replaceAll = await db.getValue(Keys.reminderFormat) != _reminderFormat;
+        await _scheduler.apply(upcomingReminders(tasks, now, snoozed: snoozed), replaceAll: replaceAll);
+        if (replaceAll) await db.setValue(Keys.reminderFormat, _reminderFormat);
         if (ref.mounted) state = _scheduler.allowed;
       } while (_again && ref.mounted);
     } catch (e) {

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:opentodo/data/db.dart';
 import 'package:opentodo/domain/dates.dart';
+import 'package:opentodo/notify/reminder_backend.dart';
 import 'package:opentodo/state/providers.dart';
 import 'package:opentodo/state/reminder_providers.dart';
 import 'package:opentodo/ui/app.dart';
@@ -240,6 +241,40 @@ void main() {
     task = (await db.select(db.tasks).get()).firstWhere((t) => t.id == task.id);
     expect(task.dueDate, dateKey(tomorrow));
     expect((await db.select(db.tasks).get()).where((t) => t.deletedAt == null).length, 1);
+
+    await finish(tester, db);
+  });
+
+  testWidgets('the buttons on a reminder: 稍后提醒 comes back later, 完成 finishes the task',
+      (tester) async {
+    final db = await pumpApp(tester, const Size(1400, 900));
+    final tomorrow = addDays(dateOnly(DateTime.now()), 1);
+    await tester.enterText(find.byType(TextField).first, '明天上午9点交报告');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    final id = (await db.select(db.tasks).get()).single.id;
+    await tester.pump(const Duration(seconds: 1));
+    expect(notifications.pendingById, hasLength(1));
+
+    final pressed = DateTime.now();
+    notifications.respond!((taskId: id, action: ReminderAction.snooze));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
+    final times = notifications.pendingById.values.map((e) => e.at).toList()..sort();
+    expect(times.last, DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9));
+    expect(times.first.difference(pressed).inMinutes, closeTo(15, 1)); // the standard snooze
+
+    notifications.respond!((taskId: id, action: ReminderAction.done));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
+    expect((await db.select(db.tasks).get()).single.status, TaskStatus.done);
+    expect(notifications.pendingById, isEmpty);
+    expect(find.text('已完成'), findsWidgets); // on screen straight away
+
+    // A click on the notification opens the task.
+    notifications.respond!((taskId: id, action: ReminderAction.open));
+    await tester.pumpAndSettle();
+    expect(find.text('明天, 上午9:00'), findsOneWidget); // its detail
 
     await finish(tester, db);
   });

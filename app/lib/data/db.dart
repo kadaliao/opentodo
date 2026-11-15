@@ -159,6 +159,10 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+        // A button on a reminder may be handled in a background isolate with
+        // its own connection while the app has one open: wait for the other
+        // to finish writing instead of failing.
+        beforeOpen: (_) => customStatement('PRAGMA busy_timeout = 5000'),
         onUpgrade: (m, from, to) async {
           if (from < 2) await m.createTable(keyValues);
           if (from < 3) {
