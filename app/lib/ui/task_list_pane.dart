@@ -85,6 +85,7 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
                         if (s.title != null)
                           _SectionHeader(
                             title: s.title!,
+                            alert: s.alert,
                             count: s.tasks.length,
                             collapsed: _isCollapsed(view, s),
                             onToggle: () => setState(() {
@@ -120,12 +121,14 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({
     required this.title,
+    this.alert = false,
     required this.count,
     required this.collapsed,
     required this.onToggle,
   });
 
   final String title;
+  final bool alert;
   final int count;
   final bool collapsed;
   final VoidCallback onToggle;
@@ -147,7 +150,9 @@ class _SectionHeader extends StatelessWidget {
           const SizedBox(width: 4),
           Text(title,
               style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: scheme.onSurface)),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: alert ? scheme.error : scheme.onSurface)),
           const SizedBox(width: 6),
           Text('$count', style: TextStyle(fontSize: 12, color: scheme.outline)),
         ]),

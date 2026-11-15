@@ -124,9 +124,7 @@ class _TaskDetailState extends ConsumerState<TaskDetail> {
     final done = task.status != TaskStatus.open;
     final trashed = task.trashedAt != null;
 
-    final overdue = task.dueDate != null &&
-        !done &&
-        task.dueDate!.compareTo(dateKey(today)) < 0;
+    final overdue = isOverdue(task, ref.watch(clockProvider));
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       // Top bar: done, date, priority, more.

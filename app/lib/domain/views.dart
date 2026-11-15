@@ -54,6 +54,7 @@ class TaskSection {
     required this.title,
     required this.tasks,
     this.collapsedByDefault = false,
+    this.alert = false,
   });
 
   final String id;
@@ -62,9 +63,21 @@ class TaskSection {
   final String? title;
   final List<Task> tasks;
   final bool collapsedByDefault;
+
+  /// Shown in the warning colour (已过期).
+  final bool alert;
 }
 
 bool isOpen(Task t) => t.status == TaskStatus.open && t.trashedAt == null;
+
+/// Whether an open task's due moment has come: an earlier day, or today
+/// once its time is reached (the minute its 准时 reminder goes off).
+bool isOverdue(Task t, DateTime now) {
+  if (!isOpen(t) || t.dueDate == null) return false;
+  final c = t.dueDate!.compareTo(dateKey(now));
+  if (c != 0) return c < 0;
+  return t.dueTime != null && t.dueTime! <= now.hour * 60 + now.minute;
+}
 bool isDone(Task t) => t.status != TaskStatus.open && t.trashedAt == null;
 
 String listName(String listId, Map<String, TaskList> lists) =>
@@ -260,7 +273,8 @@ List<TaskSection> buildSections({
       open.sort(compareByDue);
       final overdue = open.where((t) => t.dueDate!.compareTo(todayKey) < 0);
       if (overdue.isNotEmpty) {
-        sections.add(TaskSection(id: 'overdue', title: '已过期', tasks: overdue.toList()));
+        sections.add(TaskSection(
+            id: 'overdue', title: '已过期', tasks: overdue.toList(), alert: true));
       }
       final byDay = <String, List<Task>>{};
       for (final t in open.where((t) => t.dueDate!.compareTo(todayKey) >= 0)) {

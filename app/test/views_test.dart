@@ -154,4 +154,20 @@ void main() {
     expect(quickAddDefaults(const ListViewRef('work'), today).listId, 'work');
     expect(quickAddDefaults(const TagViewRef('x'), today).tags, ['x']);
   });
+
+  test('overdue: an earlier day, or today once the time comes', () {
+    final at = DateTime(2026, 11, 15, 16, 56, 30);
+    bool overdue(Task t) => isOverdue(t, at);
+    expect(overdue(task('昨天', due: '2026-11-14')), isTrue);
+    expect(overdue(task('昨天晚上', due: '2026-11-14', time: 23 * 60)), isTrue);
+    expect(overdue(task('今天全天', due: '2026-11-15')), isFalse);
+    expect(overdue(task('刚过', due: '2026-11-15', time: 16 * 60 + 55)), isTrue);
+    // The minute it is due, as its 准时 reminder goes off.
+    expect(overdue(task('正到点', due: '2026-11-15', time: 16 * 60 + 56)), isTrue);
+    expect(overdue(task('还没到', due: '2026-11-15', time: 16 * 60 + 57)), isFalse);
+    expect(overdue(task('明天', due: '2026-11-16')), isFalse);
+    expect(overdue(task('没日期')), isFalse);
+    expect(overdue(task('做完了', due: '2026-11-14', status: TaskStatus.done)), isFalse);
+    expect(overdue(task('删了', due: '2026-11-14', trashedAt: 1)), isFalse);
+  });
 }

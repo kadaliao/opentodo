@@ -31,14 +31,10 @@ class TaskTile extends ConsumerWidget {
     final done = task.status != TaskStatus.open;
     final trashed = task.trashedAt != null;
 
+    final overdue = isOverdue(task, now);
     Color dueColor() {
-      final cmp = task.dueDate!.compareTo(dateKey(today));
       if (done) return scheme.outline;
-      if (cmp < 0) return scheme.error;
-      if (cmp == 0 && task.dueTime != null && task.dueTime! < now.hour * 60 + now.minute) {
-        return scheme.error;
-      }
-      return scheme.primary;
+      return overdue ? scheme.error : scheme.primary;
     }
 
     return Material(
@@ -103,7 +99,11 @@ class TaskTile extends ConsumerWidget {
                 ),
               Text(
                 dueLabel(task.dueDate!, task.dueTime, today),
-                style: TextStyle(fontSize: 12, color: dueColor()),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: dueColor(),
+                  fontWeight: overdue ? FontWeight.w600 : null,
+                ),
               ),
             ],
             if (trashed) ...[

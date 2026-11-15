@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart' show AppLifecycleListener;
 
 import '../data/db.dart';
 import '../data/repo.dart';
@@ -38,16 +39,31 @@ final tagsProvider = Provider<List<String>>((ref) {
   return tags.toList()..sort();
 });
 
-/// The current time, refreshed every minute so 今天 and 已过期 roll over at
-/// midnight without a restart.
+/// The current time, refreshed on every turn of the minute (so a task turns
+/// overdue the moment its reminder goes off, and 今天 rolls over at
+/// midnight) and when the app comes back to the foreground.
 class Clock extends Notifier<DateTime> {
+  Timer? _timer;
+
   @override
   DateTime build() {
-    final timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      state = DateTime.now();
+    _scheduleTick();
+    final lifecycle = AppLifecycleListener(onResume: () => state = DateTime.now());
+    ref.onDispose(() {
+      _timer?.cancel();
+      lifecycle.dispose();
     });
-    ref.onDispose(timer.cancel);
     return DateTime.now();
+  }
+
+  void _scheduleTick() {
+    final now = DateTime.now();
+    final next = DateTime(now.year, now.month, now.day, now.hour, now.minute + 1);
+    // A little past the minute, so a timer firing early still lands in it.
+    _timer = Timer(next.difference(now) + const Duration(milliseconds: 50), () {
+      state = DateTime.now();
+      _scheduleTick();
+    });
   }
 }
 

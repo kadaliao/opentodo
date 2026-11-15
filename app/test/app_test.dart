@@ -174,4 +174,36 @@ void main() {
 
     await finish(tester, db);
   });
+
+  testWidgets('overdue tasks show in red, in the list and the detail', (tester) async {
+    final db = await pumpApp(tester, const Size(1400, 900));
+    final container = ProviderScope.containerOf(tester.element(find.byType(OpenTodoApp)));
+    final repo = container.read(repoProvider);
+    final today = dateOnly(DateTime.now());
+    // Midnight today has always passed; tomorrow hasn't.
+    await repo.addTask(title: '今天零点', dueDate: today, dueTime: 0, reminders: [0]);
+    await repo.addTask(title: '昨天的', dueDate: addDays(today, -1));
+    await repo.addTask(title: '今天全天', dueDate: today);
+    await tester.pumpAndSettle();
+
+    final scheme = Theme.of(tester.element(find.text('今天零点'))).colorScheme;
+    Color? colorOf(Finder f) => tester.widget<Text>(f).style?.color;
+
+    expect(colorOf(find.text('已过期')), scheme.error);
+    expect(colorOf(find.text('上午12:00')), scheme.error);
+    expect(colorOf(find.text('昨天')), scheme.error);
+    expect(colorOf(find.text('今天').last), scheme.primary); // the all-day one, not yet
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.alarm)).color,
+      scheme.error,
+    );
+
+    await tester.tap(find.text('今天零点'));
+    await tester.pumpAndSettle();
+    final button = tester.widget<TextButton>(
+        find.ancestor(of: find.text('今天, 上午12:00'), matching: find.byType(TextButton)));
+    expect(button.style?.foregroundColor?.resolve({}), scheme.error);
+
+    await finish(tester, db);
+  });
 }
