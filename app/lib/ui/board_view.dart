@@ -25,7 +25,7 @@ class BoardView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sort = ref.watch(listPrefsProvider)[listId]?.sort ?? ListSort.manual;
+    final sort = (ref.watch(viewPrefsProvider)[listId] ?? const ViewPrefs()).sortIn(ListViewRef(listId))!;
     final columns = boardColumns(
       listId,
       ref.watch(tasksProvider).value ?? const [],
@@ -62,7 +62,7 @@ class BoardView extends ConsumerWidget {
                 child: _Column(
                   listId: listId,
                   column: c,
-                  manual: sort == ListSort.manual,
+                  manual: sort == TaskSort.manual,
                   onOpenTask: open,
                   cardWidth: width,
                   picked: picked,
@@ -123,9 +123,8 @@ class _ColumnState extends ConsumerState<_Column> {
     final scheme = Theme.of(context).colorScheme;
     final c = widget.column;
     final section = c.group.section;
-    final group = ArrangeGroup(
-      listId: widget.listId,
-      sectionId: section?.id,
+    final group = GroupDrop(
+      SectionTarget(widget.listId, section?.id),
       tasks: c.group.tasks,
       manual: widget.manual,
     );

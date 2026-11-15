@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../domain/dates.dart';
 import '../domain/recurrence.dart';
 import '../domain/task_defaults.dart';
+import '../domain/views.dart';
 import 'db.dart';
 import 'keys.dart';
 
@@ -294,11 +295,34 @@ class TaskRepo {
         }
       });
 
-  /// Moves tasks dragged together onto [date], each keeping its time.
-  Future<void> moveAllTo(List<String> ids, DateTime date) => db.transaction(() async {
+  /// Tasks dragged into a group of a view, in one transaction: each takes
+  /// on what [target] stands for (a section, a day keeping its time, no
+  /// date, a priority, a list, a tag), and [orders] gives the new order
+  /// numbers from `planMoveMany` when the view is in manual order.
+  Future<void> dropInto(List<String> ids, GroupTarget target, Map<String, double> orders) =>
+      db.transaction(() async {
         for (final id in ids) {
           final t = await getTask(id);
-          if (t != null) await moveTo(id, date, t.dueTime);
+          if (t == null || target.has(t)) continue;
+          switch (target) {
+            case SectionTarget(:final sectionId):
+              await updateTask(id, TasksCompanion(sectionId: Value(sectionId)));
+            case DateTarget(:final day?):
+              await moveTo(id, day, t.dueTime);
+            case DateTarget(day: null):
+              await setDue(id, null, null);
+            case PriorityTarget(:final priority):
+              await setPriority(id, priority);
+            case ListTarget(:final listId):
+              await moveToList(id, listId);
+            case TagTarget():
+              await setTags(id, target.retag(t.tags));
+            case OrderTarget():
+              break;
+          }
+        }
+        for (final e in orders.entries) {
+          await updateTask(e.key, TasksCompanion(sortOrder: Value(e.value)));
         }
       });
 

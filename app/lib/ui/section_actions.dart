@@ -7,11 +7,12 @@ import '../state/providers.dart';
 import 'dialogs.dart';
 import 'task_drag.dart' show dragsOnLongPress;
 
-/// Asks for a name and adds a section at the end of [listId]'s.
-Future<void> addSection(BuildContext context, WidgetRef ref, String listId) async {
+/// Asks for a name and adds a section at the end of [listId]'s; its id, or
+/// null when the person cancelled.
+Future<String?> addSection(BuildContext context, WidgetRef ref, String listId) async {
   final name = await promptName(context, title: '添加分组', hint: '分组名称，比如“进行中”');
-  if (name == null) return;
-  await ref.read(repoProvider).addSection(listId, name);
+  if (name == null) return null;
+  return ref.read(repoProvider).addSection(listId, name);
 }
 
 /// Moves [section] [delta] places among its list's sections.

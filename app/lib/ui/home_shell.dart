@@ -185,7 +185,7 @@ class HomeShell extends ConsumerWidget {
 
 bool _showsBoard(WidgetRef ref) {
   final listId = arrangedListId(ref.watch(selectedViewProvider));
-  return listId != null && ref.watch(listPrefsProvider)[listId]?.layout == ListLayout.board;
+  return listId != null && ref.watch(viewPrefsProvider)[listId]?.layout == ListLayout.board;
 }
 
 /// The modules as icons down the left edge of a computer window.

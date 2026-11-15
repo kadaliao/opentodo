@@ -48,7 +48,11 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
     final filters = ref.watch(filtersByIdProvider);
     final loading = ref.watch(tasksProvider).isLoading;
     final sections = ref.watch(sectionsProvider);
-    final showList = view is SmartViewRef || view is TagViewRef || view is FilterViewRef;
+    final prefs = ref.watch(currentViewPrefsProvider);
+    // Rows name their list where tasks from several show, unless the
+    // headers already do.
+    final showList = (view is SmartViewRef || view is TagViewRef || view is FilterViewRef) &&
+        prefs.groupingIn(view) != TaskGrouping.list;
     final filter = view is FilterViewRef ? filters[view.filterId] : null;
     // Deleted on another device while on screen.
     if (view is FilterViewRef && filter == null && ref.watch(filtersProvider).hasValue) {
@@ -59,9 +63,9 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
       });
     }
     final isTrash = view == const SmartViewRef(SmartKind.trash);
+    final anyTarget = sections.any((s) => s.target != null);
     final arrangedList = arrangedListId(view);
-    final listPrefs = arrangedList == null ? null : ref.watch(listPrefsProvider)[arrangedList];
-    final board = listPrefs?.layout == ListLayout.board;
+    final board = arrangedList != null && prefs.layout == ListLayout.board;
     final touch = dragsOnLongPress(context);
     final selection = ref.watch(taskSelectionProvider);
     final picking = selection.active;
@@ -114,8 +118,8 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
               icon: const Icon(Icons.search),
               onPressed: () => openSearch(context),
             ),
-          if (arrangedList != null)
-            _ListMenu(listId: arrangedList, prefs: listPrefs ?? const ListPrefs()),
+          if (groupingsFor(view).isNotEmpty) _ArrangeMenu(view: view, prefs: prefs, board: board),
+          if (arrangedList != null) _ListMenu(view: view, listId: arrangedList, prefs: prefs),
           if (isTrash && sections.isNotEmpty)
             TextButton.icon(
               icon: const Icon(Icons.delete_sweep_outlined, size: 18),
@@ -138,26 +142,20 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
         child: loading
             ? const SizedBox.shrink()
             : board
-                ? BoardView(listId: arrangedList!, onOpenTask: widget.onOpenTask)
+                ? BoardView(listId: arrangedList, onOpenTask: widget.onOpenTask)
                 : sections.isEmpty
                 ? _EmptyState(view: view)
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 96),
                     children: [
                       for (final s in sections) ...() {
-                        final TaskDropGroup? group = s.arrangeable && arrangedList != null
-                            ? ArrangeGroup(
-                                listId: arrangedList,
-                                sectionId: s.listSection?.id,
-                                tasks: s.tasks,
-                                manual: s.manualOrder,
-                              )
-                            : s.day != null
-                                ? DayDropGroup(s.day!)
-                                : null;
-                        // Open tasks can be dragged in lists and date views,
-                        // also out of 已过期 (onto a day).
-                        final draggable = group != null || s.id == 'overdue';
+                        final group = s.target == null
+                            ? null
+                            : GroupDrop(s.target!, tasks: s.tasks, manual: s.manualOrder);
+                        // Open tasks can be dragged when there's a group to
+                        // drop them in, also out of one that takes none
+                        // (已过期, 以后).
+                        final draggable = !s.finished && anyTarget;
                         Widget header = _SectionHeader(
                           title: s.title ?? '',
                           alert: s.alert,
@@ -313,19 +311,76 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// The ⋯ of a list: show it as a list or a board, the order, add a
-/// section.
-class _ListMenu extends ConsumerWidget {
-  const _ListMenu({required this.listId, required this.prefs});
+/// ⇅: how the view's open tasks are grouped (分组) and ordered (排序).
+class _ArrangeMenu extends ConsumerWidget {
+  const _ArrangeMenu({required this.view, required this.prefs, required this.board});
 
+  final ViewRef view;
+  final ViewPrefs prefs;
+
+  /// A board's columns are always the list's sections: only the order.
+  final bool board;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(viewPrefsProvider.notifier);
+    final grouping = prefs.groupingIn(view)!;
+    final sort = prefs.sortIn(view)!;
+    const check = Icon(Icons.check, size: 18);
+    return MenuAnchor(
+      menuChildren: [
+        if (!board)
+          SubmenuButton(
+            leadingIcon: const Icon(Icons.view_agenda_outlined),
+            menuChildren: [
+              for (final g in groupingsFor(view))
+                MenuItemButton(
+                  trailingIcon: g == grouping ? check : null,
+                  onPressed: () => notifier.setGrouping(view, g),
+                  child: Text(switch (g) {
+                    TaskGrouping.sections => '自定义分组',
+                    TaskGrouping.none => '不分组',
+                    _ => '按${g.label}',
+                  }),
+                ),
+            ],
+            child: Text('分组：${grouping.label}'),
+          ),
+        SubmenuButton(
+          leadingIcon: const Icon(Icons.sort),
+          menuChildren: [
+            for (final o in sortsFor(view))
+              MenuItemButton(
+                trailingIcon: o == sort ? check : null,
+                onPressed: () => notifier.setSort(view, o),
+                child: Text(o == TaskSort.manual ? '自定义（拖动）' : '按${o.label}'),
+              ),
+          ],
+          child: Text('排序：${sort.label}'),
+        ),
+      ],
+      builder: (context, controller, _) => IconButton(
+        tooltip: board ? '排序' : '分组和排序',
+        icon: const Icon(Icons.swap_vert),
+        onPressed: () => controller.isOpen ? controller.close() : controller.open(),
+      ),
+    );
+  }
+}
+
+/// The ⋯ of a list: show it as a list or a board, add a section.
+class _ListMenu extends ConsumerWidget {
+  const _ListMenu({required this.view, required this.listId, required this.prefs});
+
+  final ViewRef view;
   final String listId;
-  final ListPrefs prefs;
+  final ViewPrefs prefs;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final board = prefs.layout == ListLayout.board;
-    final prefsNotifier = ref.read(listPrefsProvider.notifier);
-    void layout(ListLayout l) => prefsNotifier.setLayout(listId, l);
+    final notifier = ref.read(viewPrefsProvider.notifier);
+    void layout(ListLayout l) => notifier.setLayout(view, l);
     const check = Icon(Icons.check, size: 18);
     return MenuAnchor(
       menuChildren: [
@@ -342,21 +397,15 @@ class _ListMenu extends ConsumerWidget {
           child: const Text('看板'),
         ),
         const Divider(height: 8),
-        SubmenuButton(
-          leadingIcon: const Icon(Icons.sort),
-          menuChildren: [
-            for (final sort in ListSort.values)
-              MenuItemButton(
-                trailingIcon: prefs.sort == sort ? check : null,
-                onPressed: () => prefsNotifier.setSort(listId, sort),
-                child: Text(sort == ListSort.manual ? '自定义（拖动）' : '按${sort.label}'),
-              ),
-          ],
-          child: Text('排序：${prefs.sort.label}'),
-        ),
         MenuItemButton(
           leadingIcon: const Icon(Icons.add),
-          onPressed: () => addSection(context, ref, listId),
+          onPressed: () async {
+            final added = await addSection(context, ref, listId);
+            // Show the sections, so the new one is there to see.
+            if (added != null && prefs.groupingIn(view) != TaskGrouping.sections) {
+              notifier.setGrouping(view, TaskGrouping.sections);
+            }
+          },
           child: const Text('添加分组'),
         ),
       ],

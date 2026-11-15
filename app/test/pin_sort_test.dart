@@ -42,23 +42,23 @@ void main() {
       task('明天中', listId: 'w', due: '2026-11-16', priority: Priority.medium),
       task('明天低', listId: 'w', due: '2026-11-16', priority: Priority.low),
     ];
-    List<String> order(ListSort sort) => [
+    List<String> order(TaskSort sort) => [
           for (final t in buildSections(
             view: const ListViewRef('w'),
             tasks: tasks,
             lists: const {},
             now: now,
-            listSorts: {'w': sort},
+            sort: sort,
           ).single.tasks)
             t.title,
         ];
-    expect(order(ListSort.manual), ['明天低', '明天中', '后天', '无日期高']); // newest first
-    expect(order(ListSort.due), ['明天中', '明天低', '后天', '无日期高']);
-    expect(order(ListSort.priority), ['无日期高', '明天中', '明天低', '后天']);
+    expect(order(TaskSort.manual), ['明天低', '明天中', '后天', '无日期高']); // newest first
+    expect(order(TaskSort.due), ['明天中', '明天低', '后天', '无日期高']);
+    expect(order(TaskSort.priority), ['无日期高', '明天中', '明天低', '后天']);
     // A to Z in pinyin: hou, mingtiandi, mingtianzhong, wu.
-    expect(order(ListSort.title), ['后天', '明天低', '明天中', '无日期高']);
+    expect(order(TaskSort.title), ['后天', '明天低', '明天中', '无日期高']);
     final s = buildSections(
-        view: const ListViewRef('w'), tasks: tasks, lists: const {}, now: now, listSorts: {'w': ListSort.due});
+        view: const ListViewRef('w'), tasks: tasks, lists: const {}, now: now, sort: TaskSort.due);
     expect(s.single.manualOrder, isFalse);
     expect(
         buildSections(view: const ListViewRef('w'), tasks: tasks, lists: const {}, now: now)
@@ -119,12 +119,21 @@ void main() {
     expect(t.pinnedAt, isNull);
   });
 
-  test('list preferences read what the first version stored', () {
-    expect(ListPrefs.fromJson('board').layout, ListLayout.board);
-    expect(ListPrefs.fromJson('board').sort, ListSort.manual);
-    final p = ListPrefs.fromJson({'layout': 'list', 'sort': 'due'});
-    expect((p.layout, p.sort), (ListLayout.list, ListSort.due));
-    expect(ListPrefs.fromJson({'layout': 'gallery', 'sort': 'mood'}).isDefault, isTrue);
-    expect(ListPrefs.fromJson(42).isDefault, isTrue);
+  test('view preferences read what earlier versions stored', () {
+    const list = ListViewRef('w');
+    expect(ViewPrefs.fromJson('board').layout, ListLayout.board);
+    expect(ViewPrefs.fromJson('board').sortIn(list), TaskSort.manual);
+    final p = ViewPrefs.fromJson({'layout': 'list', 'sort': 'due'});
+    expect((p.layout, p.sortIn(list), p.groupingIn(list)), (ListLayout.list, TaskSort.due, TaskGrouping.sections));
+    expect(ViewPrefs.fromJson({'layout': 'gallery', 'sort': 'mood', 'group': 'x'}).isDefault, isTrue);
+    expect(ViewPrefs.fromJson(42).isDefault, isTrue);
+    // A choice a view doesn't offer falls back to its default.
+    const today = SmartViewRef(SmartKind.today);
+    expect(p.sortIn(today), TaskSort.due);
+    expect(const ViewPrefs(sort: TaskSort.manual, grouping: TaskGrouping.sections).groupingIn(today), TaskGrouping.date);
+    expect(const ViewPrefs(sort: TaskSort.manual).sortIn(today), TaskSort.due);
+    final round = ViewPrefs.fromJson(const ViewPrefs(grouping: TaskGrouping.priority, sort: TaskSort.tag).toJson());
+    expect((round.grouping, round.sort), (TaskGrouping.priority, TaskSort.tag));
+    expect(const ViewPrefs().sortIn(const SmartViewRef(SmartKind.trash)), isNull);
   });
 }

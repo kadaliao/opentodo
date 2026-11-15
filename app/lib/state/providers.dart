@@ -51,41 +51,63 @@ final sectionsByListProvider = Provider<Map<String, List<ListSection>>>((ref) {
 /// How a list is laid out on this device.
 enum ListLayout { list, board }
 
-/// How a list shows on this device: as a list or a board, and in which
-/// order. A phone may want the list where the computer shows the board.
-class ListPrefs {
-  const ListPrefs({this.layout = ListLayout.list, this.sort = ListSort.manual});
+/// The key a view's [ViewPrefs] are kept under: a list's id (the inbox's
+/// too), or the view's name for the rest.
+String viewPrefsKey(ViewRef view) => arrangedListId(view) ?? view.toString();
+
+/// How a view shows on this device: a list as a list or a board, and how
+/// the open tasks are grouped and ordered. A phone may want the list where
+/// the computer shows the board.
+class ViewPrefs {
+  const ViewPrefs({this.layout = ListLayout.list, this.sort, this.grouping});
 
   final ListLayout layout;
-  final ListSort sort;
 
-  bool get isDefault => layout == ListLayout.list && sort == ListSort.manual;
+  /// Null: the view's default.
+  final TaskSort? sort;
+  final TaskGrouping? grouping;
 
-  ListPrefs copyWith({ListLayout? layout, ListSort? sort}) =>
-      ListPrefs(layout: layout ?? this.layout, sort: sort ?? this.sort);
+  bool get isDefault => layout == ListLayout.list && sort == null && grouping == null;
 
-  Map<String, String> toJson() => {'layout': layout.name, 'sort': sort.name};
+  /// The order [view] uses: [sort] if it offers it, else its default.
+  TaskSort? sortIn(ViewRef view) {
+    final sorts = sortsFor(view);
+    return sorts.contains(sort) ? sort : sorts.firstOrNull;
+  }
+
+  /// The grouping [view] uses: [grouping] if it offers it, else its
+  /// default.
+  TaskGrouping? groupingIn(ViewRef view) {
+    final groupings = groupingsFor(view);
+    return groupings.contains(grouping) ? grouping : groupings.firstOrNull;
+  }
+
+  Map<String, String> toJson() => {
+        'layout': layout.name,
+        if (sort != null) 'sort': sort!.name,
+        if (grouping != null) 'group': grouping!.name,
+      };
 
   /// Also reads the bare layout name the first version stored.
-  factory ListPrefs.fromJson(Object? json) {
+  factory ViewPrefs.fromJson(Object? json) {
     T? byName<T extends Enum>(List<T> values, Object? name) =>
         values.where((v) => v.name == name).firstOrNull;
-    if (json is String) return ListPrefs(layout: byName(ListLayout.values, json) ?? ListLayout.list);
-    if (json is! Map) return const ListPrefs();
-    return ListPrefs(
+    if (json is String) return ViewPrefs(layout: byName(ListLayout.values, json) ?? ListLayout.list);
+    if (json is! Map) return const ViewPrefs();
+    return ViewPrefs(
       layout: byName(ListLayout.values, json['layout']) ?? ListLayout.list,
-      sort: byName(ListSort.values, json['sort']) ?? ListSort.manual,
+      sort: byName(TaskSort.values, json['sort']),
+      grouping: byName(TaskGrouping.values, json['group']),
     );
   }
 }
 
-/// [ListPrefs] per list (the inbox too), by list id; kept on this device,
-/// not synced.
-class ListPrefsNotifier extends Notifier<Map<String, ListPrefs>> {
+/// [ViewPrefs] by [viewPrefsKey]; kept on this device, not synced.
+class ViewPrefsNotifier extends Notifier<Map<String, ViewPrefs>> {
   bool _changed = false;
 
   @override
-  Map<String, ListPrefs> build() {
+  Map<String, ViewPrefs> build() {
     _load();
     return const {};
   }
@@ -96,29 +118,50 @@ class ListPrefsNotifier extends Notifier<Map<String, ListPrefs>> {
     try {
       state = {
         for (final e in (jsonDecode(raw) as Map<String, dynamic>).entries)
-          e.key: ListPrefs.fromJson(e.value),
+          e.key: ViewPrefs.fromJson(e.value),
       };
     } on Object {
-      // Damaged: every list as a list, in manual order.
+      // Damaged: every view as it is out of the box.
     }
   }
 
-  ListPrefs of(String listId) => state[listId] ?? const ListPrefs();
+  ViewPrefs of(ViewRef view) => state[viewPrefsKey(view)] ?? const ViewPrefs();
 
-  void setLayout(String listId, ListLayout layout) => _set(listId, of(listId).copyWith(layout: layout));
+  void setLayout(ViewRef view, ListLayout layout) {
+    final p = of(view);
+    _set(view, ViewPrefs(layout: layout, sort: p.sort, grouping: p.grouping));
+  }
 
-  void setSort(String listId, ListSort sort) => _set(listId, of(listId).copyWith(sort: sort));
+  /// The view's default is stored as no choice, so a later change of
+  /// default reaches it.
+  void setSort(ViewRef view, TaskSort sort) {
+    final p = of(view);
+    _set(view, ViewPrefs(layout: p.layout, sort: sort == sortsFor(view).firstOrNull ? null : sort, grouping: p.grouping));
+  }
 
-  void _set(String listId, ListPrefs prefs) {
+  void setGrouping(ViewRef view, TaskGrouping grouping) {
+    final p = of(view);
+    _set(view, ViewPrefs(
+      layout: p.layout,
+      sort: p.sort,
+      grouping: grouping == groupingsFor(view).firstOrNull ? null : grouping,
+    ));
+  }
+
+  void _set(ViewRef view, ViewPrefs prefs) {
     _changed = true;
-    state = {...state, listId: prefs}..removeWhere((_, p) => p.isDefault);
+    state = {...state, viewPrefsKey(view): prefs}..removeWhere((_, p) => p.isDefault);
     ref.read(databaseProvider).setValue(
         Keys.listPrefs, jsonEncode({for (final e in state.entries) e.key: e.value.toJson()}));
   }
 }
 
-final listPrefsProvider =
-    NotifierProvider<ListPrefsNotifier, Map<String, ListPrefs>>(ListPrefsNotifier.new);
+final viewPrefsProvider =
+    NotifierProvider<ViewPrefsNotifier, Map<String, ViewPrefs>>(ViewPrefsNotifier.new);
+
+/// The current view's [ViewPrefs].
+final currentViewPrefsProvider = Provider<ViewPrefs>((ref) =>
+    ref.watch(viewPrefsProvider)[viewPrefsKey(ref.watch(selectedViewProvider))] ?? const ViewPrefs());
 
 final filtersProvider = StreamProvider<List<TaskFilter>>(
     (ref) => ref.watch(repoProvider).watchFilters());
@@ -240,6 +283,7 @@ final sectionsProvider = Provider<List<TaskSection>>((ref) {
     now: ref.watch(clockProvider),
     filters: ref.watch(filterRulesProvider),
     sectionsByList: ref.watch(sectionsByListProvider),
-    listSorts: {for (final e in ref.watch(listPrefsProvider).entries) e.key: e.value.sort},
+    grouping: ref.watch(currentViewPrefsProvider).grouping,
+    sort: ref.watch(currentViewPrefsProvider).sort,
   );
 });

@@ -11,6 +11,7 @@ import 'package:opentodo/domain/views.dart';
 import 'package:opentodo/state/providers.dart';
 import 'package:opentodo/ui/app.dart';
 import 'package:opentodo/ui/home_shell.dart';
+import 'package:opentodo/ui/task_list_pane.dart';
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -147,7 +148,7 @@ void main() {
     await tester.tap(find.text('看板'));
     await tester.pumpAndSettle();
     final c = container(tester);
-    expect(c.read(listPrefsProvider)[work]?.layout, ListLayout.board);
+    expect(c.read(viewPrefsProvider)[work]?.layout, ListLayout.board);
     expect(await db.getValue('list.layouts'), contains('board'));
     expect(find.text('拖任务到这里'), findsOneWidget); // 进行中 is empty
     expect(find.text('添加分组'), findsOneWidget);
@@ -176,7 +177,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('列表'));
     await tester.pumpAndSettle();
-    expect(c.read(listPrefsProvider)[work], isNull);
+    expect(c.read(viewPrefsProvider)[work], isNull);
     expect(find.text('拖任务到这里'), findsNothing);
 
     await finish(tester);
@@ -279,13 +280,13 @@ void main() {
     // Order by priority: 丙 (high) first after the pinned 甲.
     final c = container(tester);
     await c.read(repoProvider).setPriority((await load('丙')).id, Priority.high);
-    await tester.tap(find.byTooltip('更多'));
+    await tester.tap(find.byTooltip('分组和排序'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('排序：自定义'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('按优先级'));
     await tester.pumpAndSettle();
-    expect(c.read(listPrefsProvider)[work]?.sort, ListSort.priority);
+    expect(c.read(viewPrefsProvider)[work]?.sort, TaskSort.priority);
     expect(y('甲'), lessThan(y('丙')));
     expect(y('丙'), lessThan(y('乙')));
 
@@ -337,6 +338,112 @@ void main() {
     expect(find.text('下周一'), findsNothing);
     final jia = await load('甲'), bing = await load('丙');
     expect(jia.sortOrder, lessThan(bing.sortOrder));
+
+    await finish(tester);
+  });
+
+  /// Picks [choice] in the ⇅ menu's [submenu] (分组 or 排序).
+  Future<void> arrange(WidgetTester tester, String submenu, String choice) async {
+    await tester.tap(find.byTooltip('分组和排序'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('$submenu：'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(choice));
+    await tester.pumpAndSettle();
+  }
+
+  /// [text] in the middle pane (the sidebar and the detail may show it too).
+  Finder inPane(String text) => find.descendant(of: find.byType(TaskListPane), matching: find.text(text));
+
+  testWidgets('desktop: group a list by priority, tag or date; a drop takes on its group',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS), (tester) async {
+    await pumpApp(tester, const Size(1400, 900));
+    final c = container(tester);
+    final repo = c.read(repoProvider);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    await repo.setPriority((await load('丙')).id, Priority.high);
+    await repo.setTags((await load('乙')).id, ['家务', '周末']);
+    await repo.setDue((await load('甲')).id, today, 9 * 60);
+    await tester.pumpAndSettle();
+
+    await arrange(tester, '分组', '按优先级');
+    expect(c.read(viewPrefsProvider)[work]?.grouping, TaskGrouping.priority);
+    expect(inPane('高优先级'), findsOneWidget);
+    expect(inPane('无优先级'), findsOneWidget);
+    await drag(tester, inPane('甲'), inPane('高优先级'));
+    expect((await load('甲')).priority, Priority.high);
+    expect(inPane('无优先级'), findsOneWidget); // 乙 is still there
+
+    // By tag: filed under the first one; a drop swaps that one.
+    await arrange(tester, '分组', '按标签');
+    // Rows show their tags too; the header comes first.
+    expect(inPane('家务'), findsNWidgets(2));
+    expect(inPane('周末'), findsOneWidget); // only 乙's chip
+    expect(inPane('无标签'), findsOneWidget);
+    await drag(tester, inPane('丙'), inPane('家务').first);
+    expect((await load('丙')).tags, ['家务']);
+    await drag(tester, inPane('乙'), inPane('无标签'));
+    expect((await load('乙')).tags, isEmpty);
+
+    // By date: a day keeps the time; 无日期 clears the date.
+    await arrange(tester, '分组', '按时间');
+    final todayTitle = daySectionTitle(today, today);
+    expect(inPane(todayTitle), findsOneWidget);
+    expect(inPane('无日期'), findsOneWidget);
+    await drag(tester, inPane('乙'), inPane(todayTitle));
+    expect((await load('乙')).dueDate, dateKey(today));
+    await drag(tester, inPane('甲'), inPane('无日期'));
+    expect((await load('甲')).dueDate, isNull);
+
+    // Sort by tag while grouped by date.
+    await arrange(tester, '排序', '按标签');
+    expect(c.read(viewPrefsProvider)[work]?.sort, TaskSort.tag);
+
+    // Adding a section goes back to the sections, to show it.
+    await addSection(tester, '下周');
+    expect(c.read(viewPrefsProvider)[work]?.grouping, isNull);
+    expect(inPane('未分组'), findsOneWidget);
+    expect(inPane('下周'), findsOneWidget);
+
+    await finish(tester);
+  });
+
+  testWidgets('desktop: 今天 grouped by list or not at all; drop on a list moves the task',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS), (tester) async {
+    await pumpApp(tester, const Size(1400, 900));
+    final c = container(tester);
+    final repo = c.read(repoProvider);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    await repo.addTask(title: '买菜', dueDate: today);
+    await repo.addTask(title: '写报告', dueDate: today, listId: work);
+    c.read(selectedViewProvider.notifier).select(const SmartViewRef(SmartKind.today));
+    await tester.pumpAndSettle();
+    // 今天 has no hand-made order to offer.
+    await tester.tap(find.byTooltip('分组和排序'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('排序：时间'));
+    await tester.pumpAndSettle();
+    expect(find.text('自定义（拖动）'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    await arrange(tester, '分组', '按清单');
+    expect(c.read(viewPrefsProvider)['smart:today']?.grouping, TaskGrouping.list);
+    // A row shows its list too; the header comes first.
+    expect(inPane('收集箱'), findsWidgets);
+    await drag(tester, inPane('买菜'), inPane('工作').first);
+    expect((await load('买菜')).listId, work);
+    expect(inPane('收集箱'), findsNothing);
+
+    // Not grouped: no headers, only the rows' list names.
+    await arrange(tester, '分组', '不分组');
+    expect(inPane('工作'), findsNWidgets(2));
+    expect(find.text('今天, ${weekdayName(today)}'), findsNothing);
+    expect(inPane('买菜'), findsOneWidget);
+    // The list keeps its own grouping.
+    expect(c.read(viewPrefsProvider)[work], isNull);
 
     await finish(tester);
   });

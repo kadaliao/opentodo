@@ -2,8 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../data/db.dart';
-import '../domain/dates.dart';
 import '../domain/ordering.dart';
+import '../domain/views.dart';
 import '../state/providers.dart';
 import 'task_actions.dart';
 
@@ -30,7 +30,7 @@ class DraggedTasks {
   int get count => all.length;
 }
 
-/// Where dragged tasks can land: a section of a list, or a day.
+/// Where dragged tasks can land.
 sealed class TaskDropGroup {
   const TaskDropGroup();
 
@@ -51,87 +51,56 @@ sealed class TaskDropGroup {
 
 bool _movable(Task t) => t.status == TaskStatus.open && t.trashedAt == null;
 
-/// The open tasks of one section of a list, in the order shown.
-class ArrangeGroup extends TaskDropGroup {
-  const ArrangeGroup({
-    required this.listId,
-    required this.sectionId,
-    required this.tasks,
-    this.manual = true,
-  });
+/// A group of a view's open tasks (a section of a list, a day, a
+/// priority…): tasks dropped into it take on what the group stands for
+/// ([target]) and, in manual order, land where they're dropped.
+class GroupDrop extends TaskDropGroup {
+  const GroupDrop(this.target, {this.tasks = const [], this.manual = false});
 
-  final String listId;
+  final GroupTarget target;
 
-  /// Null for 未分组.
-  final String? sectionId;
-
-  /// Pinned ones first, as the list shows them.
+  /// Pinned ones first, as the view shows them.
   final List<Task> tasks;
 
-  /// The list is in manual order; otherwise a drop only changes section.
+  /// The view is in manual order; otherwise a drop only changes group.
   final bool manual;
 
   @override
   bool get ordered => manual;
 
+  /// Out of manual order, only tasks from another group.
   @override
-  bool accepts(Task t) => t.listId == listId && _movable(t);
+  bool accepts(Task t) => _movable(t) && target.takes(t) && (manual || !target.has(t));
 
   @override
   Future<void> drop(WidgetRef ref, DraggedTasks d, int index) async {
     final moving = d.all.where(accepts).toList();
     if (moving.isEmpty) return;
-    final repo = ref.read(repoProvider);
     final ids = [for (final t in moving) t.id];
-    if (!manual) {
-      await repo.placeTasks(ids, sectionId, const {});
-      return;
-    }
-    // Pinned tasks move among the pinned ones, the rest among the rest.
-    final firstUnpinned = tasks.indexWhere((x) => x.pinnedAt == null);
-    final split = firstUnpinned < 0 ? tasks.length : firstUnpinned;
     final orders = <String, double>{};
-    for (final pinned in [true, false]) {
-      final movers = [
-        for (final t in moving)
-          if ((t.pinnedAt != null) == pinned) t,
-      ];
-      if (movers.isEmpty) continue;
-      final peers = tasks.where((x) => (x.pinnedAt != null) == pinned).toList();
-      final at = pinned ? index.clamp(0, split) : (index - split).clamp(0, peers.length);
-      final byId = {
-        for (final x in [...peers, ...movers]) x.id: x,
-      };
-      orders.addAll(
-        planMoveMany([for (final x in peers) x.id], [for (final x in movers) x.id], at, (id) => byId[id]!.sortOrder),
-      );
+    if (manual) {
+      // Pinned tasks move among the pinned ones, the rest among the rest.
+      final firstUnpinned = tasks.indexWhere((x) => x.pinnedAt == null);
+      final split = firstUnpinned < 0 ? tasks.length : firstUnpinned;
+      for (final pinned in [true, false]) {
+        final movers = [
+          for (final t in moving)
+            if ((t.pinnedAt != null) == pinned) t,
+        ];
+        if (movers.isEmpty) continue;
+        final peers = tasks.where((x) => (x.pinnedAt != null) == pinned).toList();
+        final at = pinned ? index.clamp(0, split) : (index - split).clamp(0, peers.length);
+        final byId = {
+          for (final x in [...peers, ...movers]) x.id: x,
+        };
+        orders.addAll(
+          planMoveMany([for (final x in peers) x.id], [for (final x in movers) x.id], at, (id) => byId[id]!.sortOrder),
+        );
+      }
+      // Let go where they were: nothing to do.
+      if (orders.isEmpty && moving.every((t) => tasks.any((x) => x.id == t.id))) return;
     }
-    // Let go where they were: nothing to do.
-    if (orders.isEmpty && moving.every((t) => tasks.any((x) => x.id == t.id))) return;
-    await repo.placeTasks(ids, sectionId, orders);
-  }
-}
-
-/// A day of 今天 / 明天 / 最近7天: tasks dropped on it move there, each
-/// keeping its time.
-class DayDropGroup extends TaskDropGroup {
-  const DayDropGroup(this.day);
-
-  final DateTime day;
-
-  @override
-  bool get ordered => false;
-
-  @override
-  bool accepts(Task t) => _movable(t) && t.dueDate != dateKey(day);
-
-  @override
-  Future<void> drop(WidgetRef ref, DraggedTasks d, int index) async {
-    final ids = [
-      for (final t in d.all)
-        if (accepts(t)) t.id,
-    ];
-    if (ids.isNotEmpty) await ref.read(repoProvider).moveAllTo(ids, day);
+    await ref.read(repoProvider).dropInto(ids, target, orders);
   }
 }
 

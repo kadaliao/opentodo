@@ -43,7 +43,7 @@ void main() {
     var s = buildSections(
         view: const ListViewRef('work'), tasks: await tasks(), lists: const {}, now: now);
     expect(shape(s), [sec(null, ['乙', '甲'])]); // newest first
-    expect(s.single.arrangeable, isTrue);
+    expect(s.single.target, isA<SectionTarget>());
 
     final doing = await repo.addSection('work', '进行中');
     final todo = await repo.addSection('work', '待办');
