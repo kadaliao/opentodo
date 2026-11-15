@@ -48,3 +48,53 @@ Map<String, double> planMove(
     for (var i = 0; i < all.length; i++) all[i]: start + i * orderStep,
   };
 }
+
+/// Where to put the items [moving] (in the order they should end up) so
+/// they land together at [index] of [ordered] (ids in display order; some
+/// or all of [moving] may be among them, counted where they are). Returns
+/// the new numbers, usually just the moved items'; empty when they're
+/// already there, in that order.
+Map<String, double> planMoveMany(
+  List<String> ordered,
+  List<String> moving,
+  int index,
+  double Function(String id) orderOf,
+) {
+  final movingSet = moving.toSet();
+  final rest = [for (final id in ordered) if (!movingSet.contains(id)) id];
+  var at = 0;
+  for (var i = 0; i < index && i < ordered.length; i++) {
+    if (!movingSet.contains(ordered[i])) at++;
+  }
+  final result = [...rest]..insertAll(at, moving);
+  if (result.length == ordered.length &&
+      Iterable<int>.generate(result.length).every((i) => result[i] == ordered[i])) {
+    return const {};
+  }
+
+  final k = moving.length;
+  final before = at > 0 ? orderOf(rest[at - 1]) : null;
+  final after = at < rest.length ? orderOf(rest[at]) : null;
+  final List<double> values;
+  if (before == null && after == null) {
+    values = [for (var i = 0; i < k; i++) i * orderStep];
+  } else if (before == null) {
+    values = [for (var i = 0; i < k; i++) after! - (k - i) * orderStep];
+  } else if (after == null) {
+    values = [for (var i = 0; i < k; i++) before + (i + 1) * orderStep];
+  } else {
+    final gap = (after - before) / (k + 1);
+    values = [for (var i = 0; i < k; i++) before + (i + 1) * gap];
+  }
+  var fits = true;
+  for (var i = 0; i < k; i++) {
+    final low = i == 0 ? before : values[i - 1];
+    if (low != null && !(values[i] > low)) fits = false;
+  }
+  if (after != null && !(values.last < after)) fits = false;
+  if (fits) return {for (var i = 0; i < k; i++) moving[i]: values[i]};
+
+  // No room: number everything again, keeping the first other item's place.
+  final start = rest.isEmpty ? 0.0 : orderOf(rest.first) - (at == 0 ? k * orderStep : 0);
+  return {for (var i = 0; i < result.length; i++) result[i]: start + i * orderStep};
+}

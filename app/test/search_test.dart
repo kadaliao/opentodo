@@ -121,4 +121,18 @@ void main() {
     expect(r.moreTasks, 2);
     expect(search(' ', tasks: [task('x')]).isEmpty, isTrue);
   });
+
+  test('titles and names can be typed in pinyin', () {
+    final tasks = [task('写周报'), task('周会'), task('report', content: '周报')];
+    final r = search('zb', tasks: tasks, lists: [list('a', '工作')], tags: ['周报']);
+    expect(r.tasks.map((h) => h.task.title), ['写周报']);
+    expect(r.tasks.single.titleRanges, [(1, 3)]);
+    expect(r.tags, ['周报']);
+    expect(search('gz', tasks: const [], lists: [list('a', '工作')]).lists.single.name, '工作');
+    // Mixed with a word as typed; one letter alone isn't read as pinyin.
+    expect(search('zhou 写', tasks: tasks).tasks.single.task.title, '写周报');
+    expect(search('z', tasks: tasks).tasks, isEmpty);
+    // Pinyin isn't looked for in notes: a match there highlights only as typed.
+    expect(search('zb', tasks: [task('x', content: 'zb 周报')]).tasks.single.snippetRanges, [(0, 2)]);
+  });
 }

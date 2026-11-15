@@ -90,7 +90,8 @@ void main() {
   });
 
   test('next 7 days groups by day', () {
-    expect(shape(sections(const SmartViewRef(SmartKind.next7))), [
+    // (The empty days are left out here; see pin_sort_test.)
+    expect(shape(sections(const SmartViewRef(SmartKind.next7)).where((s) => s.tasks.isNotEmpty).toList()), [
       sec('已过期', ['过期']),
       sec('今天, 周日', ['全天', '晨会', '写周报']),
       sec('明天, 周一', ['买菜']),
@@ -191,7 +192,7 @@ void main() {
       List<String?> titles(SmartKind kind) => [
             for (final s in buildSections(
                 view: SmartViewRef(kind), tasks: [trip, later, done], lists: const {}, now: now))
-              '${s.title}: ${s.tasks.map((t) => t.title).join(',')}',
+              if (s.tasks.isNotEmpty) '${s.title}: ${s.tasks.map((t) => t.title).join(',')}',
           ];
 
       expect(titles(SmartKind.today), ['已过期: 旧的', '今天, 周日: 出差']);

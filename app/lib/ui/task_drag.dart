@@ -14,19 +14,39 @@ bool dragsOnLongPress(BuildContext context) => switch (Theme.of(context).platfor
       _ => false,
     };
 
-/// Where a dragged task can land: a section of a list, or a day.
+/// What's being dragged: the task under the pointer ([lead]), and with it
+/// the other picked ones (多选) when it is one of them.
+class DraggedTasks {
+  const DraggedTasks(this.lead, [List<Task>? tasks]) : tasks = tasks ?? const [];
+
+  final Task lead;
+
+  /// Every task dragged, in the order shown, [lead] among them; just
+  /// [lead] when empty.
+  final List<Task> tasks;
+
+  List<Task> get all => tasks.isEmpty ? [lead] : tasks;
+
+  int get count => all.length;
+}
+
+/// Where dragged tasks can land: a section of a list, or a day.
 sealed class TaskDropGroup {
   const TaskDropGroup();
 
   bool accepts(Task t);
 
+  /// Takes a drag when any of its tasks can go here.
+  bool acceptsDrag(DraggedTasks d) => d.all.any(accepts);
+
   /// Whether where in the group it lands counts (a line shows where), or
   /// only which group.
   bool get ordered;
 
-  /// Puts [t] in this group, at [index] among the tasks as shown (counting
-  /// [t] where it is now if it's one of them) when [ordered].
-  Future<void> drop(WidgetRef ref, Task t, int index);
+  /// Puts the dragged tasks that can go here in this group, together, at
+  /// [index] among the tasks as shown (counting any of them where they are
+  /// now) when [ordered].
+  Future<void> drop(WidgetRef ref, DraggedTasks d, int index);
 }
 
 bool _movable(Task t) => t.status == TaskStatus.open && t.trashedAt == null;
@@ -58,31 +78,41 @@ class ArrangeGroup extends TaskDropGroup {
   bool accepts(Task t) => t.listId == listId && _movable(t);
 
   @override
-  Future<void> drop(WidgetRef ref, Task t, int index) async {
-    if (!accepts(t)) return;
+  Future<void> drop(WidgetRef ref, DraggedTasks d, int index) async {
+    final moving = d.all.where(accepts).toList();
+    if (moving.isEmpty) return;
     final repo = ref.read(repoProvider);
-    final sameSection = tasks.any((x) => x.id == t.id);
+    final ids = [for (final t in moving) t.id];
     if (!manual) {
-      if (!sameSection) await repo.placeTask(t.id, sectionId, const {});
+      await repo.placeTasks(ids, sectionId, const {});
       return;
     }
     // Pinned tasks move among the pinned ones, the rest among the rest.
-    final pinned = t.pinnedAt != null;
     final firstUnpinned = tasks.indexWhere((x) => x.pinnedAt == null);
     final split = firstUnpinned < 0 ? tasks.length : firstUnpinned;
-    final peers = tasks.where((x) => (x.pinnedAt != null) == pinned).toList();
-    final at = pinned ? index.clamp(0, split) : (index - split).clamp(0, peers.length + 1);
-    final ids = [for (final x in peers) x.id];
-    final from = ids.indexOf(t.id);
-    // Let go where it was: nothing to do.
-    if (from >= 0 && (at == from || at == from + 1)) return;
-    final byId = {for (final x in peers) x.id: x};
-    final orders = planMove(ids, t.id, at, (id) => byId[id]?.sortOrder ?? t.sortOrder);
-    await repo.placeTask(t.id, sectionId, orders);
+    final orders = <String, double>{};
+    for (final pinned in [true, false]) {
+      final movers = [
+        for (final t in moving)
+          if ((t.pinnedAt != null) == pinned) t,
+      ];
+      if (movers.isEmpty) continue;
+      final peers = tasks.where((x) => (x.pinnedAt != null) == pinned).toList();
+      final at = pinned ? index.clamp(0, split) : (index - split).clamp(0, peers.length);
+      final byId = {
+        for (final x in [...peers, ...movers]) x.id: x,
+      };
+      orders.addAll(
+        planMoveMany([for (final x in peers) x.id], [for (final x in movers) x.id], at, (id) => byId[id]!.sortOrder),
+      );
+    }
+    // Let go where they were: nothing to do.
+    if (orders.isEmpty && moving.every((t) => tasks.any((x) => x.id == t.id))) return;
+    await repo.placeTasks(ids, sectionId, orders);
   }
 }
 
-/// A day of 今天 / 明天 / 最近7天: a task dropped on it moves there,
+/// A day of 今天 / 明天 / 最近7天: tasks dropped on it move there, each
 /// keeping its time.
 class DayDropGroup extends TaskDropGroup {
   const DayDropGroup(this.day);
@@ -96,24 +126,60 @@ class DayDropGroup extends TaskDropGroup {
   bool accepts(Task t) => _movable(t) && t.dueDate != dateKey(day);
 
   @override
-  Future<void> drop(WidgetRef ref, Task t, int index) async {
-    if (!accepts(t)) return;
-    await ref.read(repoProvider).moveTo(t.id, day, t.dueTime);
+  Future<void> drop(WidgetRef ref, DraggedTasks d, int index) async {
+    final ids = [
+      for (final t in d.all)
+        if (accepts(t)) t.id,
+    ];
+    if (ids.isNotEmpty) await ref.read(repoProvider).moveAllTo(ids, day);
   }
 }
 
-/// The task being dragged and how big its row is, so drop targets can tell
-/// where its middle is.
-final _dragging = ValueNotifier<({Task task, Size size})?>(null);
+/// The tasks being dragged and how big the row under the pointer is, so
+/// drop targets can tell where its middle is.
+final _dragging = ValueNotifier<({DraggedTasks drag, Size size})?>(null);
+
+/// Scrolls the lists (and the board) around a dragged thing when it nears
+/// their edges.
+class _EdgeScroll {
+  final _scrollers = <EdgeDraggingAutoScroller>[];
+
+  void start(BuildContext context) {
+    for (final axis in [Axis.vertical, Axis.horizontal]) {
+      final scrollable = Scrollable.maybeOf(context, axis: axis);
+      if (scrollable != null) {
+        _scrollers.add(EdgeDraggingAutoScroller(scrollable, velocityScalar: 20));
+      }
+    }
+  }
+
+  void update(Offset globalPosition) {
+    final rect = Rect.fromCenter(center: globalPosition, width: 48, height: 48);
+    for (final s in _scrollers) {
+      s.startAutoScrollIfNecessary(rect);
+    }
+  }
+
+  void stop() {
+    for (final s in _scrollers) {
+      s.stopAutoScroll();
+    }
+    _scrollers.clear();
+  }
+}
 
 /// Lets the person drag [child], the row or card of [task], to another
-/// place. On a touch screen the drag starts with a long press; letting go
-/// without moving opens the task's menu instead.
+/// place; when [task] is one of the picked tasks ([picked], in the order
+/// shown), they all go together. On a touch screen the drag starts with a
+/// long press; letting go without moving opens the task's menu instead.
 class TaskDraggable extends ConsumerStatefulWidget {
-  const TaskDraggable({super.key, required this.task, required this.child, this.width});
+  const TaskDraggable({super.key, required this.task, required this.child, this.picked = const [], this.width});
 
   final Task task;
   final Widget child;
+
+  /// The picked tasks that can be dragged, in the order shown.
+  final List<Task> picked;
 
   /// The dragged copy's width; the row's own when null.
   final double? width;
@@ -124,33 +190,21 @@ class TaskDraggable extends ConsumerStatefulWidget {
 
 class _TaskDraggableState extends ConsumerState<TaskDraggable> {
   Offset? _startTopLeft;
-  final _scrollers = <EdgeDraggingAutoScroller>[];
+  final _scroll = _EdgeScroll();
 
-  void _started() {
+  DraggedTasks get _data => widget.picked.length > 1 && widget.picked.any((t) => t.id == widget.task.id)
+      ? DraggedTasks(widget.task, widget.picked)
+      : DraggedTasks(widget.task);
+
+  void _started(DraggedTasks data) {
     final box = context.findRenderObject()! as RenderBox;
     _startTopLeft = box.localToGlobal(Offset.zero);
-    _dragging.value = (task: widget.task, size: box.size);
-    // Scroll the list (and the board) when the drag nears an edge.
-    for (final axis in [Axis.vertical, Axis.horizontal]) {
-      final scrollable = Scrollable.maybeOf(context, axis: axis);
-      if (scrollable != null) {
-        _scrollers.add(EdgeDraggingAutoScroller(scrollable, velocityScalar: 20));
-      }
-    }
-  }
-
-  void _updated(DragUpdateDetails d) {
-    final rect = Rect.fromCenter(center: d.globalPosition, width: 48, height: 48);
-    for (final s in _scrollers) {
-      s.startAutoScrollIfNecessary(rect);
-    }
+    _dragging.value = (drag: data, size: box.size);
+    _scroll.start(context);
   }
 
   void _ended(Offset offset) {
-    for (final s in _scrollers) {
-      s.stopAutoScroll();
-    }
-    _scrollers.clear();
+    _scroll.stop();
     _dragging.value = null;
     final start = _startTopLeft;
     _startTopLeft = null;
@@ -163,46 +217,90 @@ class _TaskDraggableState extends ConsumerState<TaskDraggable> {
 
   @override
   void dispose() {
-    for (final s in _scrollers) {
-      s.stopAutoScroll();
-    }
+    _scroll.stop();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final data = _data;
     // Built once the drag has started, when the row's size is known.
     final feedback = ValueListenableBuilder(
       valueListenable: _dragging,
-      builder: (context, dragging, child) => Material(
-        elevation: 6,
-        color: scheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(8),
-        child: SizedBox(width: widget.width ?? dragging?.size.width ?? 320, child: child),
-      ),
+      builder: (context, dragging, child) {
+        final card = Material(
+          elevation: 6,
+          color: scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(width: widget.width ?? dragging?.size.width ?? 320, child: child),
+        );
+        final count = dragging?.drag.count ?? 1;
+        if (count < 2) return card;
+        // Several: a card behind, and how many (on a Material, for its
+        // text style).
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(clipBehavior: Clip.none, children: [
+            Positioned.fill(
+              child: Transform.translate(
+                offset: const Offset(6, 6),
+                child: Material(
+                  elevation: 2,
+                  color: scheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            card,
+            Positioned(
+              top: -8,
+              right: -8,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 22),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(11)),
+                child: Text('$count',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onPrimary)),
+              ),
+            ),
+          ]),
+        );
+      },
       child: widget.child,
     );
     final dimmed = Opacity(opacity: 0.3, child: widget.child);
+    // The other picked rows dim too while they're dragged along.
+    final child = ValueListenableBuilder(
+      valueListenable: _dragging,
+      builder: (context, dragging, child) => Opacity(
+        opacity: dragging != null && dragging.drag.count > 1 && dragging.drag.all.any((t) => t.id == widget.task.id)
+            ? 0.3
+            : 1,
+        child: child,
+      ),
+      child: widget.child,
+    );
     if (dragsOnLongPress(context)) {
-      return LongPressDraggable<Task>(
-        data: widget.task,
+      return LongPressDraggable<DraggedTasks>(
+        data: data,
         feedback: feedback,
         childWhenDragging: dimmed,
-        onDragStarted: _started,
-        onDragUpdate: _updated,
+        onDragStarted: () => _started(data),
+        onDragUpdate: (d) => _scroll.update(d.globalPosition),
         onDragEnd: (d) => _ended(d.offset),
-        child: widget.child,
+        child: child,
       );
     }
-    return Draggable<Task>(
-      data: widget.task,
+    return Draggable<DraggedTasks>(
+      data: data,
       feedback: feedback,
       childWhenDragging: dimmed,
-      onDragStarted: _started,
-      onDragUpdate: _updated,
+      onDragStarted: () => _started(data),
+      onDragUpdate: (d) => _scroll.update(d.globalPosition),
       onDragEnd: (d) => _ended(d.offset),
-      child: widget.child,
+      child: child,
     );
   }
 }
@@ -235,8 +333,8 @@ class _TaskDropRowState extends ConsumerState<TaskDropRow> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final line = BorderSide(color: scheme.primary, width: 2);
-    return DragTarget<Task>(
-      onWillAcceptWithDetails: (d) => widget.group.accepts(d.data),
+    return DragTarget<DraggedTasks>(
+      onWillAcceptWithDetails: (d) => widget.group.acceptsDrag(d.data),
       onMove: (d) {
         final before = _isBefore(d.offset);
         if (before != _before) setState(() => _before = before);
@@ -280,8 +378,8 @@ class TaskDropArea extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    return DragTarget<Task>(
-      onWillAcceptWithDetails: (d) => group.accepts(d.data),
+    return DragTarget<DraggedTasks>(
+      onWillAcceptWithDetails: (d) => group.acceptsDrag(d.data),
       onAcceptWithDetails: (d) => group.drop(ref, d.data, index),
       builder: (context, candidates, _) => AnimatedContainer(
         duration: const Duration(milliseconds: 120),

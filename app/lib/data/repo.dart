@@ -269,18 +269,36 @@ class TaskRepo {
   /// order numbers from `planMove` (the moved task's, and its neighbours'
   /// when the section had to be numbered afresh).
   Future<void> placeTask(String id, String? sectionId, Map<String, double> orders) =>
+      placeTasks([id], sectionId, orders);
+
+  /// [placeTask] for several tasks dragged together, in one transaction.
+  Future<void> placeTasks(List<String> ids, String? sectionId, Map<String, double> orders) =>
       db.transaction(() async {
+        final moving = ids.toSet();
         for (final e in orders.entries) {
           await updateTask(
             e.key,
             TasksCompanion(
               sortOrder: Value(e.value),
-              sectionId: e.key == id ? Value(sectionId) : const Value.absent(),
+              sectionId: moving.contains(e.key) ? Value(sectionId) : const Value.absent(),
             ),
           );
         }
-        if (!orders.containsKey(id)) {
-          await updateTask(id, TasksCompanion(sectionId: Value(sectionId)));
+        for (final id in ids) {
+          if (!orders.containsKey(id)) {
+            final t = await getTask(id);
+            if (t != null && t.sectionId != sectionId) {
+              await updateTask(id, TasksCompanion(sectionId: Value(sectionId)));
+            }
+          }
+        }
+      });
+
+  /// Moves tasks dragged together onto [date], each keeping its time.
+  Future<void> moveAllTo(List<String> ids, DateTime date) => db.transaction(() async {
+        for (final id in ids) {
+          final t = await getTask(id);
+          if (t != null) await moveTo(id, date, t.dueTime);
         }
       });
 

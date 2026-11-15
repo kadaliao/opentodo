@@ -3,9 +3,12 @@
 ///
 /// The query is split on spaces; everything found must contain every word,
 /// ignoring case. A leading `#` is dropped, so `#工作` finds the tag 工作.
+/// Titles and names can also be typed in pinyin: `zhoubao` or `zb` finds
+/// 周报 (two letters at least, so one letter doesn't find half the list).
 library;
 
 import '../data/db.dart';
+import 'pinyin.dart';
 
 /// Character ranges `[start, end)` to highlight.
 typedef Ranges = List<(int, int)>;
@@ -16,8 +19,18 @@ List<String> searchTerms(String query) => [
           w.replaceFirst(RegExp(r'^#+'), '').toLowerCase(),
     ];
 
-/// Where [terms] occur in [text], sorted and merged.
-Ranges findRanges(String text, List<String> terms) {
+/// Where [term] is spelled in pinyin in [text] (see [pinyinRanges]); only
+/// for two letters or more.
+Ranges _pinyin(String text, String term) =>
+    term.length < 2 ? const [] : pinyinRanges(text, term);
+
+/// Whether [text] has [term] as it is or in pinyin.
+bool _has(String text, String lower, String term) =>
+    lower.contains(term) || _pinyin(text, term).isNotEmpty;
+
+/// Where [terms] occur in [text] (as typed, or in pinyin when [pinyin]),
+/// sorted and merged.
+Ranges findRanges(String text, List<String> terms, {bool pinyin = true}) {
   final lower = text.toLowerCase();
   // Lowercasing can change the length of a few scripts; positions would
   // then be off, so don't highlight rather than highlight the wrong part.
@@ -27,6 +40,7 @@ Ranges findRanges(String text, List<String> terms) {
     for (var i = lower.indexOf(term); i >= 0; i = lower.indexOf(term, i + term.length)) {
       found.add((i, i + term.length));
     }
+    if (pinyin) found.addAll(_pinyin(text, term));
   }
   found.sort((a, b) => a.$1.compareTo(b.$1));
   final merged = <(int, int)>[];
@@ -43,7 +57,7 @@ Ranges findRanges(String text, List<String> terms) {
 
 bool _hasAll(String text, List<String> terms) {
   final lower = text.toLowerCase();
-  return terms.every(lower.contains);
+  return terms.every((w) => _has(text, lower, w));
 }
 
 class TaskHit {
@@ -104,22 +118,25 @@ SearchResults search(
     final items = checklist[t.id] ?? const <ChecklistItem>[];
     final title = t.title.toLowerCase();
     final content = t.content.toLowerCase();
+    final inTitle = {for (final w in terms) w: _has(t.title, title, w)};
     final found = terms.every((w) =>
-        title.contains(w) ||
+        inTitle[w]! ||
         content.contains(w) ||
         items.any((i) => i.title.toLowerCase().contains(w)) ||
         t.tags.any((tag) => tag.toLowerCase().contains(w)));
     if (!found) continue;
-    final titleHasAll = terms.every(title.contains);
-    final snippet = titleHasAll ? null : _snippet(t, items, terms);
+    final titleHasAll = inTitle.values.every((v) => v);
+    final snippet = titleHasAll
+        ? null
+        : _snippet(t, items, [for (final w in terms) if (!inTitle[w]!) w]);
     hits.add((
       hit: TaskHit(
         task: t,
         titleRanges: findRanges(t.title, terms),
         snippet: snippet,
-        snippetRanges: snippet == null ? const [] : findRanges(snippet, terms),
+        snippetRanges: snippet == null ? const [] : findRanges(snippet, terms, pinyin: false),
       ),
-      score: titleHasAll ? 2 : (terms.any(title.contains) ? 1 : 0),
+      score: titleHasAll ? 2 : (inTitle.values.any((v) => v) ? 1 : 0),
     ));
   }
   hits.sort((a, b) {
@@ -139,11 +156,9 @@ SearchResults search(
   );
 }
 
-/// The part of the notes around the first word the title lacks; else the
-/// subtask that has it; else the tags.
-String? _snippet(Task t, List<ChecklistItem> items, List<String> terms) {
-  final title = t.title.toLowerCase();
-  final missing = terms.where((w) => !title.contains(w)).toList();
+/// The part of the notes around the first of the words the title lacks
+/// ([missing]); else the subtask that has it; else the tags.
+String? _snippet(Task t, List<ChecklistItem> items, List<String> missing) {
   final content = t.content.replaceAll(RegExp(r'\s+'), ' ').trim();
   final lower = content.toLowerCase();
   if (lower.length == content.length) {

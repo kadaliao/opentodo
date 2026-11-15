@@ -5,6 +5,7 @@ library;
 import '../data/db.dart';
 import 'dates.dart';
 import 'filters.dart';
+import 'pinyin.dart';
 
 enum SmartKind { today, tomorrow, next7, inbox, completed, trash }
 
@@ -127,6 +128,7 @@ Comparator<Task> pinnedFirst(Comparator<Task> compare) => (a, b) {
 enum ListSort {
   manual('自定义'),
   due('时间'),
+  title('标题'),
   priority('优先级');
 
   const ListSort(this.label);
@@ -135,6 +137,7 @@ enum ListSort {
   Comparator<Task> get compare => pinnedFirst(switch (this) {
         ListSort.manual => compareByOrder,
         ListSort.due => compareByDue,
+        ListSort.title => compareByTitle,
         ListSort.priority => (a, b) =>
             a.priority != b.priority ? b.priority.compareTo(a.priority) : compareByDue(a, b),
       });
@@ -305,6 +308,15 @@ int compareByDue(Task a, Task b) {
   return compareByPriority(a, b);
 }
 
+/// A to Z in pinyin (Chinese and Latin together), untitled last; the same
+/// title in manual order.
+int compareByTitle(Task a, Task b) {
+  final ae = a.title.trim().isEmpty, be = b.title.trim().isEmpty;
+  if (ae != be) return ae ? 1 : -1;
+  final c = comparePinyin(a.title.trim(), b.title.trim());
+  return c != 0 ? c : compareByOrder(a, b);
+}
+
 int compareByPriority(Task a, Task b) {
   if (a.priority != b.priority) return b.priority.compareTo(a.priority);
   return b.createdAt.compareTo(a.createdAt);
@@ -450,12 +462,20 @@ List<TaskSection> buildSections({
         final key = t.dueDate!.compareTo(firstKey) < 0 ? firstKey : t.dueDate!;
         byDay.putIfAbsent(key, () => []).add(t);
       }
-      for (final e in byDay.entries) {
+      // With anything to show, every day of the view is there, empty or
+      // not, so a task can be dragged onto it (out of 已过期, say).
+      final days = open.isEmpty && doneSection == null
+          ? byDay.keys
+          : [
+              for (var d = 0; d < (view == const SmartViewRef(SmartKind.next7) ? 7 : 1); d++)
+                dateKey(addDays(parseDateKey(firstKey), d)),
+            ];
+      for (final key in days) {
         sections.add(TaskSection(
-          id: 'day-${e.key}',
-          title: daySectionTitle(parseDateKey(e.key), today),
-          tasks: e.value,
-          day: parseDateKey(e.key),
+          id: 'day-$key',
+          title: daySectionTitle(parseDateKey(key), today),
+          tasks: byDay[key] ?? const [],
+          day: parseDateKey(key),
         ));
       }
     case FilterViewRef():

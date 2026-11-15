@@ -37,6 +37,13 @@ class BoardView extends ConsumerWidget {
       for (final c in columns) ...[for (final t in c.group.tasks) t.id, for (final t in c.done) t.id],
     ];
     void open(String id) => tapTask(ref, id, order, onOpenTask, touch: dragsOnLongPress(context));
+    // The picked open cards, which are dragged together.
+    final selection = ref.watch(taskSelectionProvider);
+    final picked = [
+      for (final c in columns)
+        for (final t in c.group.tasks)
+          if (selection.ids.contains(t.id)) t,
+    ];
     // A phone shows one column and a bit of the next.
     final width = MediaQuery.sizeOf(context).width < Breakpoints.twoPane
         ? MediaQuery.sizeOf(context).width * 0.82
@@ -49,16 +56,25 @@ class BoardView extends ConsumerWidget {
           Padding(
             key: ValueKey(c.group.section?.id ?? 'none'),
             padding: const EdgeInsets.only(right: 12),
-            child: SizedBox(
-              width: width,
-              child: _Column(
-                listId: listId,
-                column: c,
-                manual: sort == ListSort.manual,
-                onOpenTask: open,
-                cardWidth: width,
-              ),
-            ),
+            child: () {
+              final Widget column = SizedBox(
+                width: width,
+                child: _Column(
+                  listId: listId,
+                  column: c,
+                  manual: sort == ListSort.manual,
+                  onOpenTask: open,
+                  cardWidth: width,
+                  picked: picked,
+                ),
+              );
+              // Another column dropped on this one's left half goes before
+              // it, on the right half after it.
+              final section = c.group.section;
+              return section == null
+                  ? column
+                  : SectionDropTarget(section: section, axis: Axis.horizontal, child: column);
+            }(),
           ),
         Align(
           alignment: Alignment.topLeft,
@@ -80,10 +96,14 @@ class _Column extends ConsumerStatefulWidget {
     required this.manual,
     required this.onOpenTask,
     required this.cardWidth,
+    required this.picked,
   });
 
   final String listId;
   final BoardColumn column;
+
+  /// The picked cards of the whole board, in order.
+  final List<Task> picked;
 
   /// The list is in manual order: where a card lands counts.
   final bool manual;
@@ -110,33 +130,32 @@ class _ColumnState extends ConsumerState<_Column> {
       manual: widget.manual,
     );
 
-    final header = TaskDropArea(
-      group: group,
-      index: 0,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
-        child: Row(children: [
-          Flexible(
-            child: Text(
-              c.group.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
+    Widget header = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      child: Row(children: [
+        Flexible(
+          child: Text(
+            c.group.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           ),
-          const SizedBox(width: 6),
-          Text('${c.group.tasks.length}', style: TextStyle(fontSize: 12, color: scheme.outline)),
-          const Spacer(),
-          IconButton(
-            tooltip: '在“${c.group.title}”里添加任务',
-            visualDensity: VisualDensity.compact,
-            icon: Icon(_adding ? Icons.close : Icons.add, size: 18),
-            onPressed: () => setState(() => _adding = !_adding),
-          ),
-          if (section != null) SectionMenuButton(section: section, horizontal: true),
-        ]),
-      ),
+        ),
+        const SizedBox(width: 6),
+        Text('${c.group.tasks.length}', style: TextStyle(fontSize: 12, color: scheme.outline)),
+        const Spacer(),
+        IconButton(
+          tooltip: '在“${c.group.title}”里添加任务',
+          visualDensity: VisualDensity.compact,
+          icon: Icon(_adding ? Icons.close : Icons.add, size: 18),
+          onPressed: () => setState(() => _adding = !_adding),
+        ),
+        if (section != null) SectionMenuButton(section: section, horizontal: true),
+      ]),
     );
+    // The column moves by dragging its top; cards dropped there go first.
+    if (section != null) header = SectionDraggable(section: section, child: header);
+    header = TaskDropArea(group: group, index: 0, child: header);
 
     return Material(
       color: scheme.surfaceContainerLow,
@@ -165,6 +184,7 @@ class _ColumnState extends ConsumerState<_Column> {
                     index: i,
                     child: TaskDraggable(
                       task: t,
+                      picked: widget.picked,
                       width: widget.cardWidth - 16,
                       child: _Card(task: t, onOpen: widget.onOpenTask),
                     ),

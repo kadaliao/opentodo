@@ -55,6 +55,8 @@ void main() {
     expect(order(ListSort.manual), ['明天低', '明天中', '后天', '无日期高']); // newest first
     expect(order(ListSort.due), ['明天中', '明天低', '后天', '无日期高']);
     expect(order(ListSort.priority), ['无日期高', '明天中', '明天低', '后天']);
+    // A to Z in pinyin: hou, mingtiandi, mingtianzhong, wu.
+    expect(order(ListSort.title), ['后天', '明天低', '明天中', '无日期高']);
     final s = buildSections(
         view: const ListViewRef('w'), tasks: tasks, lists: const {}, now: now, listSorts: {'w': ListSort.due});
     expect(s.single.manualOrder, isFalse);
@@ -65,14 +67,23 @@ void main() {
         isTrue);
   });
 
-  test('overdue has no day to drop onto; each day of 最近7天 has one', () {
+  test('overdue has no day to drop onto; every day of 最近7天 has one, empty or not', () {
     final tasks = [
       task('过期', due: '2026-11-10'),
       task('后天', due: '2026-11-17'),
     ];
     final s = buildSections(
         view: const SmartViewRef(SmartKind.next7), tasks: tasks, lists: const {}, now: now);
-    expect([for (final x in s) x.day], [null, DateTime(2026, 11, 17)]);
+    expect([for (final x in s) x.day], [null, for (var d = 15; d <= 21; d++) DateTime(2026, 11, d)]);
+    expect([for (final x in s) x.tasks.length], [1, 0, 0, 1, 0, 0, 0, 0]);
+    // 今天 with only overdue tasks still has today to drag them onto.
+    final today = buildSections(
+        view: const SmartViewRef(SmartKind.today), tasks: tasks, lists: const {}, now: now);
+    expect([for (final x in today) (x.day, x.tasks.length)], [(null, 1), (DateTime(2026, 11, 15), 0)]);
+    // Nothing at all: no sections, so the empty state shows.
+    expect(
+        buildSections(view: const SmartViewRef(SmartKind.next7), tasks: const [], lists: const {}, now: now),
+        isEmpty);
   });
 
   test('pinning is stored and synced; a finished copy of a repeating task is not pinned', () async {

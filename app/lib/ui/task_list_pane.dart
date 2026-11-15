@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../data/db.dart';
 import '../domain/views.dart';
 import '../state/providers.dart';
 import '../state/selection.dart';
@@ -62,11 +63,20 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
     final listPrefs = arrangedList == null ? null : ref.watch(listPrefsProvider)[arrangedList];
     final board = listPrefs?.layout == ListLayout.board;
     final touch = dragsOnLongPress(context);
-    final picking = ref.watch(taskSelectionProvider).active;
+    final selection = ref.watch(taskSelectionProvider);
+    final picking = selection.active;
     // The tasks as shown, for Shift-click ranges and 全选.
     final order = [
       for (final s in sections)
         if (!_isCollapsed(view, s)) for (final t in s.tasks) t.id,
+    ];
+    // The picked tasks that can be dragged, which go together.
+    final picked = [
+      if (picking)
+        for (final s in sections)
+          if (!_isCollapsed(view, s))
+            for (final t in s.tasks)
+              if (selection.ids.contains(t.id) && t.status == TaskStatus.open && t.trashedAt == null) t,
     ];
     // In the trash, a click only opens.
     void open(String id) => isTrash
@@ -151,16 +161,19 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
                         Widget header = _SectionHeader(
                           title: s.title ?? '',
                           alert: s.alert,
-                          count: s.tasks.length,
+                          // An empty day (there to drag onto) shows no 0.
+                          count: s.day != null && s.tasks.isEmpty ? null : s.tasks.length,
                           collapsed: _isCollapsed(view, s),
                           onToggle: () => setState(() {
                             _toggled['$view/${s.id}'] = !_isCollapsed(view, s);
                           }),
                           menu: s.listSection == null ? null : SectionMenuButton(section: s.listSection!),
                         );
+                        // A list's section moves by dragging its header.
+                        if (s.listSection != null) header = SectionDraggable(section: s.listSection!, child: header);
                         // Dropped on a header: first in that section.
                         if (group != null) header = TaskDropArea(group: group, index: 0, child: header);
-                        return [
+                        final rows = [
                           if (s.title != null) header,
                           if (!_isCollapsed(view, s))
                             for (final (i, t) in s.tasks.indexed)
@@ -175,6 +188,7 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
                                 }
                                 final Widget row = TaskDraggable(
                                   task: t,
+                                  picked: picked,
                                   child: TaskTile(
                                     task: t,
                                     showList: showList,
@@ -186,6 +200,16 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
                                     ? KeyedSubtree(key: ValueKey(t.id), child: row)
                                     : TaskDropRow(key: ValueKey(t.id), group: group, index: i, child: row);
                               }(),
+                        ];
+                        // Another section dropped on this one's upper half
+                        // goes before it, on the lower half after it.
+                        if (s.listSection == null) return rows;
+                        return [
+                          SectionDropTarget(
+                            key: ValueKey('section-${s.listSection!.id}'),
+                            section: s.listSection!,
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: rows),
+                          ),
                         ];
                       }(),
                     ],
@@ -218,7 +242,9 @@ class _SectionHeader extends StatelessWidget {
 
   final String title;
   final bool alert;
-  final int count;
+
+  /// Null shows none.
+  final int? count;
   final bool collapsed;
   final VoidCallback onToggle;
 
@@ -244,9 +270,15 @@ class _SectionHeader extends StatelessWidget {
               style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: alert ? scheme.error : scheme.onSurface)),
-          const SizedBox(width: 6),
-          Text('$count', style: TextStyle(fontSize: 12, color: scheme.outline)),
+                  color: alert
+                      ? scheme.error
+                      : count == null
+                          ? scheme.onSurfaceVariant
+                          : scheme.onSurface)),
+          if (count != null) ...[
+            const SizedBox(width: 6),
+            Text('$count', style: TextStyle(fontSize: 12, color: scheme.outline)),
+          ],
           if (menu != null) ...[const Spacer(), SizedBox(height: 24, child: menu)],
         ]),
       ),

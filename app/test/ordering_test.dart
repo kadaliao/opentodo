@@ -49,4 +49,38 @@ void main() {
       expect(sorted, list);
     }
   });
+
+  group('several at once', () {
+    final o = {'a': 10.0, 'b': 20.0, 'c': 30.0, 'd': 40.0};
+    double of(String id) => o[id]!;
+
+    test('land together between their new neighbours, in the order given', () {
+      // a and c moved to after d (index counts them where they are).
+      expect(planMoveMany(['a', 'b', 'c', 'd'], ['a', 'c'], 4, of), {'a': 40 + orderStep, 'c': 40 + 2 * orderStep});
+      // To the top.
+      expect(planMoveMany(['a', 'b', 'c', 'd'], ['c', 'd'], 0, of), {'c': 10 - 2 * orderStep, 'd': 10 - orderStep});
+      // Between a and b: thirds of the gap.
+      final m = planMoveMany(['a', 'b', 'c', 'd'], ['d', 'c'], 1, of);
+      expect(m.keys, ['d', 'c']);
+      expect(m['d']! > 10 && m['d']! < m['c']! && m['c']! < 20, isTrue);
+      // Coming from elsewhere.
+      expect(planMoveMany(['a', 'b'], ['x', 'y'], 1, of), {'x': 10 + 10 / 3, 'y': 10 + 20 / 3});
+      expect(planMoveMany([], ['x', 'y'], 0, of), {'x': 0, 'y': orderStep});
+    });
+
+    test('already there in that order: nothing to do', () {
+      expect(planMoveMany(['a', 'b', 'c', 'd'], ['b', 'c'], 1, of), isEmpty);
+      expect(planMoveMany(['a', 'b', 'c', 'd'], ['b', 'c'], 3, of), isEmpty);
+      expect(planMoveMany(['a', 'b', 'c', 'd'], ['c', 'b'], 1, of), isNotEmpty);
+    });
+
+    test('no room: everything numbered again, in the new order', () {
+      final tight = {'a': 1.0, 'b': 1.0 + 2.220446049250313e-16, 'c': 3.0}; // b one step above a
+      final m = planMoveMany(['a', 'b', 'c'], ['c', 'x'], 1, (id) => tight[id] ?? 0);
+      final p = {...tight, ...m};
+      final sorted = [...p.keys]..sort((x, y) => p[x]!.compareTo(p[y]!));
+      expect(sorted, ['a', 'c', 'x', 'b']);
+      expect(m['a'], 1.0);
+    });
+  });
 }

@@ -1,10 +1,12 @@
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind, kSecondaryButton;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:opentodo/data/db.dart';
+import 'package:opentodo/domain/dates.dart';
 import 'package:opentodo/domain/views.dart';
 import 'package:opentodo/state/providers.dart';
 import 'package:opentodo/ui/app.dart';
@@ -49,11 +51,11 @@ void main() {
   Future<Task> load(String title) =>
       (db.select(db.tasks)..where((t) => t.title.equals(title))).getSingle();
 
-  /// Drags with the mouse from [from]'s middle to [to] (plus [dy]).
-  Future<void> drag(WidgetTester tester, Finder from, Finder to, {double dy = 0}) async {
+  /// Drags with the mouse from [from]'s middle to [to] (plus [dx], [dy]).
+  Future<void> drag(WidgetTester tester, Finder from, Finder to, {double dx = 0, double dy = 0}) async {
     // Positions first: while dragging, the task shows twice.
     final start = tester.getCenter(from);
-    final target = tester.getCenter(to) + Offset(0, dy);
+    final target = tester.getCenter(to) + Offset(dx, dy);
     final g = await tester.startGesture(start, kind: PointerDeviceKind.mouse);
     await g.moveBy(const Offset(0, 20));
     await tester.pump();
@@ -64,6 +66,17 @@ void main() {
     await g.up();
     await tester.pumpAndSettle();
   }
+
+  Future<void> withKey(WidgetTester tester, LogicalKeyboardKey key, Future<void> Function() body) async {
+    await tester.sendKeyDownEvent(key);
+    await body();
+    await tester.sendKeyUpEvent(key);
+    await tester.pumpAndSettle();
+  }
+
+  /// The list's sections by name, in order.
+  Future<List<String>> sectionNames() async =>
+      [for (final s in await db.select(db.listSections).get()..sort((a, b) => a.sortOrder.compareTo(b.sortOrder))) s.name];
 
   Future<void> addSection(WidgetTester tester, String name) async {
     await tester.tap(find.byTooltip('更多'));
@@ -169,7 +182,7 @@ void main() {
     await finish(tester);
   });
 
-  testWidgets('desktop: in 最近7天, drag a task to another day; the time stays',
+  testWidgets('desktop: in 最近7天, drag tasks to another day, an empty one too; times stay',
       variant: TargetPlatformVariant.only(TargetPlatform.macOS), (tester) async {
     await pumpApp(tester, const Size(1400, 900));
     final c = container(tester);
@@ -177,18 +190,68 @@ void main() {
     final today = DateTime.now();
     final day = DateTime(today.year, today.month, today.day);
     await repo.addTask(title: '晚上开会', dueDate: day, dueTime: 23 * 60 + 30);
+    await repo.addTask(title: '早上跑步', dueDate: day, dueTime: 7 * 60);
     await repo.addTask(title: '后天的', dueDate: day.add(const Duration(days: 2)));
     c.read(selectedViewProvider.notifier).select(const SmartViewRef(SmartKind.next7));
     await tester.pumpAndSettle();
+    String key(DateTime d) => dateKey(d);
 
-    final target = find.textContaining(RegExp(r'^\d+月\d+日, 周'));
-    expect(target, findsOneWidget); // the day after tomorrow's header
-    await drag(tester, find.text('晚上开会'), target);
-    final moved = await load('晚上开会');
-    final expected = day.add(const Duration(days: 2));
-    expect(moved.dueDate,
-        '${expected.year}-${expected.month.toString().padLeft(2, '0')}-${expected.day.toString().padLeft(2, '0')}');
-    expect(moved.dueTime, 23 * 60 + 30);
+    // Every day of the seven shows, so the empty ones take drops too.
+    expect(find.textContaining(RegExp(r'^\d+月\d+日, 周')), findsNWidgets(5));
+    final inTwo = day.add(const Duration(days: 2)), inThree = day.add(const Duration(days: 3));
+    await drag(tester, find.text('晚上开会'), find.text(daySectionTitle(inTwo, day)));
+    expect((await load('晚上开会')).dueDate, key(inTwo));
+    expect((await load('晚上开会')).dueTime, 23 * 60 + 30);
+
+    // Two picked go together onto an empty day, each keeping its time.
+    await tester.tap(find.text('晚上开会'));
+    await tester.pumpAndSettle();
+    await withKey(tester, LogicalKeyboardKey.metaLeft, () => tester.tap(find.text('早上跑步')));
+    expect(find.text('已选择 2 项'), findsOneWidget);
+    await drag(tester, find.text('早上跑步'), find.text(daySectionTitle(inThree, day)));
+    expect([(await load('晚上开会')).dueDate, (await load('早上跑步')).dueDate], [key(inThree), key(inThree)]);
+    expect([(await load('晚上开会')).dueTime, (await load('早上跑步')).dueTime], [23 * 60 + 30, 7 * 60]);
+    expect((await load('后天的')).dueDate, key(inTwo));
+    expect(find.text('已选择 2 项'), findsOneWidget); // still picked
+
+    await finish(tester);
+  });
+
+  testWidgets('desktop: picked tasks drag together; sections drag by their headers',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS), (tester) async {
+    await pumpApp(tester, const Size(1400, 900));
+    await addSection(tester, '进行中');
+    await addSection(tester, '稍后');
+    final doing = (await db.select(db.listSections).get()).firstWhere((s) => s.name == '进行中').id;
+
+    // Pick 甲 and 丙; drag 甲 onto 进行中: both go, 丙 still above 甲.
+    await tester.tap(find.text('甲'));
+    await tester.pumpAndSettle();
+    await withKey(tester, LogicalKeyboardKey.metaLeft, () => tester.tap(find.text('丙')));
+    await drag(tester, find.text('甲'), find.text('进行中'));
+    final jia = await load('甲'), bing = await load('丙');
+    expect([jia.sectionId, bing.sectionId, (await load('乙')).sectionId], [doing, doing, null]);
+    expect(bing.sortOrder, lessThan(jia.sortOrder));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    // 稍后 dragged onto the top of 进行中 goes before it.
+    expect(await sectionNames(), ['进行中', '稍后']);
+    await drag(tester, find.text('稍后'), find.text('进行中'), dy: -6);
+    expect(await sectionNames(), ['稍后', '进行中']);
+    final ys = [for (final t in ['未分组', '稍后', '进行中', '丙', '甲']) tester.getCenter(find.text(t).first).dy];
+    expect(ys, orderedEquals([...ys]..sort()));
+
+    // On the board, columns move the same way: 稍后 to the right of 进行中.
+    container(tester).read(selectedTaskProvider.notifier).select(null); // the detail has a 更多 too
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('看板'));
+    await tester.pumpAndSettle();
+    await drag(tester, find.text('稍后'), find.text('进行中'), dx: 200);
+    expect(await sectionNames(), ['进行中', '稍后']);
+    expect(tester.getCenter(find.text('进行中')).dx, lessThan(tester.getCenter(find.text('稍后')).dx));
 
     await finish(tester);
   });
