@@ -87,4 +87,31 @@ void main() {
     }));
     expect(bare.rule.value, '{}');
   });
+
+  test('a section travels, and a task keeps its section', () async {
+    final a = AppDatabase(NativeDatabase.memory());
+    final b = AppDatabase(NativeDatabase.memory());
+    addTearDown(a.close);
+    addTearDown(b.close);
+    final repo = TaskRepo(a, clock: () => DateTime(2026, 11, 15, 10));
+    final sid = await repo.addSection('work', '进行中');
+    final tid = await repo.addTask(title: '写周报', listId: 'work', sectionId: sid);
+    final section = (await repo.watchSections().first).single;
+    final task = (await repo.getTask(tid))!;
+
+    WireRecord trip(WireRecord r) => WireRecord.fromJson(
+        jsonDecode(jsonEncode({...r.toJson(), 'version': 2})) as Map<String, dynamic>);
+    await b.into(b.listSections).insert(wireToSection(trip(sectionToWire(section))));
+    await b.into(b.tasks).insert(wireToTask(trip(taskToWire(task))));
+    final copy = await b.select(b.listSections).getSingle();
+    expect(copy.copyWith(dirty: true, serverVersion: 0).toJson(), section.toJson());
+    expect((await b.select(b.tasks).getSingle()).sectionId, sid);
+
+    // From a version without sections: none.
+    final old = wireToTask(WireRecord.fromJson({
+      'entity': 'task', 'id': 'z', 'updatedAt': 5, 'deletedAt': null,
+      'data': {'title': '旧的'},
+    }));
+    expect(old.sectionId.value, isNull);
+  });
 }

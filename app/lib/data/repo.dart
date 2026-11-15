@@ -81,6 +81,16 @@ class TaskRepo {
   Stream<List<ChecklistItem>> watchAllChecklistItems() =>
       (db.select(db.checklistItems)..where((c) => c.deletedAt.isNull())).watch();
 
+  /// Every list's sections, in order.
+  Stream<List<ListSection>> watchSections() =>
+      (db.select(db.listSections)
+            ..where((s) => s.deletedAt.isNull())
+            ..orderBy([
+              (s) => OrderingTerm(expression: s.sortOrder),
+              (s) => OrderingTerm(expression: s.createdAt),
+            ]))
+          .watch();
+
   Stream<List<TaskFilter>> watchFilters() =>
       (db.select(db.taskFilters)
             ..where((f) => f.deletedAt.isNull())
@@ -99,6 +109,7 @@ class TaskRepo {
     String? id,
     required String title,
     String listId = inboxListId,
+    String? sectionId,
     DateTime? dueDate,
     int? dueTime,
     int? duration,
@@ -117,6 +128,7 @@ class TaskRepo {
           TasksCompanion.insert(
             id: id,
             listId: listId,
+            sectionId: Value(sectionId),
             title: title,
             priority: Value(priority),
             dueDate: Value(dueDate == null ? null : dateKey(dueDate)),
@@ -242,8 +254,31 @@ class TaskRepo {
   Future<void> setPriority(String id, int priority) =>
       updateTask(id, TasksCompanion(priority: Value(priority)));
 
-  Future<void> moveToList(String id, String listId) =>
-      updateTask(id, TasksCompanion(listId: Value(listId)));
+  /// Sections belong to a list, so a task changing list leaves its section.
+  Future<void> moveToList(String id, String listId) async {
+    final t = await getTask(id);
+    if (t == null || t.listId == listId) return;
+    await updateTask(id, TasksCompanion(listId: Value(listId), sectionId: const Value(null)));
+  }
+
+  /// Drops a task into [sectionId] (null: 未分组) of its list, with the new
+  /// order numbers from `planMove` (the moved task's, and its neighbours'
+  /// when the section had to be numbered afresh).
+  Future<void> placeTask(String id, String? sectionId, Map<String, double> orders) =>
+      db.transaction(() async {
+        for (final e in orders.entries) {
+          await updateTask(
+            e.key,
+            TasksCompanion(
+              sortOrder: Value(e.value),
+              sectionId: e.key == id ? Value(sectionId) : const Value.absent(),
+            ),
+          );
+        }
+        if (!orders.containsKey(id)) {
+          await updateTask(id, TasksCompanion(sectionId: Value(sectionId)));
+        }
+      });
 
   Future<void> setTags(String id, List<String> tags) =>
       updateTask(id, TasksCompanion(tags: Value(tags)));
@@ -466,9 +501,15 @@ class TaskRepo {
         ),
       );
 
-  /// Deletes the list and moves its tasks to the trash.
+  /// Deletes the list and its sections, and moves its tasks to the trash.
   Future<void> deleteList(String id) => db.transaction(() async {
     final now = _now;
+    await (db.update(db.listSections)..where((s) => s.listId.equals(id) & s.deletedAt.isNull()))
+        .write(ListSectionsCompanion(
+      deletedAt: Value(now),
+      updatedAt: Value(now),
+      dirty: const Value(true),
+    ));
     await (db.update(db.taskLists)..where((t) => t.id.equals(id))).write(
       TaskListsCompanion(
         deletedAt: Value(now),
@@ -482,6 +523,58 @@ class TaskRepo {
       TasksCompanion(
         trashedAt: Value(now),
         listId: const Value(inboxListId),
+        sectionId: const Value(null),
+        updatedAt: Value(now),
+        dirty: const Value(true),
+      ),
+    );
+  });
+
+  // ---- sections ----
+
+  /// Adds a section at the end of [listId]'s.
+  Future<String> addSection(String listId, String name, {String? id}) async {
+    id ??= newId();
+    final now = _now;
+    final last = await (db.select(db.listSections)
+          ..where((s) => s.listId.equals(listId) & s.deletedAt.isNull())
+          ..orderBy([(s) => OrderingTerm(expression: s.sortOrder, mode: OrderingMode.desc)])
+          ..limit(1))
+        .getSingleOrNull();
+    await db.into(db.listSections).insert(ListSectionsCompanion.insert(
+          id: id,
+          listId: listId,
+          name: name,
+          sortOrder: Value(last == null ? 0 : last.sortOrder + 1024),
+          createdAt: now,
+          updatedAt: now,
+        ));
+    return id;
+  }
+
+  Future<void> updateSection(String id, {String? name, double? sortOrder}) =>
+      (db.update(db.listSections)..where((s) => s.id.equals(id))).write(
+        ListSectionsCompanion(
+          name: name == null ? const Value.absent() : Value(name),
+          sortOrder: sortOrder == null ? const Value.absent() : Value(sortOrder),
+          updatedAt: Value(_now),
+          dirty: const Value(true),
+        ),
+      );
+
+  /// Deletes the section; its tasks stay in the list, under 未分组.
+  Future<void> deleteSection(String id) => db.transaction(() async {
+    final now = _now;
+    await (db.update(db.listSections)..where((s) => s.id.equals(id))).write(
+      ListSectionsCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+        dirty: const Value(true),
+      ),
+    );
+    await (db.update(db.tasks)..where((t) => t.sectionId.equals(id))).write(
+      TasksCompanion(
+        sectionId: const Value(null),
         updatedAt: Value(now),
         dirty: const Value(true),
       ),

@@ -9,23 +9,35 @@ import 'package:opentodo/data/keys.dart';
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
 
-  test('v4 → v5 adds filters and pulls everything again', () async {
+  /// A database file at an older [version]: today's schema with the later
+  /// tables and columns taken out again.
+  Future<File> olderDatabase(int version) async {
     final dir = await Directory.systemTemp.createTemp('opentodo-migration');
     addTearDown(() => dir.delete(recursive: true));
     final file = File('${dir.path}/db.sqlite');
-
-    // Make a v4 database: today's schema without the filters table.
-    final v5 = AppDatabase(NativeDatabase(file));
-    await v5.setValue(Keys.cursor, '42');
-    await v5.setValue(Keys.email, 'a@example.com');
-    await v5.customStatement('DROP TABLE task_filters');
-    await v5.customStatement('PRAGMA user_version = 4');
-    await v5.close();
-
     final db = AppDatabase(NativeDatabase(file));
-    addTearDown(db.close);
-    expect(await db.select(db.taskFilters).get(), isEmpty);
-    expect(await db.getValue(Keys.cursor), '0');
-    expect(await db.getValue(Keys.email), 'a@example.com');
-  });
+    await db.setValue(Keys.cursor, '42');
+    await db.setValue(Keys.email, 'a@example.com');
+    await db.customStatement(
+        "INSERT INTO tasks (id, list_id, title, created_at, updated_at) VALUES ('t', 'inbox', '旧任务', 1, 1)");
+    await db.customStatement('DROP TABLE list_sections');
+    await db.customStatement('ALTER TABLE tasks DROP COLUMN section_id');
+    if (version < 5) await db.customStatement('DROP TABLE task_filters');
+    await db.customStatement('PRAGMA user_version = $version');
+    await db.close();
+    return file;
+  }
+
+  for (final version in [4, 5]) {
+    test('v$version → v6 adds what is new and pulls everything again', () async {
+      final db = AppDatabase(NativeDatabase(await olderDatabase(version)));
+      addTearDown(db.close);
+      expect(await db.select(db.taskFilters).get(), isEmpty);
+      expect(await db.select(db.listSections).get(), isEmpty);
+      final task = await db.select(db.tasks).getSingle();
+      expect((task.title, task.sectionId), ('旧任务', null));
+      expect(await db.getValue(Keys.cursor), '0');
+      expect(await db.getValue(Keys.email), 'a@example.com');
+    });
+  }
 }

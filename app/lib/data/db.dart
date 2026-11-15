@@ -55,6 +55,10 @@ class Tasks extends Table with SyncColumns {
 
   /// [inboxListId] or a [TaskLists] id.
   TextColumn get listId => text()();
+
+  /// The [ListSections] row (分组) the task sits in within its list; null,
+  /// or a section of another list, means none (未分组).
+  TextColumn get sectionId => text().nullable()();
   TextColumn get title => text()();
   TextColumn get content => text().withDefault(const Constant(''))();
   IntColumn get priority => integer().withDefault(const Constant(0))();
@@ -111,6 +115,19 @@ class ChecklistItems extends Table with SyncColumns {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// A section (分组) of a list: a header in the list, a column on the board.
+class ListSections extends Table with SyncColumns {
+  TextColumn get id => text()();
+
+  /// [inboxListId] or a [TaskLists] id.
+  TextColumn get listId => text()();
+  TextColumn get name => text()();
+  RealColumn get sortOrder => real().withDefault(const Constant(0))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// A saved filter (过滤器): a named rule that gathers tasks from anywhere.
 /// [rule] is JSON; see `domain/filters.dart`.
 class TaskFilters extends Table with SyncColumns {
@@ -155,7 +172,7 @@ class IntListConverter extends TypeConverter<List<int>, String> {
   String toSql(List<int> value) => jsonEncode(value);
 }
 
-@DriftDatabase(tables: [TaskLists, Tasks, ChecklistItems, TaskFilters, KeyValues])
+@DriftDatabase(tables: [TaskLists, Tasks, ChecklistItems, TaskFilters, ListSections, KeyValues])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
@@ -167,7 +184,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -190,6 +207,17 @@ class AppDatabase extends _$AppDatabase {
             // devices synced but still moved its cursor past them: pull
             // everything again once so they arrive.
             await m.createTable(taskFilters);
+          }
+          if (from < 6) {
+            // Sections (分组) in lists.
+            await m.createTable(listSections);
+            await m.addColumn(tasks, tasks.sectionId);
+          }
+          // A new kind of synced record (filters in v5, sections in v6): an
+          // older version skipped the ones other devices synced but still
+          // moved its cursor past them. Pull everything again once so they
+          // arrive.
+          if (from < 6) {
             await customStatement(
                 "UPDATE key_values SET value = '0' WHERE key = 'sync.cursor'");
           }

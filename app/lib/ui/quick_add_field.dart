@@ -44,9 +44,12 @@ class _HighlightController extends TextEditingController {
 /// Where a task typed into the field goes when the text doesn't say: a
 /// calendar slot's day and time, say, instead of the current view's.
 class QuickAddTarget {
-  const QuickAddTarget({this.listId = inboxListId, this.date, this.time});
+  const QuickAddTarget({this.listId = inboxListId, this.sectionId, this.date, this.time});
 
   final String listId;
+
+  /// The list's section (a board column) the task goes in.
+  final String? sectionId;
   final DateTime? date;
 
   /// Used only with [date], and only when the text names no date.
@@ -119,6 +122,7 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
     final id = await ref.read(repoProvider).addTask(
           title: parsed.title,
           listId: defaults.listId,
+          sectionId: target?.sectionId,
           dueDate: dueDate,
           dueTime: dueTime,
           duration: parsed.time == null ? null : parsed.duration,

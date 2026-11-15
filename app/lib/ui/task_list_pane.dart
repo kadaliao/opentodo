@@ -3,10 +3,13 @@ import 'package:material_ui/material_ui.dart';
 
 import '../domain/views.dart';
 import '../state/providers.dart';
+import 'board_view.dart';
 import 'dialogs.dart';
 import 'filter_editor.dart';
 import 'quick_add_field.dart';
 import 'search_panel.dart';
+import 'section_actions.dart';
+import 'task_drag.dart';
 import 'task_tile.dart';
 
 class TaskListPane extends ConsumerStatefulWidget {
@@ -48,6 +51,9 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
       });
     }
     final isTrash = view == const SmartViewRef(SmartKind.trash);
+    final arrangedList = arrangedListId(view);
+    final board = arrangedList != null && ref.watch(listLayoutsProvider)[arrangedList] == ListLayout.board;
+    final touch = dragsOnLongPress(context);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Padding(
@@ -80,6 +86,7 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
               icon: const Icon(Icons.search),
               onPressed: () => openSearch(context),
             ),
+          if (arrangedList != null) _ListMenu(listId: arrangedList, board: board),
           if (isTrash && sections.isNotEmpty)
             TextButton.icon(
               icon: const Icon(Icons.delete_sweep_outlined, size: 18),
@@ -92,7 +99,8 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
             ),
         ]),
       ),
-      if (widget.showInlineQuickAdd && canQuickAdd(view))
+      // The board has a field in each column.
+      if (widget.showInlineQuickAdd && canQuickAdd(view) && !board)
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: QuickAddField(),
@@ -100,31 +108,57 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
       Expanded(
         child: loading
             ? const SizedBox.shrink()
-            : sections.isEmpty
+            : board
+                ? BoardView(listId: arrangedList, onOpenTask: widget.onOpenTask)
+                : sections.isEmpty
                 ? _EmptyState(view: view)
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 96),
                     children: [
-                      for (final s in sections) ...[
-                        if (s.title != null)
-                          _SectionHeader(
-                            title: s.title!,
-                            alert: s.alert,
-                            count: s.tasks.length,
-                            collapsed: _isCollapsed(view, s),
-                            onToggle: () => setState(() {
-                              _toggled['$view/${s.id}'] = !_isCollapsed(view, s);
-                            }),
-                          ),
-                        if (!_isCollapsed(view, s))
-                          for (final t in s.tasks)
-                            TaskTile(
-                              key: ValueKey(t.id),
-                              task: t,
-                              showList: showList,
-                              onOpen: widget.onOpenTask,
-                            ),
-                      ],
+                      for (final s in sections) ...() {
+                        final group = s.arrangeable && arrangedList != null
+                            ? ArrangeGroup(
+                                listId: arrangedList, sectionId: s.listSection?.id, tasks: s.tasks)
+                            : null;
+                        Widget header = _SectionHeader(
+                          title: s.title ?? '',
+                          alert: s.alert,
+                          count: s.tasks.length,
+                          collapsed: _isCollapsed(view, s),
+                          onToggle: () => setState(() {
+                            _toggled['$view/${s.id}'] = !_isCollapsed(view, s);
+                          }),
+                          menu: s.listSection == null ? null : SectionMenuButton(section: s.listSection!),
+                        );
+                        // Dropped on a header: first in that section.
+                        if (group != null) header = TaskDropArea(group: group, index: 0, child: header);
+                        return [
+                          if (s.title != null) header,
+                          if (!_isCollapsed(view, s))
+                            for (final (i, t) in s.tasks.indexed)
+                              group == null
+                                  ? TaskTile(
+                                      key: ValueKey(t.id),
+                                      task: t,
+                                      showList: showList,
+                                      onOpen: widget.onOpenTask,
+                                    )
+                                  : TaskDropRow(
+                                      key: ValueKey(t.id),
+                                      group: group,
+                                      index: i,
+                                      child: TaskDraggable(
+                                        task: t,
+                                        child: TaskTile(
+                                          task: t,
+                                          showList: showList,
+                                          onOpen: widget.onOpenTask,
+                                          longPressMenu: !touch,
+                                        ),
+                                      ),
+                                    ),
+                        ];
+                      }(),
                     ],
                   ),
       ),
@@ -149,6 +183,7 @@ class _SectionHeader extends StatelessWidget {
     required this.count,
     required this.collapsed,
     required this.onToggle,
+    this.menu,
   });
 
   final String title;
@@ -156,6 +191,9 @@ class _SectionHeader extends StatelessWidget {
   final int count;
   final bool collapsed;
   final VoidCallback onToggle;
+
+  /// A list section's ⋯ (rename, move, delete).
+  final Widget? menu;
 
   @override
   Widget build(BuildContext context) {
@@ -179,6 +217,7 @@ class _SectionHeader extends StatelessWidget {
                   color: alert ? scheme.error : scheme.onSurface)),
           const SizedBox(width: 6),
           Text('$count', style: TextStyle(fontSize: 12, color: scheme.outline)),
+          if (menu != null) ...[const Spacer(), SizedBox(height: 24, child: menu)],
         ]),
       ),
     );
@@ -208,6 +247,46 @@ class _EmptyState extends StatelessWidget {
         const SizedBox(height: 4),
         Text(hint, style: TextStyle(fontSize: 12, color: scheme.outline)),
       ]),
+    );
+  }
+}
+
+/// The ⋯ of a list: show it as a list or a board, add a section.
+class _ListMenu extends ConsumerWidget {
+  const _ListMenu({required this.listId, required this.board});
+
+  final String listId;
+  final bool board;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    void layout(ListLayout l) => ref.read(listLayoutsProvider.notifier).set(listId, l);
+    return MenuAnchor(
+      menuChildren: [
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.view_list_outlined),
+          trailingIcon: board ? null : const Icon(Icons.check, size: 18),
+          onPressed: () => layout(ListLayout.list),
+          child: const Text('列表'),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.view_kanban_outlined),
+          trailingIcon: board ? const Icon(Icons.check, size: 18) : null,
+          onPressed: () => layout(ListLayout.board),
+          child: const Text('看板'),
+        ),
+        const Divider(height: 8),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.add),
+          onPressed: () => addSection(context, ref, listId),
+          child: const Text('添加分组'),
+        ),
+      ],
+      builder: (context, controller, _) => IconButton(
+        tooltip: '更多',
+        icon: const Icon(Icons.more_horiz),
+        onPressed: () => controller.isOpen ? controller.close() : controller.open(),
+      ),
     );
   }
 }

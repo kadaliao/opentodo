@@ -689,6 +689,17 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sectionIdMeta = const VerificationMeta(
+    'sectionId',
+  );
+  @override
+  late final GeneratedColumn<String> sectionId = GeneratedColumn<String>(
+    'section_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _titleMeta = const VerificationMeta('title');
   @override
   late final GeneratedColumn<String> title = GeneratedColumn<String>(
@@ -862,6 +873,7 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     dirty,
     id,
     listId,
+    sectionId,
     title,
     content,
     priority,
@@ -939,6 +951,12 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       );
     } else if (isInserting) {
       context.missing(_listIdMeta);
+    }
+    if (data.containsKey('section_id')) {
+      context.handle(
+        _sectionIdMeta,
+        sectionId.isAcceptableOrUnknown(data['section_id']!, _sectionIdMeta),
+      );
     }
     if (data.containsKey('title')) {
       context.handle(
@@ -1060,6 +1078,10 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         DriftSqlType.string,
         data['${effectivePrefix}list_id'],
       )!,
+      sectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}section_id'],
+      ),
       title: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}title'],
@@ -1148,6 +1170,10 @@ class Task extends DataClass implements Insertable<Task> {
 
   /// [inboxListId] or a [TaskLists] id.
   final String listId;
+
+  /// The [ListSections] row (分组) the task sits in within its list; null,
+  /// or a section of another list, means none (未分组).
+  final String? sectionId;
   final String title;
   final String content;
   final int priority;
@@ -1192,6 +1218,7 @@ class Task extends DataClass implements Insertable<Task> {
     required this.dirty,
     required this.id,
     required this.listId,
+    this.sectionId,
     required this.title,
     required this.content,
     required this.priority,
@@ -1220,6 +1247,9 @@ class Task extends DataClass implements Insertable<Task> {
     map['dirty'] = Variable<bool>(dirty);
     map['id'] = Variable<String>(id);
     map['list_id'] = Variable<String>(listId);
+    if (!nullToAbsent || sectionId != null) {
+      map['section_id'] = Variable<String>(sectionId);
+    }
     map['title'] = Variable<String>(title);
     map['content'] = Variable<String>(content);
     map['priority'] = Variable<int>(priority);
@@ -1269,6 +1299,9 @@ class Task extends DataClass implements Insertable<Task> {
       dirty: Value(dirty),
       id: Value(id),
       listId: Value(listId),
+      sectionId: sectionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sectionId),
       title: Value(title),
       content: Value(content),
       priority: Value(priority),
@@ -1314,6 +1347,7 @@ class Task extends DataClass implements Insertable<Task> {
       dirty: serializer.fromJson<bool>(json['dirty']),
       id: serializer.fromJson<String>(json['id']),
       listId: serializer.fromJson<String>(json['listId']),
+      sectionId: serializer.fromJson<String?>(json['sectionId']),
       title: serializer.fromJson<String>(json['title']),
       content: serializer.fromJson<String>(json['content']),
       priority: serializer.fromJson<int>(json['priority']),
@@ -1342,6 +1376,7 @@ class Task extends DataClass implements Insertable<Task> {
       'dirty': serializer.toJson<bool>(dirty),
       'id': serializer.toJson<String>(id),
       'listId': serializer.toJson<String>(listId),
+      'sectionId': serializer.toJson<String?>(sectionId),
       'title': serializer.toJson<String>(title),
       'content': serializer.toJson<String>(content),
       'priority': serializer.toJson<int>(priority),
@@ -1368,6 +1403,7 @@ class Task extends DataClass implements Insertable<Task> {
     bool? dirty,
     String? id,
     String? listId,
+    Value<String?> sectionId = const Value.absent(),
     String? title,
     String? content,
     int? priority,
@@ -1391,6 +1427,7 @@ class Task extends DataClass implements Insertable<Task> {
     dirty: dirty ?? this.dirty,
     id: id ?? this.id,
     listId: listId ?? this.listId,
+    sectionId: sectionId.present ? sectionId.value : this.sectionId,
     title: title ?? this.title,
     content: content ?? this.content,
     priority: priority ?? this.priority,
@@ -1418,6 +1455,7 @@ class Task extends DataClass implements Insertable<Task> {
       dirty: data.dirty.present ? data.dirty.value : this.dirty,
       id: data.id.present ? data.id.value : this.id,
       listId: data.listId.present ? data.listId.value : this.listId,
+      sectionId: data.sectionId.present ? data.sectionId.value : this.sectionId,
       title: data.title.present ? data.title.value : this.title,
       content: data.content.present ? data.content.value : this.content,
       priority: data.priority.present ? data.priority.value : this.priority,
@@ -1452,6 +1490,7 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('dirty: $dirty, ')
           ..write('id: $id, ')
           ..write('listId: $listId, ')
+          ..write('sectionId: $sectionId, ')
           ..write('title: $title, ')
           ..write('content: $content, ')
           ..write('priority: $priority, ')
@@ -1480,6 +1519,7 @@ class Task extends DataClass implements Insertable<Task> {
     dirty,
     id,
     listId,
+    sectionId,
     title,
     content,
     priority,
@@ -1507,6 +1547,7 @@ class Task extends DataClass implements Insertable<Task> {
           other.dirty == this.dirty &&
           other.id == this.id &&
           other.listId == this.listId &&
+          other.sectionId == this.sectionId &&
           other.title == this.title &&
           other.content == this.content &&
           other.priority == this.priority &&
@@ -1532,6 +1573,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<bool> dirty;
   final Value<String> id;
   final Value<String> listId;
+  final Value<String?> sectionId;
   final Value<String> title;
   final Value<String> content;
   final Value<int> priority;
@@ -1556,6 +1598,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.dirty = const Value.absent(),
     this.id = const Value.absent(),
     this.listId = const Value.absent(),
+    this.sectionId = const Value.absent(),
     this.title = const Value.absent(),
     this.content = const Value.absent(),
     this.priority = const Value.absent(),
@@ -1581,6 +1624,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.dirty = const Value.absent(),
     required String id,
     required String listId,
+    this.sectionId = const Value.absent(),
     required String title,
     this.content = const Value.absent(),
     this.priority = const Value.absent(),
@@ -1610,6 +1654,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<bool>? dirty,
     Expression<String>? id,
     Expression<String>? listId,
+    Expression<String>? sectionId,
     Expression<String>? title,
     Expression<String>? content,
     Expression<int>? priority,
@@ -1635,6 +1680,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (dirty != null) 'dirty': dirty,
       if (id != null) 'id': id,
       if (listId != null) 'list_id': listId,
+      if (sectionId != null) 'section_id': sectionId,
       if (title != null) 'title': title,
       if (content != null) 'content': content,
       if (priority != null) 'priority': priority,
@@ -1662,6 +1708,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Value<bool>? dirty,
     Value<String>? id,
     Value<String>? listId,
+    Value<String?>? sectionId,
     Value<String>? title,
     Value<String>? content,
     Value<int>? priority,
@@ -1687,6 +1734,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       dirty: dirty ?? this.dirty,
       id: id ?? this.id,
       listId: listId ?? this.listId,
+      sectionId: sectionId ?? this.sectionId,
       title: title ?? this.title,
       content: content ?? this.content,
       priority: priority ?? this.priority,
@@ -1729,6 +1777,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     }
     if (listId.present) {
       map['list_id'] = Variable<String>(listId.value);
+    }
+    if (sectionId.present) {
+      map['section_id'] = Variable<String>(sectionId.value);
     }
     if (title.present) {
       map['title'] = Variable<String>(title.value);
@@ -1795,6 +1846,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('dirty: $dirty, ')
           ..write('id: $id, ')
           ..write('listId: $listId, ')
+          ..write('sectionId: $sectionId, ')
           ..write('title: $title, ')
           ..write('content: $content, ')
           ..write('priority: $priority, ')
@@ -2975,6 +3027,565 @@ class TaskFiltersCompanion extends UpdateCompanion<TaskFilter> {
   }
 }
 
+class $ListSectionsTable extends ListSections
+    with TableInfo<$ListSectionsTable, ListSection> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ListSectionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _serverVersionMeta = const VerificationMeta(
+    'serverVersion',
+  );
+  @override
+  late final GeneratedColumn<int> serverVersion = GeneratedColumn<int>(
+    'server_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _dirtyMeta = const VerificationMeta('dirty');
+  @override
+  late final GeneratedColumn<bool> dirty = GeneratedColumn<bool>(
+    'dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _listIdMeta = const VerificationMeta('listId');
+  @override
+  late final GeneratedColumn<String> listId = GeneratedColumn<String>(
+    'list_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<double> sortOrder = GeneratedColumn<double>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    createdAt,
+    updatedAt,
+    deletedAt,
+    serverVersion,
+    dirty,
+    id,
+    listId,
+    name,
+    sortOrder,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'list_sections';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ListSection> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('server_version')) {
+      context.handle(
+        _serverVersionMeta,
+        serverVersion.isAcceptableOrUnknown(
+          data['server_version']!,
+          _serverVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dirty')) {
+      context.handle(
+        _dirtyMeta,
+        dirty.isAcceptableOrUnknown(data['dirty']!, _dirtyMeta),
+      );
+    }
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('list_id')) {
+      context.handle(
+        _listIdMeta,
+        listId.isAcceptableOrUnknown(data['list_id']!, _listIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_listIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ListSection map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ListSection(
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      serverVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_version'],
+      )!,
+      dirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}dirty'],
+      )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      listId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}list_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $ListSectionsTable createAlias(String alias) {
+    return $ListSectionsTable(attachedDatabase, alias);
+  }
+}
+
+class ListSection extends DataClass implements Insertable<ListSection> {
+  final int createdAt;
+  final int updatedAt;
+  final int? deletedAt;
+  final int serverVersion;
+  final bool dirty;
+  final String id;
+
+  /// [inboxListId] or a [TaskLists] id.
+  final String listId;
+  final String name;
+  final double sortOrder;
+  const ListSection({
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.serverVersion,
+    required this.dirty,
+    required this.id,
+    required this.listId,
+    required this.name,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['server_version'] = Variable<int>(serverVersion);
+    map['dirty'] = Variable<bool>(dirty);
+    map['id'] = Variable<String>(id);
+    map['list_id'] = Variable<String>(listId);
+    map['name'] = Variable<String>(name);
+    map['sort_order'] = Variable<double>(sortOrder);
+    return map;
+  }
+
+  ListSectionsCompanion toCompanion(bool nullToAbsent) {
+    return ListSectionsCompanion(
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      serverVersion: Value(serverVersion),
+      dirty: Value(dirty),
+      id: Value(id),
+      listId: Value(listId),
+      name: Value(name),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory ListSection.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ListSection(
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      serverVersion: serializer.fromJson<int>(json['serverVersion']),
+      dirty: serializer.fromJson<bool>(json['dirty']),
+      id: serializer.fromJson<String>(json['id']),
+      listId: serializer.fromJson<String>(json['listId']),
+      name: serializer.fromJson<String>(json['name']),
+      sortOrder: serializer.fromJson<double>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'serverVersion': serializer.toJson<int>(serverVersion),
+      'dirty': serializer.toJson<bool>(dirty),
+      'id': serializer.toJson<String>(id),
+      'listId': serializer.toJson<String>(listId),
+      'name': serializer.toJson<String>(name),
+      'sortOrder': serializer.toJson<double>(sortOrder),
+    };
+  }
+
+  ListSection copyWith({
+    int? createdAt,
+    int? updatedAt,
+    Value<int?> deletedAt = const Value.absent(),
+    int? serverVersion,
+    bool? dirty,
+    String? id,
+    String? listId,
+    String? name,
+    double? sortOrder,
+  }) => ListSection(
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    serverVersion: serverVersion ?? this.serverVersion,
+    dirty: dirty ?? this.dirty,
+    id: id ?? this.id,
+    listId: listId ?? this.listId,
+    name: name ?? this.name,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  ListSection copyWithCompanion(ListSectionsCompanion data) {
+    return ListSection(
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      serverVersion: data.serverVersion.present
+          ? data.serverVersion.value
+          : this.serverVersion,
+      dirty: data.dirty.present ? data.dirty.value : this.dirty,
+      id: data.id.present ? data.id.value : this.id,
+      listId: data.listId.present ? data.listId.value : this.listId,
+      name: data.name.present ? data.name.value : this.name,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ListSection(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('serverVersion: $serverVersion, ')
+          ..write('dirty: $dirty, ')
+          ..write('id: $id, ')
+          ..write('listId: $listId, ')
+          ..write('name: $name, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    createdAt,
+    updatedAt,
+    deletedAt,
+    serverVersion,
+    dirty,
+    id,
+    listId,
+    name,
+    sortOrder,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ListSection &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.serverVersion == this.serverVersion &&
+          other.dirty == this.dirty &&
+          other.id == this.id &&
+          other.listId == this.listId &&
+          other.name == this.name &&
+          other.sortOrder == this.sortOrder);
+}
+
+class ListSectionsCompanion extends UpdateCompanion<ListSection> {
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int?> deletedAt;
+  final Value<int> serverVersion;
+  final Value<bool> dirty;
+  final Value<String> id;
+  final Value<String> listId;
+  final Value<String> name;
+  final Value<double> sortOrder;
+  final Value<int> rowid;
+  const ListSectionsCompanion({
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.serverVersion = const Value.absent(),
+    this.dirty = const Value.absent(),
+    this.id = const Value.absent(),
+    this.listId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ListSectionsCompanion.insert({
+    required int createdAt,
+    required int updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.serverVersion = const Value.absent(),
+    this.dirty = const Value.absent(),
+    required String id,
+    required String listId,
+    required String name,
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       id = Value(id),
+       listId = Value(listId),
+       name = Value(name);
+  static Insertable<ListSection> custom({
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? deletedAt,
+    Expression<int>? serverVersion,
+    Expression<bool>? dirty,
+    Expression<String>? id,
+    Expression<String>? listId,
+    Expression<String>? name,
+    Expression<double>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (serverVersion != null) 'server_version': serverVersion,
+      if (dirty != null) 'dirty': dirty,
+      if (id != null) 'id': id,
+      if (listId != null) 'list_id': listId,
+      if (name != null) 'name': name,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ListSectionsCompanion copyWith({
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int?>? deletedAt,
+    Value<int>? serverVersion,
+    Value<bool>? dirty,
+    Value<String>? id,
+    Value<String>? listId,
+    Value<String>? name,
+    Value<double>? sortOrder,
+    Value<int>? rowid,
+  }) {
+    return ListSectionsCompanion(
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      serverVersion: serverVersion ?? this.serverVersion,
+      dirty: dirty ?? this.dirty,
+      id: id ?? this.id,
+      listId: listId ?? this.listId,
+      name: name ?? this.name,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (serverVersion.present) {
+      map['server_version'] = Variable<int>(serverVersion.value);
+    }
+    if (dirty.present) {
+      map['dirty'] = Variable<bool>(dirty.value);
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (listId.present) {
+      map['list_id'] = Variable<String>(listId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<double>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ListSectionsCompanion(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('serverVersion: $serverVersion, ')
+          ..write('dirty: $dirty, ')
+          ..write('id: $id, ')
+          ..write('listId: $listId, ')
+          ..write('name: $name, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $KeyValuesTable extends KeyValues
     with TableInfo<$KeyValuesTable, KeyValue> {
   @override
@@ -3188,6 +3799,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TasksTable tasks = $TasksTable(this);
   late final $ChecklistItemsTable checklistItems = $ChecklistItemsTable(this);
   late final $TaskFiltersTable taskFilters = $TaskFiltersTable(this);
+  late final $ListSectionsTable listSections = $ListSectionsTable(this);
   late final $KeyValuesTable keyValues = $KeyValuesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -3198,6 +3810,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     tasks,
     checklistItems,
     taskFilters,
+    listSections,
     keyValues,
   ];
 }
@@ -3508,6 +4121,7 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   Value<bool> dirty,
   required String id,
   required String listId,
+  Value<String?> sectionId,
   required String title,
   Value<String> content,
   Value<int> priority,
@@ -3533,6 +4147,7 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<bool> dirty,
   Value<String> id,
   Value<String> listId,
+  Value<String?> sectionId,
   Value<String> title,
   Value<String> content,
   Value<int> priority,
@@ -3591,6 +4206,11 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<String> get listId => $composableBuilder(
     column: $table.listId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sectionId => $composableBuilder(
+    column: $table.sectionId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3716,6 +4336,11 @@ class $$TasksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sectionId => $composableBuilder(
+    column: $table.sectionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get title => $composableBuilder(
     column: $table.title,
     builder: (column) => ColumnOrderings(column),
@@ -3824,6 +4449,9 @@ class $$TasksTableAnnotationComposer
   GeneratedColumn<String> get listId =>
       $composableBuilder(column: $table.listId, builder: (column) => column);
 
+  GeneratedColumn<String> get sectionId =>
+      $composableBuilder(column: $table.sectionId, builder: (column) => column);
+
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
 
@@ -3911,6 +4539,7 @@ class $$TasksTableTableManager
                 Value<bool> dirty = const Value.absent(),
                 Value<String> id = const Value.absent(),
                 Value<String> listId = const Value.absent(),
+                Value<String?> sectionId = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<String> content = const Value.absent(),
                 Value<int> priority = const Value.absent(),
@@ -3935,6 +4564,7 @@ class $$TasksTableTableManager
                 dirty: dirty,
                 id: id,
                 listId: listId,
+                sectionId: sectionId,
                 title: title,
                 content: content,
                 priority: priority,
@@ -3961,6 +4591,7 @@ class $$TasksTableTableManager
                 Value<bool> dirty = const Value.absent(),
                 required String id,
                 required String listId,
+                Value<String?> sectionId = const Value.absent(),
                 required String title,
                 Value<String> content = const Value.absent(),
                 Value<int> priority = const Value.absent(),
@@ -3985,6 +4616,7 @@ class $$TasksTableTableManager
                 dirty: dirty,
                 id: id,
                 listId: listId,
+                sectionId: sectionId,
                 title: title,
                 content: content,
                 priority: priority,
@@ -4628,6 +5260,293 @@ typedef $$TaskFiltersTableProcessedTableManager =
       TaskFilter,
       PrefetchHooks Function()
     >;
+typedef $$ListSectionsTableCreateCompanionBuilder =
+    ListSectionsCompanion Function({
+      required int createdAt,
+      required int updatedAt,
+      Value<int?> deletedAt,
+      Value<int> serverVersion,
+      Value<bool> dirty,
+      required String id,
+      required String listId,
+      required String name,
+      Value<double> sortOrder,
+      Value<int> rowid,
+    });
+typedef $$ListSectionsTableUpdateCompanionBuilder =
+    ListSectionsCompanion Function({
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int?> deletedAt,
+      Value<int> serverVersion,
+      Value<bool> dirty,
+      Value<String> id,
+      Value<String> listId,
+      Value<String> name,
+      Value<double> sortOrder,
+      Value<int> rowid,
+    });
+
+class $$ListSectionsTableFilterComposer
+    extends Composer<_$AppDatabase, $ListSectionsTable> {
+  $$ListSectionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverVersion => $composableBuilder(
+    column: $table.serverVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get dirty => $composableBuilder(
+    column: $table.dirty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get listId => $composableBuilder(
+    column: $table.listId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ListSectionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ListSectionsTable> {
+  $$ListSectionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get serverVersion => $composableBuilder(
+    column: $table.serverVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get dirty => $composableBuilder(
+    column: $table.dirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get listId => $composableBuilder(
+    column: $table.listId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ListSectionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ListSectionsTable> {
+  $$ListSectionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get serverVersion => $composableBuilder(
+    column: $table.serverVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get dirty =>
+      $composableBuilder(column: $table.dirty, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get listId =>
+      $composableBuilder(column: $table.listId, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<double> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+}
+
+class $$ListSectionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ListSectionsTable,
+          ListSection,
+          $$ListSectionsTableFilterComposer,
+          $$ListSectionsTableOrderingComposer,
+          $$ListSectionsTableAnnotationComposer,
+          $$ListSectionsTableCreateCompanionBuilder,
+          $$ListSectionsTableUpdateCompanionBuilder,
+          (
+            ListSection,
+            BaseReferences<_$AppDatabase, $ListSectionsTable, ListSection>,
+          ),
+          ListSection,
+          PrefetchHooks Function()
+        > {
+  $$ListSectionsTableTableManager(_$AppDatabase db, $ListSectionsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ListSectionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ListSectionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ListSectionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> serverVersion = const Value.absent(),
+                Value<bool> dirty = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> listId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<double> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ListSectionsCompanion(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                serverVersion: serverVersion,
+                dirty: dirty,
+                id: id,
+                listId: listId,
+                name: name,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int createdAt,
+                required int updatedAt,
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> serverVersion = const Value.absent(),
+                Value<bool> dirty = const Value.absent(),
+                required String id,
+                required String listId,
+                required String name,
+                Value<double> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ListSectionsCompanion.insert(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                serverVersion: serverVersion,
+                dirty: dirty,
+                id: id,
+                listId: listId,
+                name: name,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ListSectionsTable, ListSection>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ListSectionsTable,
+                    ListSection
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ListSectionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ListSectionsTable,
+      ListSection,
+      $$ListSectionsTableFilterComposer,
+      $$ListSectionsTableOrderingComposer,
+      $$ListSectionsTableAnnotationComposer,
+      $$ListSectionsTableCreateCompanionBuilder,
+      $$ListSectionsTableUpdateCompanionBuilder,
+      (
+        ListSection,
+        BaseReferences<_$AppDatabase, $ListSectionsTable, ListSection>,
+      ),
+      ListSection,
+      PrefetchHooks Function()
+    >;
 typedef $$KeyValuesTableCreateCompanionBuilder = KeyValuesCompanion Function({
   required String key,
   required String value,
@@ -4774,6 +5693,8 @@ class $AppDatabaseManager {
       $$ChecklistItemsTableTableManager(_db, _db.checklistItems);
   $$TaskFiltersTableTableManager get taskFilters =>
       $$TaskFiltersTableTableManager(_db, _db.taskFilters);
+  $$ListSectionsTableTableManager get listSections =>
+      $$ListSectionsTableTableManager(_db, _db.listSections);
   $$KeyValuesTableTableManager get keyValues =>
       $$KeyValuesTableTableManager(_db, _db.keyValues);
 }

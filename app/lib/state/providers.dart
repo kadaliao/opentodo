@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart' show AppLifecycleListener;
 
 import '../data/db.dart';
+import '../data/keys.dart';
 import '../data/repo.dart';
 import '../domain/filters.dart';
 import '../domain/views.dart';
@@ -33,6 +35,56 @@ final tasksProvider =
 
 final checklistProvider = StreamProvider.family<List<ChecklistItem>, String>(
     (ref, taskId) => ref.watch(repoProvider).watchChecklist(taskId));
+
+final listSectionsProvider = StreamProvider<List<ListSection>>(
+    (ref) => ref.watch(repoProvider).watchSections());
+
+/// Each list's sections (分组), in order, by list id.
+final sectionsByListProvider = Provider<Map<String, List<ListSection>>>((ref) {
+  final out = <String, List<ListSection>>{};
+  for (final s in ref.watch(listSectionsProvider).value ?? const <ListSection>[]) {
+    out.putIfAbsent(s.listId, () => []).add(s);
+  }
+  return out;
+});
+
+/// How a list is laid out on this device.
+enum ListLayout { list, board }
+
+/// List or board, per list (the inbox too), kept on this device: a phone
+/// may want the list where the computer shows the board. Not synced.
+class ListLayouts extends Notifier<Map<String, ListLayout>> {
+  bool _changed = false;
+
+  @override
+  Map<String, ListLayout> build() {
+    _load();
+    return const {};
+  }
+
+  Future<void> _load() async {
+    final raw = await ref.read(databaseProvider).getValue(Keys.listLayouts);
+    if (raw == null || _changed || !ref.mounted) return;
+    try {
+      state = {
+        for (final e in (jsonDecode(raw) as Map<String, dynamic>).entries)
+          e.key: ?ListLayout.values.where((l) => l.name == e.value).firstOrNull,
+      };
+    } on Object {
+      // Damaged: every list shows as a list.
+    }
+  }
+
+  void set(String listId, ListLayout layout) {
+    _changed = true;
+    state = {...state, listId: layout}..removeWhere((_, l) => l == ListLayout.list);
+    ref.read(databaseProvider).setValue(
+        Keys.listLayouts, jsonEncode({for (final e in state.entries) e.key: e.value.name}));
+  }
+}
+
+final listLayoutsProvider =
+    NotifierProvider<ListLayouts, Map<String, ListLayout>>(ListLayouts.new);
 
 final filtersProvider = StreamProvider<List<TaskFilter>>(
     (ref) => ref.watch(repoProvider).watchFilters());
@@ -153,5 +205,6 @@ final sectionsProvider = Provider<List<TaskSection>>((ref) {
     lists: ref.watch(listsByIdProvider),
     now: ref.watch(clockProvider),
     filters: ref.watch(filterRulesProvider),
+    sectionsByList: ref.watch(sectionsByListProvider),
   );
 });

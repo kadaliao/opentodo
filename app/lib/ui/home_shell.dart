@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../data/db.dart';
 
+import '../domain/views.dart' show arrangedListId;
 import '../state/calendar_providers.dart';
 import '../state/providers.dart';
 import '../state/reminder_providers.dart';
@@ -67,6 +68,35 @@ class HomeShell extends ConsumerWidget {
       if (layout != ShellLayout.phone) {
         final Widget body = switch (module) {
           AppModule.calendar => CalendarScreen(layout: layout),
+          // A board wants the width: the detail shows only for a selected
+          // task, beside it.
+          AppModule.tasks when layout == ShellLayout.wide && _showsBoard(ref) => Row(children: [
+              const SizedBox(width: 248, child: Sidebar()),
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: TaskListPane(
+                  onOpenTask: (id) => ref.read(selectedTaskProvider.notifier).select(id),
+                ),
+              ),
+              if (ref.watch(selectedTaskProvider) != null) ...[
+                const VerticalDivider(width: 1),
+                SizedBox(
+                  width: 400,
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 4, 4, 0),
+                      child: IconButton(
+                        tooltip: '关闭详情',
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => ref.read(selectedTaskProvider.notifier).select(null),
+                      ),
+                    ),
+                    const Expanded(child: TaskDetailPane()),
+                  ]),
+                ),
+              ],
+            ]),
           AppModule.tasks when layout == ShellLayout.wide => Row(children: [
               const SizedBox(width: 248, child: Sidebar()),
               const VerticalDivider(width: 1),
@@ -139,6 +169,11 @@ class HomeShell extends ConsumerWidget {
       );
     });
   }
+}
+
+bool _showsBoard(WidgetRef ref) {
+  final listId = arrangedListId(ref.watch(selectedViewProvider));
+  return listId != null && ref.watch(listLayoutsProvider)[listId] == ListLayout.board;
 }
 
 /// The modules as icons down the left edge of a computer window.

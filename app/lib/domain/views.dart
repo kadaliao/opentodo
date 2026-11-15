@@ -69,6 +69,8 @@ class TaskSection {
     required this.tasks,
     this.collapsedByDefault = false,
     this.alert = false,
+    this.arrangeable = false,
+    this.listSection,
   });
 
   final String id;
@@ -80,6 +82,83 @@ class TaskSection {
 
   /// Shown in the warning colour (已过期).
   final bool alert;
+
+  /// Open tasks of one section of a list, in manual order: they can be
+  /// dragged within it and dropped into it.
+  final bool arrangeable;
+
+  /// The list's section (分组) this is; null for 未分组 and for sections
+  /// that aren't a list's.
+  final ListSection? listSection;
+}
+
+/// The list a view shows, if it is one the person arranges by hand: one of
+/// their lists, or the inbox.
+String? arrangedListId(ViewRef view) => switch (view) {
+      ListViewRef(:final listId) => listId,
+      SmartViewRef(kind: SmartKind.inbox) => inboxListId,
+      _ => null,
+    };
+
+/// Manual order: smallest `sortOrder` first, newest first on a tie.
+int compareByOrder(Task a, Task b) {
+  final c = a.sortOrder.compareTo(b.sortOrder);
+  return c != 0 ? c : b.createdAt.compareTo(a.createdAt);
+}
+
+/// One section of a list and its tasks; [section] null is 未分组: tasks
+/// without a section, or with one that isn't this list's (any more).
+class ListGroup {
+  const ListGroup(this.section, this.tasks);
+  final ListSection? section;
+  final List<Task> tasks;
+
+  String get title => section?.name ?? '未分组';
+}
+
+/// The tasks of a list sorted into its [sections], each in manual order.
+/// 未分组 comes first, and only when it has tasks or the list has no
+/// sections.
+List<ListGroup> listGroups(List<Task> tasks, List<ListSection> sections) {
+  final ordered = [...sections]..sort((a, b) {
+      final c = a.sortOrder.compareTo(b.sortOrder);
+      return c != 0 ? c : a.createdAt.compareTo(b.createdAt);
+    });
+  final byId = {for (final s in ordered) s.id: <Task>[]};
+  final loose = <Task>[];
+  for (final t in tasks) {
+    (byId[t.sectionId] ?? loose).add(t);
+  }
+  return [
+    if (loose.isNotEmpty || ordered.isEmpty) ListGroup(null, loose..sort(compareByOrder)),
+    for (final s in ordered) ListGroup(s, byId[s.id]!..sort(compareByOrder)),
+  ];
+}
+
+/// A column of the board: a section's open tasks in manual order, and its
+/// finished ones, most recent first.
+class BoardColumn {
+  const BoardColumn(this.group, this.done);
+  final ListGroup group;
+  final List<Task> done;
+}
+
+/// The board (看板) of the list [listId]: one column per section.
+List<BoardColumn> boardColumns(
+    String listId, List<Task> tasks, List<ListSection> sections) {
+  final inList = tasks.where((t) => t.listId == listId && t.trashedAt == null).toList();
+  final open = listGroups(inList.where(isOpen).toList(), sections);
+  final done = listGroups(inList.where(isDone).toList(), sections);
+  final doneBySection = {for (final g in done) g.section?.id: g.tasks};
+  final columns = [
+    for (final g in open)
+      BoardColumn(g, [...?doneBySection[g.section?.id]]..sort(_compareCompleted)),
+  ];
+  // Finished tasks without a section get a 未分组 column too.
+  if (open.first.section != null && (doneBySection[null]?.isNotEmpty ?? false)) {
+    columns.insert(0, BoardColumn(const ListGroup(null, []), [...doneBySection[null]!]..sort(_compareCompleted)));
+  }
+  return columns;
 }
 
 bool isOpen(Task t) => t.status == TaskStatus.open && t.trashedAt == null;
@@ -267,6 +346,7 @@ List<TaskSection> buildSections({
   required Map<String, TaskList> lists,
   required DateTime now,
   Map<String, FilterRule> filters = const {},
+  Map<String, List<ListSection>> sectionsByList = const {},
 }) {
   final today = dateOnly(now);
   final todayKey = dateKey(today);
@@ -383,12 +463,18 @@ List<TaskSection> buildSections({
             id: 'list-${e.key}', title: listName(e.key, lists), tasks: e.value));
       }
     default:
-      open.sort((a, b) {
-        final c = a.sortOrder.compareTo(b.sortOrder);
-        return c != 0 ? c : b.createdAt.compareTo(a.createdAt);
-      });
-      if (open.isNotEmpty) {
-        sections.add(TaskSection(id: 'open', title: null, tasks: open));
+      final listSections = sectionsByList[arrangedListId(view)] ?? const <ListSection>[];
+      for (final g in listGroups(open, listSections)) {
+        // A list without sections has no headers, and nothing at all when
+        // it's empty (so the empty state shows).
+        if (listSections.isEmpty && g.tasks.isEmpty) continue;
+        sections.add(TaskSection(
+          id: g.section == null ? 'section-none' : 'section-${g.section!.id}',
+          title: listSections.isEmpty ? null : g.title,
+          tasks: g.tasks,
+          arrangeable: true,
+          listSection: g.section,
+        ));
       }
   }
   if (doneSection != null) sections.add(doneSection);

@@ -313,6 +313,32 @@ void main() {
     expect(await mac.db.select(mac.db.taskFilters).get(), isEmpty); // tombstone purged
   }, skip: skip);
 
+  test('sections and the order of tasks sync', () async {
+    final email = newEmail();
+    await phone.signIn(email, register: true);
+    await mac.signIn(email);
+
+    final listId = await phone.repo.addList('工作');
+    final doing = await phone.repo.addSection(listId, '进行中');
+    final taskId = await phone.repo.addTask(title: '写周报', listId: listId);
+    phone.advance();
+    await phone.repo.placeTask(taskId, doing, {taskId: 512});
+    await phone.sync();
+    await mac.sync();
+    expect((await mac.repo.watchSections().first).single.name, '进行中');
+    final onMac = (await mac.task(taskId))!;
+    expect((onMac.sectionId, onMac.sortOrder), (doing, 512.0));
+    expect(await watchDirtyCount(mac.db).first, 0);
+
+    mac.advance();
+    await mac.repo.deleteSection(doing);
+    await mac.sync();
+    await phone.sync();
+    expect(await phone.repo.watchSections().first, isEmpty);
+    expect((await phone.task(taskId))!.sectionId, isNull);
+    expect(await phone.db.select(phone.db.listSections).get(), isEmpty); // tombstone purged
+  }, skip: skip);
+
   test('a bad token reports that sign-in is needed', () async {
     await phone.signIn(newEmail(), register: true);
     await phone.db.setValue(Keys.token, 'expired');

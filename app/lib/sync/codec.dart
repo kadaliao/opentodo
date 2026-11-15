@@ -17,6 +17,7 @@ abstract final class Entity {
   static const task = 'task';
   static const checklist = 'checklist';
   static const filter = 'filter';
+  static const section = 'section';
 }
 
 /// One record as it travels to and from the server.
@@ -76,6 +77,7 @@ WireRecord taskToWire(Task t) => WireRecord(
       deletedAt: t.deletedAt,
       data: {
         'listId': t.listId,
+        'sectionId': t.sectionId,
         'title': t.title,
         'content': t.content,
         'priority': t.priority,
@@ -106,6 +108,19 @@ WireRecord checklistToWire(ChecklistItem c) => WireRecord(
         'done': c.done,
         'sortOrder': c.sortOrder,
         'createdAt': c.createdAt,
+      },
+    );
+
+WireRecord sectionToWire(ListSection s) => WireRecord(
+      entity: Entity.section,
+      id: s.id,
+      updatedAt: s.updatedAt,
+      deletedAt: s.deletedAt,
+      data: {
+        'listId': s.listId,
+        'name': s.name,
+        'sortOrder': s.sortOrder,
+        'createdAt': s.createdAt,
       },
     );
 
@@ -165,6 +180,7 @@ TasksCompanion wireToTask(WireRecord r) {
   return TasksCompanion(
     id: Value(r.id),
     listId: Value(d['listId'] as String? ?? inboxListId),
+    sectionId: Value(d['sectionId'] as String?),
     title: Value(d['title'] as String? ?? ''),
     content: Value(d['content'] as String? ?? ''),
     priority: Value(_int(d['priority']) ?? Priority.none),
@@ -214,6 +230,21 @@ TaskFiltersCompanion wireToFilter(WireRecord r) {
     id: Value(r.id),
     name: Value(d['name'] as String? ?? ''),
     rule: Value(rule is Map ? jsonEncode(rule) : '{}'),
+    sortOrder: Value(_double(d['sortOrder'])),
+    createdAt: Value(_int(d['createdAt']) ?? r.updatedAt),
+    updatedAt: s.updatedAt,
+    deletedAt: s.deletedAt,
+    serverVersion: s.serverVersion,
+    dirty: s.dirty,
+  );
+}
+
+ListSectionsCompanion wireToSection(WireRecord r) {
+  final d = r.data, s = _syncFields(r);
+  return ListSectionsCompanion(
+    id: Value(r.id),
+    listId: Value(d['listId'] as String? ?? inboxListId),
+    name: Value(d['name'] as String? ?? ''),
     sortOrder: Value(_double(d['sortOrder'])),
     createdAt: Value(_int(d['createdAt']) ?? r.updatedAt),
     updatedAt: s.updatedAt,

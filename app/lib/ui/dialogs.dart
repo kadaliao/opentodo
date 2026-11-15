@@ -100,3 +100,58 @@ class _ListEditorState extends State<_ListEditor> {
     );
   }
 }
+
+/// Asks for a short name (a section's, say); null if dismissed or empty.
+Future<String?> promptName(
+  BuildContext context, {
+  required String title,
+  String? initial,
+  String hint = '名称',
+}) =>
+    showDialog<String>(
+      context: context,
+      builder: (_) => _NameDialog(title: title, initial: initial, hint: hint),
+    );
+
+class _NameDialog extends StatefulWidget {
+  const _NameDialog({required this.title, this.initial, required this.hint});
+  final String title;
+  final String? initial;
+  final String hint;
+
+  @override
+  State<_NameDialog> createState() => _NameDialogState();
+}
+
+class _NameDialogState extends State<_NameDialog> {
+  late final _controller = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _controller.text.trim();
+    if (name.isNotEmpty) Navigator.pop(context, name);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(widget.title),
+        content: SizedBox(
+          width: 320,
+          child: TextField(
+            controller: _controller,
+            autofocus: true,
+            decoration: InputDecoration(hintText: widget.hint, border: const OutlineInputBorder()),
+            onSubmitted: (_) => _submit(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          FilledButton(onPressed: _submit, child: const Text('保存')),
+        ],
+      );
+}

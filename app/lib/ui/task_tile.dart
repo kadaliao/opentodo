@@ -14,6 +14,7 @@ class TaskTile extends ConsumerWidget {
     required this.task,
     required this.onOpen,
     this.showList = false,
+    this.longPressMenu = true,
   });
 
   final Task task;
@@ -21,6 +22,10 @@ class TaskTile extends ConsumerWidget {
 
   /// Shows which list the task is in (for smart lists and tags).
   final bool showList;
+
+  /// Whether a long press opens the menu; off where a long press drags
+  /// the task instead (see `TaskDraggable`).
+  final bool longPressMenu;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,10 +49,12 @@ class TaskTile extends ConsumerWidget {
         borderRadius: BorderRadius.circular(8),
         onTap: () => onOpen(task.id),
         onSecondaryTapDown: (d) => showTaskMenu(context, ref, task, d.globalPosition),
-        onLongPress: () {
-          final box = context.findRenderObject()! as RenderBox;
-          showTaskMenu(context, ref, task, box.localToGlobal(box.size.center(Offset.zero)));
-        },
+        onLongPress: longPressMenu
+            ? () {
+                final box = context.findRenderObject()! as RenderBox;
+                showTaskMenu(context, ref, task, box.localToGlobal(box.size.center(Offset.zero)));
+              }
+            : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Row(children: [
