@@ -200,6 +200,8 @@ class _TaskDetailState extends ConsumerState<TaskDetail> {
                   await repo.restoreTask(task.id);
                 case 'skip':
                   await skipOccurrence(context, ref, task);
+                case 'pin':
+                  await repo.setPinned(task.id, task.pinnedAt == null);
                 case 'trash':
                   await repo.trashTask(task.id);
                   ref.read(selectedTaskProvider.notifier).select(null);
@@ -216,6 +218,8 @@ class _TaskDetailState extends ConsumerState<TaskDetail> {
                     PopupMenuItem(value: 'purge', child: Text('永久删除')),
                   ]
                 : [
+                    if (!done)
+                      PopupMenuItem(value: 'pin', child: Text(task.pinnedAt == null ? '置顶' : '取消置顶')),
                     if (task.repeatRule != null && task.dueDate != null && !done)
                       const PopupMenuItem(value: 'skip', child: Text('跳过此次')),
                     const PopupMenuItem(value: 'trash', child: Text('删除')),

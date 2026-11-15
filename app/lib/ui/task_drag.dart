@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../data/db.dart';
+import '../domain/dates.dart';
 import '../domain/ordering.dart';
 import '../state/providers.dart';
 import 'task_actions.dart';
@@ -13,30 +14,91 @@ bool dragsOnLongPress(BuildContext context) => switch (Theme.of(context).platfor
       _ => false,
     };
 
-/// The open tasks of one section of a list, in the order shown: where a
-/// dragged task can land.
-class ArrangeGroup {
-  const ArrangeGroup({required this.listId, required this.sectionId, required this.tasks});
+/// Where a dragged task can land: a section of a list, or a day.
+sealed class TaskDropGroup {
+  const TaskDropGroup();
+
+  bool accepts(Task t);
+
+  /// Whether where in the group it lands counts (a line shows where), or
+  /// only which group.
+  bool get ordered;
+
+  /// Puts [t] in this group, at [index] among the tasks as shown (counting
+  /// [t] where it is now if it's one of them) when [ordered].
+  Future<void> drop(WidgetRef ref, Task t, int index);
+}
+
+bool _movable(Task t) => t.status == TaskStatus.open && t.trashedAt == null;
+
+/// The open tasks of one section of a list, in the order shown.
+class ArrangeGroup extends TaskDropGroup {
+  const ArrangeGroup({
+    required this.listId,
+    required this.sectionId,
+    required this.tasks,
+    this.manual = true,
+  });
 
   final String listId;
 
   /// Null for 未分组.
   final String? sectionId;
+
+  /// Pinned ones first, as the list shows them.
   final List<Task> tasks;
 
-  bool accepts(Task t) => t.listId == listId && t.status == TaskStatus.open && t.trashedAt == null;
+  /// The list is in manual order; otherwise a drop only changes section.
+  final bool manual;
 
-  /// Puts [t] at [index] of this group (an index among [tasks] as shown,
-  /// counting [t] where it is now if it's one of them).
+  @override
+  bool get ordered => manual;
+
+  @override
+  bool accepts(Task t) => t.listId == listId && _movable(t);
+
+  @override
   Future<void> drop(WidgetRef ref, Task t, int index) async {
     if (!accepts(t)) return;
-    final ids = [for (final x in tasks) x.id];
+    final repo = ref.read(repoProvider);
+    final sameSection = tasks.any((x) => x.id == t.id);
+    if (!manual) {
+      if (!sameSection) await repo.placeTask(t.id, sectionId, const {});
+      return;
+    }
+    // Pinned tasks move among the pinned ones, the rest among the rest.
+    final pinned = t.pinnedAt != null;
+    final firstUnpinned = tasks.indexWhere((x) => x.pinnedAt == null);
+    final split = firstUnpinned < 0 ? tasks.length : firstUnpinned;
+    final peers = tasks.where((x) => (x.pinnedAt != null) == pinned).toList();
+    final at = pinned ? index.clamp(0, split) : (index - split).clamp(0, peers.length + 1);
+    final ids = [for (final x in peers) x.id];
     final from = ids.indexOf(t.id);
     // Let go where it was: nothing to do.
-    if (from >= 0 && (index == from || index == from + 1)) return;
-    final byId = {for (final x in tasks) x.id: x};
-    final orders = planMove(ids, t.id, index, (id) => byId[id]?.sortOrder ?? t.sortOrder);
-    await ref.read(repoProvider).placeTask(t.id, sectionId, orders);
+    if (from >= 0 && (at == from || at == from + 1)) return;
+    final byId = {for (final x in peers) x.id: x};
+    final orders = planMove(ids, t.id, at, (id) => byId[id]?.sortOrder ?? t.sortOrder);
+    await repo.placeTask(t.id, sectionId, orders);
+  }
+}
+
+/// A day of 今天 / 明天 / 最近7天: a task dropped on it moves there,
+/// keeping its time.
+class DayDropGroup extends TaskDropGroup {
+  const DayDropGroup(this.day);
+
+  final DateTime day;
+
+  @override
+  bool get ordered => false;
+
+  @override
+  bool accepts(Task t) => _movable(t) && t.dueDate != dateKey(day);
+
+  @override
+  Future<void> drop(WidgetRef ref, Task t, int index) async {
+    if (!accepts(t)) return;
+    await ref.read(repoProvider).moveTo(t.id, day, t.dueTime);
   }
 }
 
@@ -150,7 +212,7 @@ class _TaskDraggableState extends ConsumerState<TaskDraggable> {
 class TaskDropRow extends ConsumerStatefulWidget {
   const TaskDropRow({super.key, required this.group, required this.index, required this.child});
 
-  final ArrangeGroup group;
+  final TaskDropGroup group;
   final int index;
   final Widget child;
 
@@ -171,7 +233,8 @@ class _TaskDropRowState extends ConsumerState<TaskDropRow> {
 
   @override
   Widget build(BuildContext context) {
-    final line = BorderSide(color: Theme.of(context).colorScheme.primary, width: 2);
+    final scheme = Theme.of(context).colorScheme;
+    final line = BorderSide(color: scheme.primary, width: 2);
     return DragTarget<Task>(
       onWillAcceptWithDetails: (d) => widget.group.accepts(d.data),
       onMove: (d) {
@@ -191,7 +254,13 @@ class _TaskDropRowState extends ConsumerState<TaskDropRow> {
         position: DecorationPosition.foreground,
         decoration: candidates.isEmpty || _before == null
             ? const BoxDecoration()
-            : BoxDecoration(border: _before! ? Border(top: line) : Border(bottom: line)),
+            : widget.group.ordered
+                ? BoxDecoration(border: _before! ? Border(top: line) : Border(bottom: line))
+                // Only the group counts: tint the row instead of a line.
+                : BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
         child: widget.child,
       ),
     );
@@ -204,7 +273,7 @@ class _TaskDropRowState extends ConsumerState<TaskDropRow> {
 class TaskDropArea extends ConsumerWidget {
   const TaskDropArea({super.key, required this.group, required this.index, required this.child});
 
-  final ArrangeGroup group;
+  final TaskDropGroup group;
   final int index;
   final Widget child;
 

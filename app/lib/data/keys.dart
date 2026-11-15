@@ -17,8 +17,9 @@ abstract final class Keys {
   /// The person's settings (JSON); see `AppSettings`.
   static const settings = 'settings';
 
-  /// List or board for each list, by list id (JSON); see `ListLayouts`.
-  static const listLayouts = 'list.layouts';
+  /// List or board, and the order, for each list, by list id (JSON); see
+  /// `ListPrefs`. (The name is from when it held only the layout.)
+  static const listPrefs = 'list.layouts';
 
   /// Calendar mode and display choices (JSON); see `CalendarPrefs`.
   static const calendarPrefs = 'calendar.prefs';

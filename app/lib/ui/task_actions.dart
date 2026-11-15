@@ -65,6 +65,10 @@ Future<void> showTaskMenu(
         entry('p$p', p == Priority.none ? Icons.outlined_flag : Icons.flag, priorityName(p),
             color: priorityColor(p, scheme)),
       const PopupMenuDivider(),
+      if (task.status == TaskStatus.open)
+        task.pinnedAt == null
+            ? entry('pin', Icons.push_pin_outlined, '置顶')
+            : entry('unpin', Icons.push_pin, '取消置顶'),
       entry('move', Icons.drive_file_move_outline, '移动到…'),
       entry('trash', Icons.delete_outline, '删除', color: scheme.error),
     ],
@@ -83,6 +87,10 @@ Future<void> showTaskMenu(
       await repo.setDue(task.id, null, null);
     case 'skip':
       await skipOccurrence(context, ref, task);
+    case 'pin':
+      await repo.setPinned(task.id, true);
+    case 'unpin':
+      await repo.setPinned(task.id, false);
     case 'move':
       final listId = await pickList(context, ref, current: task.listId);
       if (listId != null) await repo.moveToList(task.id, listId);

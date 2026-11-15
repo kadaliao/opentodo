@@ -79,6 +79,11 @@ class TaskTile extends ConsumerWidget {
                 ),
               ),
             ),
+            if (task.pinnedAt != null && !done)
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: Icon(Icons.push_pin, size: 13, color: scheme.outline, semanticLabel: '已置顶'),
+              ),
             for (final tag in task.tags.take(2))
               Padding(
                 padding: const EdgeInsets.only(left: 6),

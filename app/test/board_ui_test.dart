@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, kSecondaryButton;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -134,7 +134,7 @@ void main() {
     await tester.tap(find.text('看板'));
     await tester.pumpAndSettle();
     final c = container(tester);
-    expect(c.read(listLayoutsProvider)[work], ListLayout.board);
+    expect(c.read(listPrefsProvider)[work]?.layout, ListLayout.board);
     expect(await db.getValue('list.layouts'), contains('board'));
     expect(find.text('拖任务到这里'), findsOneWidget); // 进行中 is empty
     expect(find.text('添加分组'), findsOneWidget);
@@ -163,8 +163,88 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('列表'));
     await tester.pumpAndSettle();
-    expect(c.read(listLayoutsProvider)[work], isNull);
+    expect(c.read(listPrefsProvider)[work], isNull);
     expect(find.text('拖任务到这里'), findsNothing);
+
+    await finish(tester);
+  });
+
+  testWidgets('desktop: in 最近7天, drag a task to another day; the time stays',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS), (tester) async {
+    await pumpApp(tester, const Size(1400, 900));
+    final c = container(tester);
+    final repo = c.read(repoProvider);
+    final today = DateTime.now();
+    final day = DateTime(today.year, today.month, today.day);
+    await repo.addTask(title: '晚上开会', dueDate: day, dueTime: 23 * 60 + 30);
+    await repo.addTask(title: '后天的', dueDate: day.add(const Duration(days: 2)));
+    c.read(selectedViewProvider.notifier).select(const SmartViewRef(SmartKind.next7));
+    await tester.pumpAndSettle();
+
+    final target = find.textContaining(RegExp(r'^\d+月\d+日, 周'));
+    expect(target, findsOneWidget); // the day after tomorrow's header
+    await drag(tester, find.text('晚上开会'), target);
+    final moved = await load('晚上开会');
+    final expected = day.add(const Duration(days: 2));
+    expect(moved.dueDate,
+        '${expected.year}-${expected.month.toString().padLeft(2, '0')}-${expected.day.toString().padLeft(2, '0')}');
+    expect(moved.dueTime, 23 * 60 + 30);
+
+    await finish(tester);
+  });
+
+  testWidgets('desktop: pin from the menu; order by priority, where drops only change section',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS), (tester) async {
+    await pumpApp(tester, const Size(1400, 900));
+    double y(String t) => tester.getCenter(find.text(t)).dy;
+    expect(y('丙'), lessThan(y('甲'))); // newest first
+
+    // Pin 甲: it goes to the top, with a pin.
+    await tester.tap(find.text('甲'), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('置顶'));
+    await tester.pumpAndSettle();
+    expect((await load('甲')).pinnedAt, isNotNull);
+    expect(y('甲'), lessThan(y('丙')));
+    expect(find.byIcon(Icons.push_pin), findsOneWidget);
+
+    // Dragging an unpinned task above the pinned one keeps it below.
+    await drag(tester, find.text('乙'), find.text('甲'), dy: -8);
+    expect(y('甲'), lessThan(y('乙')));
+    expect(y('乙'), lessThan(y('丙')));
+
+    // Order by priority: 丙 (high) first after the pinned 甲.
+    final c = container(tester);
+    await c.read(repoProvider).setPriority((await load('丙')).id, Priority.high);
+    await tester.tap(find.byTooltip('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('排序：自定义'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按优先级'));
+    await tester.pumpAndSettle();
+    expect(c.read(listPrefsProvider)[work]?.sort, ListSort.priority);
+    expect(y('甲'), lessThan(y('丙')));
+    expect(y('丙'), lessThan(y('乙')));
+
+    // A drop within the section doesn't change the order now...
+    final before = (await load('乙')).sortOrder;
+    await drag(tester, find.text('乙'), find.text('丙'), dy: -8);
+    expect((await load('乙')).sortOrder, before);
+    // ...but a drop into another section moves it there.
+    await addSection(tester, '稍后');
+    await drag(tester, find.text('乙'), find.text('稍后'));
+    final later = (await db.select(db.listSections).getSingle()).id;
+    expect((await load('乙')).sectionId, later);
+    expect((await load('乙')).sortOrder, before);
+
+    // Unpin from the detail's ⋯.
+    await tester.tap(find.text('甲'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('更多').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('取消置顶'));
+    await tester.pumpAndSettle();
+    expect((await load('甲')).pinnedAt, isNull);
 
     await finish(tester);
   });

@@ -841,6 +841,17 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _pinnedAtMeta = const VerificationMeta(
+    'pinnedAt',
+  );
+  @override
+  late final GeneratedColumn<int> pinnedAt = GeneratedColumn<int>(
+    'pinned_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _trashedAtMeta = const VerificationMeta(
     'trashedAt',
   );
@@ -887,6 +898,7 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     reminders,
     repeatRule,
     repeatFrom,
+    pinnedAt,
     trashedAt,
     sortOrder,
   ];
@@ -1029,6 +1041,12 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         repeatFrom.isAcceptableOrUnknown(data['repeat_from']!, _repeatFromMeta),
       );
     }
+    if (data.containsKey('pinned_at')) {
+      context.handle(
+        _pinnedAtMeta,
+        pinnedAt.isAcceptableOrUnknown(data['pinned_at']!, _pinnedAtMeta),
+      );
+    }
     if (data.containsKey('trashed_at')) {
       context.handle(
         _trashedAtMeta,
@@ -1138,6 +1156,10 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         DriftSqlType.int,
         data['${effectivePrefix}repeat_from'],
       )!,
+      pinnedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}pinned_at'],
+      ),
       trashedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}trashed_at'],
@@ -1206,6 +1228,10 @@ class Task extends DataClass implements Insertable<Task> {
   /// the day it was completed.
   final int repeatFrom;
 
+  /// When the task was pinned (置顶) to the top of its list; null if it
+  /// isn't.
+  final int? pinnedAt;
+
   /// Set when the task is moved to the trash (it can be restored); different
   /// from the sync tombstone [deletedAt], which is permanent.
   final int? trashedAt;
@@ -1232,6 +1258,7 @@ class Task extends DataClass implements Insertable<Task> {
     required this.reminders,
     this.repeatRule,
     required this.repeatFrom,
+    this.pinnedAt,
     this.trashedAt,
     required this.sortOrder,
   });
@@ -1281,6 +1308,9 @@ class Task extends DataClass implements Insertable<Task> {
       map['repeat_rule'] = Variable<String>(repeatRule);
     }
     map['repeat_from'] = Variable<int>(repeatFrom);
+    if (!nullToAbsent || pinnedAt != null) {
+      map['pinned_at'] = Variable<int>(pinnedAt);
+    }
     if (!nullToAbsent || trashedAt != null) {
       map['trashed_at'] = Variable<int>(trashedAt);
     }
@@ -1327,6 +1357,9 @@ class Task extends DataClass implements Insertable<Task> {
           ? const Value.absent()
           : Value(repeatRule),
       repeatFrom: Value(repeatFrom),
+      pinnedAt: pinnedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pinnedAt),
       trashedAt: trashedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(trashedAt),
@@ -1361,6 +1394,7 @@ class Task extends DataClass implements Insertable<Task> {
       reminders: serializer.fromJson<List<int>>(json['reminders']),
       repeatRule: serializer.fromJson<String?>(json['repeatRule']),
       repeatFrom: serializer.fromJson<int>(json['repeatFrom']),
+      pinnedAt: serializer.fromJson<int?>(json['pinnedAt']),
       trashedAt: serializer.fromJson<int?>(json['trashedAt']),
       sortOrder: serializer.fromJson<double>(json['sortOrder']),
     );
@@ -1390,6 +1424,7 @@ class Task extends DataClass implements Insertable<Task> {
       'reminders': serializer.toJson<List<int>>(reminders),
       'repeatRule': serializer.toJson<String?>(repeatRule),
       'repeatFrom': serializer.toJson<int>(repeatFrom),
+      'pinnedAt': serializer.toJson<int?>(pinnedAt),
       'trashedAt': serializer.toJson<int?>(trashedAt),
       'sortOrder': serializer.toJson<double>(sortOrder),
     };
@@ -1417,6 +1452,7 @@ class Task extends DataClass implements Insertable<Task> {
     List<int>? reminders,
     Value<String?> repeatRule = const Value.absent(),
     int? repeatFrom,
+    Value<int?> pinnedAt = const Value.absent(),
     Value<int?> trashedAt = const Value.absent(),
     double? sortOrder,
   }) => Task(
@@ -1441,6 +1477,7 @@ class Task extends DataClass implements Insertable<Task> {
     reminders: reminders ?? this.reminders,
     repeatRule: repeatRule.present ? repeatRule.value : this.repeatRule,
     repeatFrom: repeatFrom ?? this.repeatFrom,
+    pinnedAt: pinnedAt.present ? pinnedAt.value : this.pinnedAt,
     trashedAt: trashedAt.present ? trashedAt.value : this.trashedAt,
     sortOrder: sortOrder ?? this.sortOrder,
   );
@@ -1475,6 +1512,7 @@ class Task extends DataClass implements Insertable<Task> {
       repeatFrom: data.repeatFrom.present
           ? data.repeatFrom.value
           : this.repeatFrom,
+      pinnedAt: data.pinnedAt.present ? data.pinnedAt.value : this.pinnedAt,
       trashedAt: data.trashedAt.present ? data.trashedAt.value : this.trashedAt,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
     );
@@ -1504,6 +1542,7 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('reminders: $reminders, ')
           ..write('repeatRule: $repeatRule, ')
           ..write('repeatFrom: $repeatFrom, ')
+          ..write('pinnedAt: $pinnedAt, ')
           ..write('trashedAt: $trashedAt, ')
           ..write('sortOrder: $sortOrder')
           ..write(')'))
@@ -1533,6 +1572,7 @@ class Task extends DataClass implements Insertable<Task> {
     reminders,
     repeatRule,
     repeatFrom,
+    pinnedAt,
     trashedAt,
     sortOrder,
   ]);
@@ -1561,6 +1601,7 @@ class Task extends DataClass implements Insertable<Task> {
           other.reminders == this.reminders &&
           other.repeatRule == this.repeatRule &&
           other.repeatFrom == this.repeatFrom &&
+          other.pinnedAt == this.pinnedAt &&
           other.trashedAt == this.trashedAt &&
           other.sortOrder == this.sortOrder);
 }
@@ -1587,6 +1628,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<List<int>> reminders;
   final Value<String?> repeatRule;
   final Value<int> repeatFrom;
+  final Value<int?> pinnedAt;
   final Value<int?> trashedAt;
   final Value<double> sortOrder;
   final Value<int> rowid;
@@ -1612,6 +1654,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.reminders = const Value.absent(),
     this.repeatRule = const Value.absent(),
     this.repeatFrom = const Value.absent(),
+    this.pinnedAt = const Value.absent(),
     this.trashedAt = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1638,6 +1681,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.reminders = const Value.absent(),
     this.repeatRule = const Value.absent(),
     this.repeatFrom = const Value.absent(),
+    this.pinnedAt = const Value.absent(),
     this.trashedAt = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1668,6 +1712,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<String>? reminders,
     Expression<String>? repeatRule,
     Expression<int>? repeatFrom,
+    Expression<int>? pinnedAt,
     Expression<int>? trashedAt,
     Expression<double>? sortOrder,
     Expression<int>? rowid,
@@ -1694,6 +1739,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (reminders != null) 'reminders': reminders,
       if (repeatRule != null) 'repeat_rule': repeatRule,
       if (repeatFrom != null) 'repeat_from': repeatFrom,
+      if (pinnedAt != null) 'pinned_at': pinnedAt,
       if (trashedAt != null) 'trashed_at': trashedAt,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (rowid != null) 'rowid': rowid,
@@ -1722,6 +1768,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Value<List<int>>? reminders,
     Value<String?>? repeatRule,
     Value<int>? repeatFrom,
+    Value<int?>? pinnedAt,
     Value<int?>? trashedAt,
     Value<double>? sortOrder,
     Value<int>? rowid,
@@ -1748,6 +1795,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       reminders: reminders ?? this.reminders,
       repeatRule: repeatRule ?? this.repeatRule,
       repeatFrom: repeatFrom ?? this.repeatFrom,
+      pinnedAt: pinnedAt ?? this.pinnedAt,
       trashedAt: trashedAt ?? this.trashedAt,
       sortOrder: sortOrder ?? this.sortOrder,
       rowid: rowid ?? this.rowid,
@@ -1824,6 +1872,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     if (repeatFrom.present) {
       map['repeat_from'] = Variable<int>(repeatFrom.value);
     }
+    if (pinnedAt.present) {
+      map['pinned_at'] = Variable<int>(pinnedAt.value);
+    }
     if (trashedAt.present) {
       map['trashed_at'] = Variable<int>(trashedAt.value);
     }
@@ -1860,6 +1911,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('reminders: $reminders, ')
           ..write('repeatRule: $repeatRule, ')
           ..write('repeatFrom: $repeatFrom, ')
+          ..write('pinnedAt: $pinnedAt, ')
           ..write('trashedAt: $trashedAt, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('rowid: $rowid')
@@ -4135,6 +4187,7 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   Value<List<int>> reminders,
   Value<String?> repeatRule,
   Value<int> repeatFrom,
+  Value<int?> pinnedAt,
   Value<int?> trashedAt,
   Value<double> sortOrder,
   Value<int> rowid,
@@ -4161,6 +4214,7 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<List<int>> reminders,
   Value<String?> repeatRule,
   Value<int> repeatFrom,
+  Value<int?> pinnedAt,
   Value<int?> trashedAt,
   Value<double> sortOrder,
   Value<int> rowid,
@@ -4278,6 +4332,11 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<int> get repeatFrom => $composableBuilder(
     column: $table.repeatFrom,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pinnedAt => $composableBuilder(
+    column: $table.pinnedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4406,6 +4465,11 @@ class $$TasksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get pinnedAt => $composableBuilder(
+    column: $table.pinnedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get trashedAt => $composableBuilder(
     column: $table.trashedAt,
     builder: (column) => ColumnOrderings(column),
@@ -4497,6 +4561,9 @@ class $$TasksTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get pinnedAt =>
+      $composableBuilder(column: $table.pinnedAt, builder: (column) => column);
+
   GeneratedColumn<int> get trashedAt =>
       $composableBuilder(column: $table.trashedAt, builder: (column) => column);
 
@@ -4553,6 +4620,7 @@ class $$TasksTableTableManager
                 Value<List<int>> reminders = const Value.absent(),
                 Value<String?> repeatRule = const Value.absent(),
                 Value<int> repeatFrom = const Value.absent(),
+                Value<int?> pinnedAt = const Value.absent(),
                 Value<int?> trashedAt = const Value.absent(),
                 Value<double> sortOrder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -4578,6 +4646,7 @@ class $$TasksTableTableManager
                 reminders: reminders,
                 repeatRule: repeatRule,
                 repeatFrom: repeatFrom,
+                pinnedAt: pinnedAt,
                 trashedAt: trashedAt,
                 sortOrder: sortOrder,
                 rowid: rowid,
@@ -4605,6 +4674,7 @@ class $$TasksTableTableManager
                 Value<List<int>> reminders = const Value.absent(),
                 Value<String?> repeatRule = const Value.absent(),
                 Value<int> repeatFrom = const Value.absent(),
+                Value<int?> pinnedAt = const Value.absent(),
                 Value<int?> trashedAt = const Value.absent(),
                 Value<double> sortOrder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -4630,6 +4700,7 @@ class $$TasksTableTableManager
                 reminders: reminders,
                 repeatRule: repeatRule,
                 repeatFrom: repeatFrom,
+                pinnedAt: pinnedAt,
                 trashedAt: trashedAt,
                 sortOrder: sortOrder,
                 rowid: rowid,

@@ -24,10 +24,12 @@ class BoardView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final sort = ref.watch(listPrefsProvider)[listId]?.sort ?? ListSort.manual;
     final columns = boardColumns(
       listId,
       ref.watch(tasksProvider).value ?? const [],
       ref.watch(sectionsByListProvider)[listId] ?? const [],
+      sort: sort,
     );
     // A phone shows one column and a bit of the next.
     final width = MediaQuery.sizeOf(context).width < Breakpoints.twoPane
@@ -43,7 +45,13 @@ class BoardView extends ConsumerWidget {
             padding: const EdgeInsets.only(right: 12),
             child: SizedBox(
               width: width,
-              child: _Column(listId: listId, column: c, onOpenTask: onOpenTask, cardWidth: width),
+              child: _Column(
+                listId: listId,
+                column: c,
+                manual: sort == ListSort.manual,
+                onOpenTask: onOpenTask,
+                cardWidth: width,
+              ),
             ),
           ),
         Align(
@@ -63,12 +71,16 @@ class _Column extends ConsumerStatefulWidget {
   const _Column({
     required this.listId,
     required this.column,
+    required this.manual,
     required this.onOpenTask,
     required this.cardWidth,
   });
 
   final String listId;
   final BoardColumn column;
+
+  /// The list is in manual order: where a card lands counts.
+  final bool manual;
   final ValueChanged<String> onOpenTask;
   final double cardWidth;
 
@@ -85,7 +97,12 @@ class _ColumnState extends ConsumerState<_Column> {
     final scheme = Theme.of(context).colorScheme;
     final c = widget.column;
     final section = c.group.section;
-    final group = ArrangeGroup(listId: widget.listId, sectionId: section?.id, tasks: c.group.tasks);
+    final group = ArrangeGroup(
+      listId: widget.listId,
+      sectionId: section?.id,
+      tasks: c.group.tasks,
+      manual: widget.manual,
+    );
 
     final header = TaskDropArea(
       group: group,
@@ -252,7 +269,7 @@ class _Card extends ConsumerWidget {
                     decorationColor: scheme.outline,
                   ),
                 ),
-                if (task.dueDate != null || task.tags.isNotEmpty)
+                if (task.dueDate != null || task.tags.isNotEmpty || (task.pinnedAt != null && !done))
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Wrap(
@@ -260,6 +277,8 @@ class _Card extends ConsumerWidget {
                       runSpacing: 4,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
+                        if (task.pinnedAt != null && !done)
+                          Icon(Icons.push_pin, size: 13, color: scheme.outline, semanticLabel: '已置顶'),
                         if (task.dueDate != null)
                           Row(mainAxisSize: MainAxisSize.min, children: [
                             if (task.reminders.isNotEmpty && !done)

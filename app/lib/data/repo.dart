@@ -251,6 +251,10 @@ class TaskRepo {
     );
   }
 
+  /// Pins the task to the top of its list (置顶), or unpins it.
+  Future<void> setPinned(String id, bool pinned) =>
+      updateTask(id, TasksCompanion(pinnedAt: Value(pinned ? _now : null)));
+
   Future<void> setPriority(String id, int priority) =>
       updateTask(id, TasksCompanion(priority: Value(priority)));
 
@@ -335,6 +339,7 @@ class TaskRepo {
             updatedAt: now,
             deletedAt: const Value(null),
             trashedAt: const Value(null),
+            pinnedAt: const Value(null),
             serverVersion: 0,
             dirty: true,
           ).toCompanion(false),

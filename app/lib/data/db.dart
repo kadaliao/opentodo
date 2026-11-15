@@ -95,6 +95,10 @@ class Tasks extends Table with SyncColumns {
   /// the day it was completed.
   IntColumn get repeatFrom => integer().withDefault(const Constant(0))();
 
+  /// When the task was pinned (置顶) to the top of its list; null if it
+  /// isn't.
+  IntColumn get pinnedAt => integer().nullable()();
+
   /// Set when the task is moved to the trash (it can be restored); different
   /// from the sync tombstone [deletedAt], which is permanent.
   IntColumn get trashedAt => integer().nullable()();
@@ -184,7 +188,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -213,6 +217,8 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(listSections);
             await m.addColumn(tasks, tasks.sectionId);
           }
+          // Pinning.
+          if (from < 7) await m.addColumn(tasks, tasks.pinnedAt);
           // A new kind of synced record (filters in v5, sections in v6): an
           // older version skipped the ones other devices synced but still
           // moved its cursor past them. Pull everything again once so they

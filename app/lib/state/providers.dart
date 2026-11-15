@@ -51,40 +51,74 @@ final sectionsByListProvider = Provider<Map<String, List<ListSection>>>((ref) {
 /// How a list is laid out on this device.
 enum ListLayout { list, board }
 
-/// List or board, per list (the inbox too), kept on this device: a phone
-/// may want the list where the computer shows the board. Not synced.
-class ListLayouts extends Notifier<Map<String, ListLayout>> {
+/// How a list shows on this device: as a list or a board, and in which
+/// order. A phone may want the list where the computer shows the board.
+class ListPrefs {
+  const ListPrefs({this.layout = ListLayout.list, this.sort = ListSort.manual});
+
+  final ListLayout layout;
+  final ListSort sort;
+
+  bool get isDefault => layout == ListLayout.list && sort == ListSort.manual;
+
+  ListPrefs copyWith({ListLayout? layout, ListSort? sort}) =>
+      ListPrefs(layout: layout ?? this.layout, sort: sort ?? this.sort);
+
+  Map<String, String> toJson() => {'layout': layout.name, 'sort': sort.name};
+
+  /// Also reads the bare layout name the first version stored.
+  factory ListPrefs.fromJson(Object? json) {
+    T? byName<T extends Enum>(List<T> values, Object? name) =>
+        values.where((v) => v.name == name).firstOrNull;
+    if (json is String) return ListPrefs(layout: byName(ListLayout.values, json) ?? ListLayout.list);
+    if (json is! Map) return const ListPrefs();
+    return ListPrefs(
+      layout: byName(ListLayout.values, json['layout']) ?? ListLayout.list,
+      sort: byName(ListSort.values, json['sort']) ?? ListSort.manual,
+    );
+  }
+}
+
+/// [ListPrefs] per list (the inbox too), by list id; kept on this device,
+/// not synced.
+class ListPrefsNotifier extends Notifier<Map<String, ListPrefs>> {
   bool _changed = false;
 
   @override
-  Map<String, ListLayout> build() {
+  Map<String, ListPrefs> build() {
     _load();
     return const {};
   }
 
   Future<void> _load() async {
-    final raw = await ref.read(databaseProvider).getValue(Keys.listLayouts);
+    final raw = await ref.read(databaseProvider).getValue(Keys.listPrefs);
     if (raw == null || _changed || !ref.mounted) return;
     try {
       state = {
         for (final e in (jsonDecode(raw) as Map<String, dynamic>).entries)
-          e.key: ?ListLayout.values.where((l) => l.name == e.value).firstOrNull,
+          e.key: ListPrefs.fromJson(e.value),
       };
     } on Object {
-      // Damaged: every list shows as a list.
+      // Damaged: every list as a list, in manual order.
     }
   }
 
-  void set(String listId, ListLayout layout) {
+  ListPrefs of(String listId) => state[listId] ?? const ListPrefs();
+
+  void setLayout(String listId, ListLayout layout) => _set(listId, of(listId).copyWith(layout: layout));
+
+  void setSort(String listId, ListSort sort) => _set(listId, of(listId).copyWith(sort: sort));
+
+  void _set(String listId, ListPrefs prefs) {
     _changed = true;
-    state = {...state, listId: layout}..removeWhere((_, l) => l == ListLayout.list);
+    state = {...state, listId: prefs}..removeWhere((_, p) => p.isDefault);
     ref.read(databaseProvider).setValue(
-        Keys.listLayouts, jsonEncode({for (final e in state.entries) e.key: e.value.name}));
+        Keys.listPrefs, jsonEncode({for (final e in state.entries) e.key: e.value.toJson()}));
   }
 }
 
-final listLayoutsProvider =
-    NotifierProvider<ListLayouts, Map<String, ListLayout>>(ListLayouts.new);
+final listPrefsProvider =
+    NotifierProvider<ListPrefsNotifier, Map<String, ListPrefs>>(ListPrefsNotifier.new);
 
 final filtersProvider = StreamProvider<List<TaskFilter>>(
     (ref) => ref.watch(repoProvider).watchFilters());
@@ -206,5 +240,6 @@ final sectionsProvider = Provider<List<TaskSection>>((ref) {
     now: ref.watch(clockProvider),
     filters: ref.watch(filterRulesProvider),
     sectionsByList: ref.watch(sectionsByListProvider),
+    listSorts: {for (final e in ref.watch(listPrefsProvider).entries) e.key: e.value.sort},
   );
 });

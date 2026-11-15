@@ -70,7 +70,9 @@ class TaskSection {
     this.collapsedByDefault = false,
     this.alert = false,
     this.arrangeable = false,
+    this.manualOrder = false,
     this.listSection,
+    this.day,
   });
 
   final String id;
@@ -83,9 +85,17 @@ class TaskSection {
   /// Shown in the warning colour (已过期).
   final bool alert;
 
-  /// Open tasks of one section of a list, in manual order: they can be
-  /// dragged within it and dropped into it.
+  /// Open tasks of one section of a list: tasks can be dropped into it
+  /// (from another section, or within it when [manualOrder]).
   final bool arrangeable;
+
+  /// The list is in manual order (自定义), so where a task is dropped
+  /// counts.
+  final bool manualOrder;
+
+  /// The day of a date view's section (今天, 明天, a day of 最近7天): a task
+  /// dropped on it moves to that day.
+  final DateTime? day;
 
   /// The list's section (分组) this is; null for 未分组 and for sections
   /// that aren't a list's.
@@ -106,6 +116,30 @@ int compareByOrder(Task a, Task b) {
   return c != 0 ? c : b.createdAt.compareTo(a.createdAt);
 }
 
+/// Pinned (置顶) tasks before the rest, each part in [compare]'s order.
+Comparator<Task> pinnedFirst(Comparator<Task> compare) => (a, b) {
+      final ap = a.pinnedAt != null, bp = b.pinnedAt != null;
+      if (ap != bp) return ap ? -1 : 1;
+      return compare(a, b);
+    };
+
+/// How a list orders the tasks in each of its sections.
+enum ListSort {
+  manual('自定义'),
+  due('时间'),
+  priority('优先级');
+
+  const ListSort(this.label);
+  final String label;
+
+  Comparator<Task> get compare => pinnedFirst(switch (this) {
+        ListSort.manual => compareByOrder,
+        ListSort.due => compareByDue,
+        ListSort.priority => (a, b) =>
+            a.priority != b.priority ? b.priority.compareTo(a.priority) : compareByDue(a, b),
+      });
+}
+
 /// One section of a list and its tasks; [section] null is 未分组: tasks
 /// without a section, or with one that isn't this list's (any more).
 class ListGroup {
@@ -116,10 +150,11 @@ class ListGroup {
   String get title => section?.name ?? '未分组';
 }
 
-/// The tasks of a list sorted into its [sections], each in manual order.
-/// 未分组 comes first, and only when it has tasks or the list has no
-/// sections.
-List<ListGroup> listGroups(List<Task> tasks, List<ListSection> sections) {
+/// The tasks of a list sorted into its [sections], each in [sort]'s order
+/// (pinned ones first). 未分组 comes first, and only when it has tasks or
+/// the list has no sections.
+List<ListGroup> listGroups(List<Task> tasks, List<ListSection> sections,
+    {ListSort sort = ListSort.manual}) {
   final ordered = [...sections]..sort((a, b) {
       final c = a.sortOrder.compareTo(b.sortOrder);
       return c != 0 ? c : a.createdAt.compareTo(b.createdAt);
@@ -130,8 +165,8 @@ List<ListGroup> listGroups(List<Task> tasks, List<ListSection> sections) {
     (byId[t.sectionId] ?? loose).add(t);
   }
   return [
-    if (loose.isNotEmpty || ordered.isEmpty) ListGroup(null, loose..sort(compareByOrder)),
-    for (final s in ordered) ListGroup(s, byId[s.id]!..sort(compareByOrder)),
+    if (loose.isNotEmpty || ordered.isEmpty) ListGroup(null, loose..sort(sort.compare)),
+    for (final s in ordered) ListGroup(s, byId[s.id]!..sort(sort.compare)),
   ];
 }
 
@@ -145,9 +180,10 @@ class BoardColumn {
 
 /// The board (看板) of the list [listId]: one column per section.
 List<BoardColumn> boardColumns(
-    String listId, List<Task> tasks, List<ListSection> sections) {
+    String listId, List<Task> tasks, List<ListSection> sections,
+    {ListSort sort = ListSort.manual}) {
   final inList = tasks.where((t) => t.listId == listId && t.trashedAt == null).toList();
-  final open = listGroups(inList.where(isOpen).toList(), sections);
+  final open = listGroups(inList.where(isOpen).toList(), sections, sort: sort);
   final done = listGroups(inList.where(isDone).toList(), sections);
   final doneBySection = {for (final g in done) g.section?.id: g.tasks};
   final columns = [
@@ -347,6 +383,7 @@ List<TaskSection> buildSections({
   required DateTime now,
   Map<String, FilterRule> filters = const {},
   Map<String, List<ListSection>> sectionsByList = const {},
+  Map<String, ListSort> listSorts = const {},
 }) {
   final today = dateOnly(now);
   final todayKey = dateKey(today);
@@ -400,7 +437,7 @@ List<TaskSection> buildSections({
   final sections = <TaskSection>[];
   switch (view) {
     case SmartViewRef(kind: SmartKind.today || SmartKind.tomorrow || SmartKind.next7):
-      open.sort(compareByDue);
+      open.sort(pinnedFirst(compareByDue));
       final overdue = open.where((t) => lastDueKey(t).compareTo(todayKey) < 0);
       if (overdue.isNotEmpty) {
         sections.add(TaskSection(
@@ -418,11 +455,12 @@ List<TaskSection> buildSections({
           id: 'day-${e.key}',
           title: daySectionTitle(parseDateKey(e.key), today),
           tasks: e.value,
+          day: parseDateKey(e.key),
         ));
       }
     case FilterViewRef():
       // By date: overdue, each of the next seven days, later, undated.
-      open.sort(compareByDue);
+      open.sort(pinnedFirst(compareByDue));
       final byKey = <String, List<Task>>{};
       for (final t in open) {
         final String key;
@@ -453,7 +491,7 @@ List<TaskSection> buildSections({
         });
       }
     case TagViewRef():
-      open.sort(compareByDue);
+      open.sort(pinnedFirst(compareByDue));
       final byList = <String, List<Task>>{};
       for (final t in open) {
         byList.putIfAbsent(t.listId, () => []).add(t);
@@ -463,8 +501,10 @@ List<TaskSection> buildSections({
             id: 'list-${e.key}', title: listName(e.key, lists), tasks: e.value));
       }
     default:
-      final listSections = sectionsByList[arrangedListId(view)] ?? const <ListSection>[];
-      for (final g in listGroups(open, listSections)) {
+      final listId = arrangedListId(view);
+      final listSections = sectionsByList[listId] ?? const <ListSection>[];
+      final sort = listSorts[listId] ?? ListSort.manual;
+      for (final g in listGroups(open, listSections, sort: sort)) {
         // A list without sections has no headers, and nothing at all when
         // it's empty (so the empty state shows).
         if (listSections.isEmpty && g.tasks.isEmpty) continue;
@@ -473,6 +513,7 @@ List<TaskSection> buildSections({
           title: listSections.isEmpty ? null : g.title,
           tasks: g.tasks,
           arrangeable: true,
+          manualOrder: sort == ListSort.manual,
           listSection: g.section,
         ));
       }

@@ -52,7 +52,8 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
     }
     final isTrash = view == const SmartViewRef(SmartKind.trash);
     final arrangedList = arrangedListId(view);
-    final board = arrangedList != null && ref.watch(listLayoutsProvider)[arrangedList] == ListLayout.board;
+    final listPrefs = arrangedList == null ? null : ref.watch(listPrefsProvider)[arrangedList];
+    final board = listPrefs?.layout == ListLayout.board;
     final touch = dragsOnLongPress(context);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -86,7 +87,8 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
               icon: const Icon(Icons.search),
               onPressed: () => openSearch(context),
             ),
-          if (arrangedList != null) _ListMenu(listId: arrangedList, board: board),
+          if (arrangedList != null)
+            _ListMenu(listId: arrangedList, prefs: listPrefs ?? const ListPrefs()),
           if (isTrash && sections.isNotEmpty)
             TextButton.icon(
               icon: const Icon(Icons.delete_sweep_outlined, size: 18),
@@ -109,17 +111,26 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
         child: loading
             ? const SizedBox.shrink()
             : board
-                ? BoardView(listId: arrangedList, onOpenTask: widget.onOpenTask)
+                ? BoardView(listId: arrangedList!, onOpenTask: widget.onOpenTask)
                 : sections.isEmpty
                 ? _EmptyState(view: view)
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 96),
                     children: [
                       for (final s in sections) ...() {
-                        final group = s.arrangeable && arrangedList != null
+                        final TaskDropGroup? group = s.arrangeable && arrangedList != null
                             ? ArrangeGroup(
-                                listId: arrangedList, sectionId: s.listSection?.id, tasks: s.tasks)
-                            : null;
+                                listId: arrangedList,
+                                sectionId: s.listSection?.id,
+                                tasks: s.tasks,
+                                manual: s.manualOrder,
+                              )
+                            : s.day != null
+                                ? DayDropGroup(s.day!)
+                                : null;
+                        // Open tasks can be dragged in lists and date views,
+                        // also out of 已过期 (onto a day).
+                        final draggable = group != null || s.id == 'overdue';
                         Widget header = _SectionHeader(
                           title: s.title ?? '',
                           alert: s.alert,
@@ -136,27 +147,28 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
                           if (s.title != null) header,
                           if (!_isCollapsed(view, s))
                             for (final (i, t) in s.tasks.indexed)
-                              group == null
-                                  ? TaskTile(
-                                      key: ValueKey(t.id),
-                                      task: t,
-                                      showList: showList,
-                                      onOpen: widget.onOpenTask,
-                                    )
-                                  : TaskDropRow(
-                                      key: ValueKey(t.id),
-                                      group: group,
-                                      index: i,
-                                      child: TaskDraggable(
-                                        task: t,
-                                        child: TaskTile(
-                                          task: t,
-                                          showList: showList,
-                                          onOpen: widget.onOpenTask,
-                                          longPressMenu: !touch,
-                                        ),
-                                      ),
-                                    ),
+                              () {
+                                if (!draggable) {
+                                  return TaskTile(
+                                    key: ValueKey(t.id),
+                                    task: t,
+                                    showList: showList,
+                                    onOpen: widget.onOpenTask,
+                                  );
+                                }
+                                final Widget row = TaskDraggable(
+                                  task: t,
+                                  child: TaskTile(
+                                    task: t,
+                                    showList: showList,
+                                    onOpen: widget.onOpenTask,
+                                    longPressMenu: !touch,
+                                  ),
+                                );
+                                return group == null
+                                    ? KeyedSubtree(key: ValueKey(t.id), child: row)
+                                    : TaskDropRow(key: ValueKey(t.id), group: group, index: i, child: row);
+                              }(),
                         ];
                       }(),
                     ],
@@ -251,31 +263,47 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// The ⋯ of a list: show it as a list or a board, add a section.
+/// The ⋯ of a list: show it as a list or a board, the order, add a
+/// section.
 class _ListMenu extends ConsumerWidget {
-  const _ListMenu({required this.listId, required this.board});
+  const _ListMenu({required this.listId, required this.prefs});
 
   final String listId;
-  final bool board;
+  final ListPrefs prefs;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    void layout(ListLayout l) => ref.read(listLayoutsProvider.notifier).set(listId, l);
+    final board = prefs.layout == ListLayout.board;
+    final prefsNotifier = ref.read(listPrefsProvider.notifier);
+    void layout(ListLayout l) => prefsNotifier.setLayout(listId, l);
+    const check = Icon(Icons.check, size: 18);
     return MenuAnchor(
       menuChildren: [
         MenuItemButton(
           leadingIcon: const Icon(Icons.view_list_outlined),
-          trailingIcon: board ? null : const Icon(Icons.check, size: 18),
+          trailingIcon: board ? null : check,
           onPressed: () => layout(ListLayout.list),
           child: const Text('列表'),
         ),
         MenuItemButton(
           leadingIcon: const Icon(Icons.view_kanban_outlined),
-          trailingIcon: board ? const Icon(Icons.check, size: 18) : null,
+          trailingIcon: board ? check : null,
           onPressed: () => layout(ListLayout.board),
           child: const Text('看板'),
         ),
         const Divider(height: 8),
+        SubmenuButton(
+          leadingIcon: const Icon(Icons.sort),
+          menuChildren: [
+            for (final sort in ListSort.values)
+              MenuItemButton(
+                trailingIcon: prefs.sort == sort ? check : null,
+                onPressed: () => prefsNotifier.setSort(listId, sort),
+                child: Text(sort == ListSort.manual ? '自定义（拖动）' : '按${sort.label}'),
+              ),
+          ],
+          child: Text('排序：${prefs.sort.label}'),
+        ),
         MenuItemButton(
           leadingIcon: const Icon(Icons.add),
           onPressed: () => addSection(context, ref, listId),
