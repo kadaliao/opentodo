@@ -7,6 +7,9 @@ abstract final class Keys {
   static const cursor = 'sync.cursor';
   static const lastSyncedAt = 'sync.lastSyncedAt';
 
+  /// The person's settings (JSON); see `AppSettings`.
+  static const settings = 'settings';
+
   /// Calendar mode and display choices (JSON); see `CalendarPrefs`.
   static const calendarPrefs = 'calendar.prefs';
 

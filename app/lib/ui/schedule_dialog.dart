@@ -8,6 +8,7 @@ import '../domain/dates.dart';
 import '../domain/recurrence.dart';
 import '../domain/reminders.dart';
 import '../state/reminder_providers.dart';
+import '../state/settings_providers.dart';
 
 /// A task's date, time, span, reminders and repeat, as one choice.
 class Schedule {
@@ -49,7 +50,11 @@ class _ScheduleDialog extends ConsumerStatefulWidget {
 class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
   late DateTime _date = widget.initial.date ?? dateOnly(DateTime.now());
   late int? _time = widget.initial.time;
-  late List<int> _reminders = sortedReminders(widget.initial.reminders);
+  /// A task without a date starts with the defaults for an all-day one,
+  /// which is what it becomes.
+  late List<int> _reminders = sortedReminders(widget.initial.date == null
+      ? ref.read(settingsProvider).defaults.allDayReminders
+      : widget.initial.reminders);
   late RepeatRule? _repeat = widget.initial.repeat;
   late int _repeatFrom = widget.initial.repeatFrom;
 
@@ -90,7 +95,7 @@ class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
       final start = _date == dateOnly(now) && now.hour < 23 ? (now.hour + 1) * 60 : 9 * 60;
       _setTime(start);
     }
-    if (!_allDay) setState(() => _duration ??= defaultSpanMinutes);
+    if (!_allDay) setState(() => _duration ??= ref.read(settingsProvider).defaults.spanMinutes);
   }
 
   void _setSpanAllDay(bool allDay) {
@@ -101,7 +106,7 @@ class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
       setState(() => _duration = math.max(days, 1) * minutesPerDay);
     } else {
       _setTime(9 * 60);
-      setState(() => _duration = defaultSpanMinutes);
+      setState(() => _duration = ref.read(settingsProvider).defaults.spanMinutes);
     }
   }
 
@@ -141,11 +146,13 @@ class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
   }
 
   /// Reminders mean different things with and without a time, so switching
-  /// starts them over: 准时 for a timed task, none for an all-day one.
+  /// starts them over with the defaults: out of the box 准时 for a timed
+  /// task, none for an all-day one.
   void _setTime(int? time) {
     setState(() {
       if ((time == null) != (_time == null)) {
-        _reminders = time == null ? const [] : defaultTimedReminders;
+        _reminders = sortedReminders(
+            ref.read(settingsProvider).defaults.remindersFor(allDay: time == null));
       }
       _time = time;
     });

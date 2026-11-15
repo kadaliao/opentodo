@@ -16,9 +16,6 @@ const timedReminderPresets = [0, -5, -30, -60, -1440];
 /// Offered for an all-day task: 当天 / 提前1天 / 提前2天 / 提前1周, at 09:00.
 const allDayReminderPresets = [540, -900, -2340, -9540];
 
-/// What a task gets when it is given a time and had no reminders: 准时.
-const defaultTimedReminders = [0];
-
 /// The moment a reminder goes off, in local time.
 DateTime reminderTime(String dueDate, int? dueTime, int offset) {
   final d = parseDateKey(dueDate);

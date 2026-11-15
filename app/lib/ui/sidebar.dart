@@ -6,6 +6,7 @@ import '../domain/views.dart';
 import '../state/providers.dart';
 import 'account_ui.dart';
 import 'dialogs.dart';
+import 'settings_page.dart';
 
 class Sidebar extends ConsumerWidget {
   const Sidebar({super.key, this.onSelected});
@@ -45,6 +46,17 @@ class Sidebar extends ConsumerWidget {
         children: [
           Expanded(child: _buildList(context, ref, item, lists, tags)),
           const Divider(),
+          // On a phone there's no rail on the left with the settings button.
+          if (onSelected != null)
+            ListTile(
+              leading: Icon(Icons.settings_outlined, color: scheme.onSurfaceVariant),
+              title: const Text('设置'),
+              onTap: () {
+                final navigator = Navigator.of(context);
+                onSelected!();
+                navigator.push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
+              },
+            ),
           const AccountTile(),
         ],
       ),

@@ -2,7 +2,7 @@
 
 接手这个项目先读这一篇。命令速查在 [README](../README.md)，设计细节在 [architecture.md](architecture.md)，完整功能清单在 [roadmap.md](roadmap.md)。
 
-更新于 2026-11-15（时间段）。
+更新于 2026-11-15（时间段、设置）。
 
 ## 1. 现在做到哪了
 
@@ -17,7 +17,7 @@ OpenTodo 是一个多端待办应用，功能上参考了滴答清单。客户�
 | M4 提醒与重复 | 主体完成 | 系统通知提醒（多个、自定义）、点通知打开任务；重复任务（RRULE 子集、按到期/完成日期、结束条件、跳过、撤销）；快速添加识别“每周一”等；时间段任务（开始–结束）。还差的见第 8 节 |
 | M3 其余、M5 及以后 | 未开始 | 看板、搜索等，见下面第 8 节 |
 
-验证情况：Flutter 147 个测试（含 7 个“编译并启动真实 Go 服务、两台模拟设备同步”的集成测试）、Go 服务端测试全部通过；macOS 正式版和 iPhone 模拟器实际登录同一账号互相同步过。M4 的新版本在 macOS 上对真实数据跑过 v3 迁移、启动无报错，iOS 模拟器版能编译；系统通知实际弹出还没在真机上看过。日历的各个模式在界面测试里渲染、拖动、新建都验证过（含手机尺寸和深色模式的截图检查），还没在真机上用手拖过。时间段（v4 迁移）在真实数据库的副本上迁移过，对话框和日历看过截图，还没装进 macOS 正式版。Android 没有编译过。
+验证情况：Flutter 152 个测试（含 7 个“编译并启动真实 Go 服务、两台模拟设备同步”的集成测试）、Go 服务端测试全部通过；macOS 正式版和 iPhone 模拟器实际登录同一账号互相同步过。M4 的新版本在 macOS 上对真实数据跑过 v3 迁移、启动无报错，iOS 模拟器版能编译；系统通知实际弹出还没在真机上看过。日历的各个模式在界面测试里渲染、拖动、新建都验证过（含手机尺寸和深色模式的截图检查），还没在真机上用手拖过。时间段（v4 迁移）在真实数据库的副本上迁移过，对话框和日历看过截图，还没装进 macOS 正式版。Android 没有编译过。
 
 代码在 GitHub：`kadaliao/opentodo`（公开，AGPL-3.0）。
 
@@ -37,6 +37,7 @@ app/                          Flutter 客户端
     quick_add_parser.dart     快速添加解析（日期、时间、重复、#标签、!优先级）
     recurrence.dart           重复规则（RRULE 子集）：解析、下一次日期、中文描述
     reminders.dart            提醒：触发时刻、文案、接下来要交给系统的提醒
+    task_defaults.dart        任务默认值（默认提醒、时间段默认时长）
     views.dart                视图（智能清单/清单/标签）的筛选、分组、计数
   lib/notify/
     reminder_backend.dart     交给系统：iOS/macOS/Android 由系统定时，Windows/Linux 用计时器；测试里是空实现
@@ -45,6 +46,7 @@ app/                          Flutter 客户端
     providers.dart            数据库流、当前模块（任务/日历）、当前视图、选中任务、每分钟刷新的时钟
     calendar_providers.dart   日历的模式和显示选项（存本机）、锚点日期、各范围的条目
     reminder_providers.dart   提醒调度（ReminderController）、点通知打开任务
+    settings_providers.dart   设置（AppSettings，存本机）
     sync_providers.dart       账号（AccountNotifier）、同步调度（SyncController）
   lib/sync/
     account.dart              登录接口、错误文案、默认服务器地址
@@ -52,7 +54,7 @@ app/                          Flutter 客户端
     sync_engine.dart          一次同步、首次登录清理、退出清空
   lib/ui/
     app.dart                  MaterialApp、主题、本地化；挂着同步控制器
-    home_shell.dart           模块切换（电脑左侧图标栏、手机底部栏）；任务模块的自适应布局（≥1000 三栏，≥640 两栏，否则抽屉）
+    home_shell.dart           模块切换（电脑左侧图标栏、手机底部栏）、设置入口；任务模块的自适应布局（≥1000 三栏，≥640 两栏，否则抽屉）
     calendar/                 日历：calendar_screen（顶栏、侧栏、详情、新建框）、month_view、time_grid、agenda_view、entry_chip（任务条、拖动）
     sidebar.dart              侧栏；底部 account_ui.dart 的账号/同步状态
     task_list_pane.dart       中间列表、分组折叠、空状态
@@ -60,7 +62,8 @@ app/                          Flutter 客户端
     task_detail.dart          详情（标题、备注、子任务、日期/提醒/重复、优先级、清单）
     quick_add_field.dart      快速添加输入框（高亮识别出的部分）
     task_actions.dart         右键/长按菜单、日期选择、完成（重复任务带撤销）、跳过此次、清单选择
-    schedule_dialog.dart      日期对话框：日期、时间、提醒、重复，自定义提醒、自定义重复
+    schedule_dialog.dart      日期对话框：日期 / 时间段、时间、提醒、重复，自定义提醒、自定义重复
+    settings_page.dart        设置（电脑上是对话框，手机上是一页）
     dialogs.dart              确认框、清单编辑
     theme.dart                配色（种子色 #14A38B）、优先级颜色、断点
   test/                       单元、界面、同步集成测试
@@ -171,7 +174,7 @@ cd server && go run ./cmd/opentodo-server
 
 每项都可以对照 `reference/dida-app/` 里的截图做，索引见那里的 README。
 
-1. **M4 收尾**：通知上的“完成”“稍后提醒”按钮（iOS/macOS 是通知分类 + 动作，后台处理要另起 isolate 访问数据库，先做成打开应用再处理也行）；设置页里的提醒默认值；法定节假日调休、农历重复（要节假日数据，每年更新）。
+1. **M4 收尾**：通知上的“完成”“稍后提醒”按钮（iOS/macOS 是通知分类 + 动作，后台处理要另起 isolate 访问数据库，先做成打开应用再处理也行）；法定节假日调休、农历重复（要节假日数据，每年更新）。设置现在只存本机，以后可以做成同步的。
 2. **搜索和过滤器**：参考 `47-search`、`80-search-results`、`79-filter-new*`。
 3. **看板视图和手动排序**：清单里加分组（看板的列），拖动排序。参考 `17-view-kanban`、`15-list-more-menu`。
 4. **Android 环境**：装工具链，跑通 `flutter build apk`，真机试一遍同步和提醒（Android 14+ 的精确闹钟权限默认没给，没给时提醒可能晚几分钟）。

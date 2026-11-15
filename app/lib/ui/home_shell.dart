@@ -9,6 +9,7 @@ import '../state/providers.dart';
 import '../state/reminder_providers.dart';
 import 'calendar/calendar_screen.dart';
 import 'quick_add_field.dart';
+import 'settings_page.dart';
 import 'sidebar.dart';
 import 'task_detail.dart';
 import 'task_list_pane.dart';
@@ -172,6 +173,14 @@ class _ModuleRail extends ConsumerWidget {
                 onPressed: () => ref.read(moduleProvider.notifier).select(m),
               ),
             ),
+          const Spacer(),
+          IconButton(
+            tooltip: '设置',
+            icon: const Icon(Icons.settings_outlined),
+            color: scheme.onSurfaceVariant,
+            onPressed: () => showSettings(context),
+          ),
+          const SizedBox(height: 12),
         ]),
       ),
     );

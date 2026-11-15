@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart' show AppLifecycleListener;
 import '../data/db.dart';
 import '../data/repo.dart';
 import '../domain/views.dart';
+import 'settings_providers.dart';
 
 final databaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
@@ -13,7 +14,10 @@ final databaseProvider = Provider<AppDatabase>((ref) {
   return db;
 });
 
-final repoProvider = Provider<TaskRepo>((ref) => TaskRepo(ref.watch(databaseProvider)));
+final repoProvider = Provider<TaskRepo>((ref) => TaskRepo(
+      ref.watch(databaseProvider),
+      defaults: () => ref.read(settingsProvider).defaults,
+    ));
 
 final listsProvider = StreamProvider<List<TaskList>>(
     (ref) => ref.watch(repoProvider).watchLists());

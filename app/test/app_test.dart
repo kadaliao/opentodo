@@ -121,6 +121,70 @@ void main() {
     await finish(tester, db);
   });
 
+  testWidgets('desktop: default reminders from the settings', (tester) async {
+    final db = await pumpApp(tester, const Size(1400, 900));
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    expect(find.text('任务默认值'), findsOneWidget);
+
+    Future<void> choose(String setting, String option) async {
+      await tester.tap(find.byTooltip(setting));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(option).last);
+      await tester.pumpAndSettle();
+    }
+
+    await choose('默认提醒（有时间的任务）', '提前30分钟');
+    await choose('默认提醒（全天任务）', '当天 09:00');
+    await choose('时间段默认时长', '30分钟');
+    expect(find.text('提前30分钟'), findsOneWidget);
+    expect(await db.getValue('settings'), contains('"allDayReminders":[540]'));
+    await tester.tap(find.byTooltip('关闭'));
+    await tester.pumpAndSettle();
+
+    Future<Task> add(String text) async {
+      await tester.enterText(find.byType(TextField).first, text);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      return (await db.select(db.tasks).get()).last;
+    }
+
+    expect((await add('明天交报告')).reminders, [540]);
+    expect((await add('明天下午3点开会')).reminders, [-30]);
+
+    // A task without a date gets them in the date dialog too, and a span
+    // starts at the default length.
+    await tester.tap(find.text('收集箱').first); // the sidebar's, not the detail's list
+    await tester.pumpAndSettle();
+    await add('读书'); // and it opens in the detail
+    await tester.tap(find.text('设置日期'));
+    await tester.pumpAndSettle();
+    expect(find.text('当天 09:00'), findsOneWidget);
+    await tester.tap(find.text('时间段'));
+    await tester.pumpAndSettle();
+    expect(find.text('提前30分钟'), findsOneWidget); // timed now
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+    final read = (await db.select(db.tasks).get()).firstWhere((t) => t.title == '读书');
+    expect((read.duration, read.reminders.toString()), (30, '[-30]'));
+
+    await finish(tester, db);
+  });
+
+  testWidgets('phone: settings are in the drawer', (tester) async {
+    final db = await pumpApp(tester, const Size(400, 800));
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+    expect(find.text('任务默认值'), findsOneWidget);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.text('任务默认值'), findsNothing);
+
+    await finish(tester, db);
+  });
+
   testWidgets('phone: lists live in a drawer and tasks open as a page', (tester) async {
     final db = await pumpApp(tester, const Size(400, 800));
     expect(find.byIcon(Icons.menu), findsOneWidget);

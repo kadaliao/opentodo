@@ -5,9 +5,9 @@ import '../data/db.dart';
 import '../domain/dates.dart';
 import '../domain/quick_add_parser.dart';
 import '../domain/recurrence.dart';
-import '../domain/reminders.dart';
 import '../domain/views.dart';
 import '../state/providers.dart';
+import '../state/settings_providers.dart';
 
 /// Colours the parts of the text the parser recognised.
 class _HighlightController extends TextEditingController {
@@ -124,8 +124,10 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
           duration: parsed.time == null ? null : parsed.duration,
           tags: {...defaults.tags, ...parsed.tags}.toList(),
           priority: parsed.priority ?? 0,
-          // A task with a time gets a reminder at that time.
-          reminders: dueTime != null ? defaultTimedReminders : const [],
+          // Out of the box, a task with a time gets a reminder at that time.
+          reminders: dueDate == null
+              ? const []
+              : ref.read(settingsProvider).defaults.remindersFor(allDay: dueTime == null),
           repeatRule: parsed.repeat?.toString(),
         );
     _controller.clear();

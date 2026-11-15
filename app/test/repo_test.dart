@@ -2,7 +2,9 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opentodo/data/db.dart';
 import 'package:opentodo/data/repo.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:opentodo/domain/recurrence.dart';
+import 'package:opentodo/domain/task_defaults.dart';
 import 'package:opentodo/domain/views.dart';
 
 void main() {
@@ -307,6 +309,30 @@ void main() {
       await repo.setCompleted(id, true);
       final t = (await repo.getTask(id))!;
       expect((t.dueDate, t.dueTime, t.duration), ('2026-11-23', 600, 60));
+    });
+  });
+
+  group('defaults', () {
+    test('the person\'s defaults go with a new date or a change of kind', () async {
+      var defaults = const TaskDefaults(timedReminders: [-15], allDayReminders: [540]);
+      repo = TaskRepo(db, clock: () => clock, defaults: () => defaults);
+      final id = await repo.addTask(title: '交报告');
+
+      // First date from the menu: all day, so 当天 09:00.
+      await repo.setDue(id, DateTime(2026, 11, 16), null);
+      expect((await repo.getTask(id))!.reminders, [540]);
+      // Moving it again keeps what it has.
+      await repo.setCompleted(id, false);
+      await repo.updateTask(id, const TasksCompanion(reminders: Value([-900])));
+      await repo.setDue(id, DateTime(2026, 11, 17), null);
+      expect((await repo.getTask(id))!.reminders, [-900]);
+
+      // Dragged onto an hour, then back to all day.
+      await repo.moveTo(id, DateTime(2026, 11, 17), 600);
+      expect((await repo.getTask(id))!.reminders, [-15]);
+      defaults = const TaskDefaults(allDayReminders: []);
+      await repo.moveTo(id, DateTime(2026, 11, 17), null);
+      expect((await repo.getTask(id))!.reminders, isEmpty);
     });
   });
 }

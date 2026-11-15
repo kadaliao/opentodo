@@ -5,7 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../domain/dates.dart';
 import '../domain/recurrence.dart';
-import '../domain/reminders.dart';
+import '../domain/task_defaults.dart';
 import 'db.dart';
 import 'keys.dart';
 
@@ -39,11 +39,15 @@ const _occurrenceNamespace = 'b3e0b216-dc4f-4498-98bb-c1e895f8613a';
 /// Every read and write the app makes. Writes stamp `updatedAt` and mark the
 /// row dirty so the sync engine knows to push it.
 class TaskRepo {
-  TaskRepo(this.db, {DateTime Function()? clock})
-    : _clock = clock ?? DateTime.now;
+  TaskRepo(this.db, {DateTime Function()? clock, TaskDefaults Function()? defaults})
+    : _clock = clock ?? DateTime.now,
+      _defaults = defaults ?? (() => TaskDefaults.standard);
 
   final AppDatabase db;
   final DateTime Function() _clock;
+
+  /// The person's defaults, read when a task needs them.
+  final TaskDefaults Function() _defaults;
   static const _uuid = Uuid();
 
   int get _now => _clock().millisecondsSinceEpoch;
@@ -129,26 +133,42 @@ class TaskRepo {
       updateTask(id, TasksCompanion(content: Value(content)));
 
   /// Moves the task to another day, keeping its time span, reminders and
-  /// repeat; clearing the date clears those too.
-  Future<void> setDue(String id, DateTime? date, int? time) => updateTask(
-    id,
-    date == null
-        ? const TasksCompanion(
-            dueDate: Value(null),
-            dueTime: Value(null),
-            duration: Value(null),
-            reminders: Value([]),
-            repeatRule: Value(null),
-            repeatFrom: Value(RepeatFrom.dueDate),
-          )
-        : TasksCompanion(dueDate: Value(dateKey(date)), dueTime: Value(time)),
-  );
+  /// repeat; clearing the date clears those too. A task getting its first
+  /// date gets the default reminders.
+  Future<void> setDue(String id, DateTime? date, int? time) async {
+    if (date == null) {
+      return updateTask(
+        id,
+        const TasksCompanion(
+          dueDate: Value(null),
+          dueTime: Value(null),
+          duration: Value(null),
+          reminders: Value([]),
+          repeatRule: Value(null),
+          repeatFrom: Value(RepeatFrom.dueDate),
+        ),
+      );
+    }
+    final t = await getTask(id);
+    if (t == null) return;
+    await updateTask(
+      id,
+      TasksCompanion(
+        dueDate: Value(dateKey(date)),
+        dueTime: Value(time),
+        reminders: t.dueDate == null
+            ? Value(_defaults().remindersFor(allDay: time == null))
+            : const Value.absent(),
+      ),
+    );
+  }
 
   /// Moves the task to start on [date] at [time] (null: all day), as
   /// dragging it on the calendar does; a span moves as a whole. Reminders
   /// count from the due time, so going between timed and all-day starts them
-  /// over, as the date dialog does: 准时 for a timed task, none for an all-day
-  /// one. A span keeps the days it covered when it loses its time.
+  /// over with the defaults for the new kind (out of the box 准时 for a timed
+  /// task, none for an all-day one), as the date dialog does. A span keeps
+  /// the days it covered when it loses its time.
   Future<void> moveTo(String id, DateTime date, int? time) async {
     final t = await getTask(id);
     if (t == null) return;
@@ -156,7 +176,7 @@ class TaskRepo {
     if (t.dueDate == key && t.dueTime == time) return;
     final wasTimed = t.dueDate != null && t.dueTime != null;
     final reminders = t.dueDate == null || wasTimed != (time != null)
-        ? (time == null ? const <int>[] : defaultTimedReminders)
+        ? _defaults().remindersFor(allDay: time == null)
         : t.reminders;
     await updateTask(
       id,

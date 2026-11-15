@@ -110,7 +110,8 @@ String daySectionTitle(DateTime date, DateTime today) {
 
 const minutesPerDay = 24 * 60;
 
-/// How long a span is when the person first asks for one.
+/// How long a span is when the person first asks for one, unless they set
+/// otherwise (`TaskDefaults`).
 const defaultSpanMinutes = 60;
 
 /// Where a task's day or time begins: its due time, or the midnight that
