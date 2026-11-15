@@ -183,11 +183,9 @@ class HomeShell extends ConsumerWidget {
   }
 }
 
-/// Whether the list on screen is a board or a timeline.
-bool _wantsWidth(WidgetRef ref) {
-  final listId = arrangedListId(ref.watch(selectedViewProvider));
-  return listId != null && (ref.watch(viewPrefsProvider)[listId]?.layout ?? ListLayout.list) != ListLayout.list;
-}
+/// Whether the view on screen is a board or a timeline.
+bool _wantsWidth(WidgetRef ref) =>
+    ref.watch(currentViewPrefsProvider).layoutIn(ref.watch(selectedViewProvider)) != ListLayout.list;
 
 /// The modules as icons down the left edge of a computer window.
 class _ModuleRail extends ConsumerWidget {

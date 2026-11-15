@@ -311,33 +311,41 @@ class TaskRepo {
       db.transaction(() async {
         for (final id in ids) {
           final t = await getTask(id);
-          if (t == null || target.has(t)) continue;
-          switch (target) {
-            case SectionTarget(:final sectionId):
-              await updateTask(id, TasksCompanion(sectionId: Value(sectionId)));
-            case DateTarget(:final day?):
-              await moveTo(id, day, t.dueTime);
-            case DateTarget(day: null):
-              await setDue(id, null, null);
-            case PriorityTarget(:final priority):
-              await setPriority(id, priority);
-            case ListTarget(:final listId):
-              await moveToList(id, listId);
-            case TagTarget():
-              await setTags(id, target.retag(t.tags));
-            case OrderTarget():
-              break;
-          }
+          if (t != null) await _takeOn(t, target);
         }
         for (final e in orders.entries) {
           await updateTask(e.key, TasksCompanion(sortOrder: Value(e.value)));
         }
       });
 
+  /// Gives [t] what [target] stands for, unless it has it already.
+  Future<void> _takeOn(Task t, GroupTarget target) async {
+    if (target.has(t)) return;
+    final id = t.id;
+    switch (target) {
+      case SectionTarget(:final sectionId):
+        await updateTask(id, TasksCompanion(sectionId: Value(sectionId)));
+      case DateTarget(:final day?):
+        await moveTo(id, day, t.dueTime);
+      case DateTarget(day: null):
+        await setDue(id, null, null);
+      case PriorityTarget(:final priority):
+        await setPriority(id, priority);
+      case ListTarget(:final listId):
+        await moveToList(id, listId);
+      case TagTarget():
+        await setTags(id, target.retag(t.tags));
+      case OrderTarget():
+        break;
+    }
+  }
+
   /// Tasks dragged on the timeline, in one transaction: dated ones move by
   /// [days] (each keeping its time and span), undated ones go on [day] all
-  /// day, and all of them into [sectionId] (null: 未分组) of their list.
-  Future<void> placeOnTimeline(List<String> ids, {required int days, required DateTime day, String? sectionId}) =>
+  /// day, and all of them take on what the lane they're dropped in stands
+  /// for ([target]: a section, a list, a tag, a priority; null for
+  /// nothing).
+  Future<void> placeOnTimeline(List<String> ids, {required int days, required DateTime day, GroupTarget? target}) =>
       db.transaction(() async {
         for (final id in ids) {
           final t = await getTask(id);
@@ -347,11 +355,22 @@ class TaskRepo {
           } else if (days != 0) {
             await moveTo(id, addDays(parseDateKey(t.dueDate!), days), t.dueTime);
           }
-          if (t.sectionId != sectionId) {
-            await updateTask(id, TasksCompanion(sectionId: Value(sectionId)));
-          }
+          if (target != null) await _takeOn(t, target);
         }
       });
+
+  /// Starts a task on another day keeping its time of day, with the span
+  /// [duration] (so it can still end when it did), as dragging the left
+  /// edge of its bar on the timeline does. Reminders count from the start
+  /// and keep their offsets.
+  Future<void> setStart(String id, DateTime date, int? duration) async {
+    final t = await getTask(id);
+    if (t == null || t.dueDate == null) return;
+    final key = dateKey(date);
+    final d = normalizeDuration(t.dueTime, duration);
+    if (key == t.dueDate && d == t.duration) return;
+    await updateTask(id, TasksCompanion(dueDate: Value(key), duration: Value(d)));
+  }
 
   Future<void> setTags(String id, List<String> tags) =>
       updateTask(id, TasksCompanion(tags: Value(tags)));

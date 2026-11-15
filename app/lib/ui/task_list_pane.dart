@@ -66,8 +66,9 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
     final isTrash = view == const SmartViewRef(SmartKind.trash);
     final anyTarget = sections.any((s) => s.target != null);
     final arrangedList = arrangedListId(view);
-    final board = arrangedList != null && prefs.layout == ListLayout.board;
-    final timeline = arrangedList != null && prefs.layout == ListLayout.timeline;
+    final layout = prefs.layoutIn(view);
+    final board = layout == ListLayout.board;
+    final timeline = layout == ListLayout.timeline;
     final touch = dragsOnLongPress(context);
     final selection = ref.watch(taskSelectionProvider);
     final picking = selection.active;
@@ -120,8 +121,19 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
               icon: const Icon(Icons.search),
               onPressed: () => openSearch(context),
             ),
-          if (groupingsFor(view).isNotEmpty) _ArrangeMenu(view: view, prefs: prefs, board: board || timeline),
-          if (arrangedList != null) _ListMenu(view: view, listId: arrangedList, prefs: prefs),
+          if (groupingsFor(view).isNotEmpty)
+            _ArrangeMenu(
+              view: view,
+              prefs: prefs,
+              // A board's columns are the list's sections; a timeline's
+              // lanes don't go by date.
+              groupings: board ? const [] : (timeline ? timelineGroupingsFor(view) : groupingsFor(view)),
+              grouping: timeline ? prefs.timelineGroupingIn(view) : prefs.groupingIn(view),
+            ),
+          if (arrangedList != null)
+            _ListMenu(view: view, listId: arrangedList, prefs: prefs)
+          else if (groupingsFor(view).isNotEmpty)
+            _LayoutMenu(view: view, layout: layout),
           if (isTrash && sections.isNotEmpty)
             TextButton.icon(
               icon: const Icon(Icons.delete_sweep_outlined, size: 18),
@@ -144,9 +156,9 @@ class _TaskListPaneState extends ConsumerState<TaskListPane> {
         child: loading
             ? const SizedBox.shrink()
             : board
-                ? BoardView(listId: arrangedList, onOpenTask: widget.onOpenTask)
+                ? BoardView(listId: arrangedList!, onOpenTask: widget.onOpenTask)
                 : timeline
-                ? TimelineView(key: ValueKey(arrangedList), listId: arrangedList, onOpenTask: widget.onOpenTask)
+                ? TimelineView(key: ValueKey('$view'), view: view, onOpenTask: widget.onOpenTask)
                 : sections.isEmpty
                 ? _EmptyState(view: view)
                 : ListView(
@@ -317,28 +329,29 @@ class _EmptyState extends StatelessWidget {
 
 /// ⇅: how the view's open tasks are grouped (分组) and ordered (排序).
 class _ArrangeMenu extends ConsumerWidget {
-  const _ArrangeMenu({required this.view, required this.prefs, required this.board});
+  const _ArrangeMenu({required this.view, required this.prefs, required this.groupings, required this.grouping});
 
   final ViewRef view;
   final ViewPrefs prefs;
 
-  /// A board's columns (a timeline's lanes) are always the list's
-  /// sections: only the order.
-  final bool board;
+  /// The groupings on offer; with fewer than two (a board's columns and a
+  /// list's timeline lanes are always its sections), only the order.
+  final List<TaskGrouping> groupings;
+  final TaskGrouping? grouping;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(viewPrefsProvider.notifier);
-    final grouping = prefs.groupingIn(view)!;
     final sort = prefs.sortIn(view)!;
+    final grouped = groupings.length > 1 && grouping != null;
     const check = Icon(Icons.check, size: 18);
     return MenuAnchor(
       menuChildren: [
-        if (!board)
+        if (grouped)
           SubmenuButton(
             leadingIcon: const Icon(Icons.view_agenda_outlined),
             menuChildren: [
-              for (final g in groupingsFor(view))
+              for (final g in groupings)
                 MenuItemButton(
                   trailingIcon: g == grouping ? check : null,
                   onPressed: () => notifier.setGrouping(view, g),
@@ -349,7 +362,7 @@ class _ArrangeMenu extends ConsumerWidget {
                   }),
                 ),
             ],
-            child: Text('分组：${grouping.label}'),
+            child: Text('分组：${grouping!.label}'),
           ),
         SubmenuButton(
           leadingIcon: const Icon(Icons.sort),
@@ -365,8 +378,41 @@ class _ArrangeMenu extends ConsumerWidget {
         ),
       ],
       builder: (context, controller, _) => IconButton(
-        tooltip: board ? '排序' : '分组和排序',
+        tooltip: grouped ? '分组和排序' : '排序',
         icon: const Icon(Icons.swap_vert),
+        onPressed: () => controller.isOpen ? controller.close() : controller.open(),
+      ),
+    );
+  }
+}
+
+/// The ⋯ of a view that isn't a list (今天, a tag, a filter…): show it as
+/// a list or a timeline.
+class _LayoutMenu extends ConsumerWidget {
+  const _LayoutMenu({required this.view, required this.layout});
+
+  final ViewRef view;
+  final ListLayout layout;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    const check = Icon(Icons.check, size: 18);
+    return MenuAnchor(
+      menuChildren: [
+        for (final (l, icon, label) in const [
+          (ListLayout.list, Icons.view_list_outlined, '列表'),
+          (ListLayout.timeline, Icons.view_timeline_outlined, '时间线'),
+        ])
+          MenuItemButton(
+            leadingIcon: Icon(icon),
+            trailingIcon: layout == l ? check : null,
+            onPressed: () => ref.read(viewPrefsProvider.notifier).setLayout(view, l),
+            child: Text(label),
+          ),
+      ],
+      builder: (context, controller, _) => IconButton(
+        tooltip: '更多',
+        icon: const Icon(Icons.more_horiz),
         onPressed: () => controller.isOpen ? controller.close() : controller.open(),
       ),
     );

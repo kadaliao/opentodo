@@ -179,7 +179,10 @@ void main() {
     expect(find.text('已选择 3 项'), findsOneWidget);
 
     // Two hours down (48 px an hour), a little extra so it isn't on the
-    // edge. While it hovers, the spot says how many go.
+    // edge. While it hovers, the spot says how many go. (The hours open
+    // around now: bring the morning on screen first.)
+    await tester.ensureVisible(find.text('晨会'));
+    await tester.pumpAndSettle();
     final from = tester.getCenter(find.text('晨会'));
     await dragSteps(tester, from, from + const Offset(0, 2 * 48 + 6), midway: () async {
       expect(find.text('11:00 · 3 项'), findsOneWidget);
@@ -194,6 +197,8 @@ void main() {
     expect(rent.dueDate, dateKey(today));
 
     // Into the all-day row, led by a timed one: none keep a time.
+    await tester.ensureVisible(find.text('评审'));
+    await tester.pumpAndSettle();
     final strip = tester.getCenter(find.text('全天'));
     final chip = tester.getCenter(find.text('评审'));
     await dragSteps(tester, chip, Offset(chip.dx, strip.dy));

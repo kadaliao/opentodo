@@ -44,7 +44,14 @@ class _HighlightController extends TextEditingController {
 /// Where a task typed into the field goes when the text doesn't say: a
 /// calendar slot's day and time, say, instead of the current view's.
 class QuickAddTarget {
-  const QuickAddTarget({this.listId = inboxListId, this.sectionId, this.date, this.time});
+  const QuickAddTarget({
+    this.listId = inboxListId,
+    this.sectionId,
+    this.date,
+    this.time,
+    this.tags = const [],
+    this.priority,
+  });
 
   final String listId;
 
@@ -54,6 +61,12 @@ class QuickAddTarget {
 
   /// Used only with [date], and only when the text names no date.
   final int? time;
+
+  /// Tags it starts with (a timeline lane's), besides those typed.
+  final List<String> tags;
+
+  /// Unless one is typed (a timeline lane's).
+  final int? priority;
 }
 
 class QuickAddField extends ConsumerStatefulWidget {
@@ -116,7 +129,7 @@ class _QuickAddFieldState extends ConsumerState<QuickAddField> {
     final view = ref.read(selectedViewProvider);
     final defaults = target == null
         ? quickAddDefaults(view, dateOnly(DateTime.now()), ref.read(filterRulesProvider))
-        : (listId: target.listId, date: target.date, tags: const <String>[], priority: null);
+        : (listId: target.listId, date: target.date, tags: target.tags, priority: target.priority);
     final dueDate = parsed.date ?? defaults.date;
     final dueTime = parsed.time ?? (parsed.date == null ? target?.time : null);
     final id = await ref.read(repoProvider).addTask(

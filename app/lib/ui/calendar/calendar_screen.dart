@@ -473,8 +473,8 @@ class _DetailPane extends ConsumerWidget {
 
 /// A new task on [date] (at [time], or all day): a title field that still
 /// understands dates typed into it, and which list it goes to (to start
-/// with [listId], in its section [sectionId]). A dialog on a computer, a
-/// bottom sheet on a phone.
+/// with [listId], in its section [sectionId]); it starts with [tags] and
+/// [priority] too. A dialog on a computer, a bottom sheet on a phone.
 Future<void> showNewTaskDialog(
   BuildContext context, {
   required DateTime date,
@@ -482,8 +482,17 @@ Future<void> showNewTaskDialog(
   bool sheet = false,
   String listId = inboxListId,
   String? sectionId,
+  List<String> tags = const [],
+  int? priority,
 }) {
-  final form = _NewTaskForm(date: dateOnly(date), time: time, listId: listId, sectionId: sectionId);
+  final form = _NewTaskForm(
+    date: dateOnly(date),
+    time: time,
+    listId: listId,
+    sectionId: sectionId,
+    tags: tags,
+    priority: priority,
+  );
   if (sheet) {
     return showModalBottomSheet<void>(
       context: context,
@@ -507,11 +516,20 @@ Future<void> showNewTaskDialog(
 }
 
 class _NewTaskForm extends ConsumerStatefulWidget {
-  const _NewTaskForm({required this.date, this.time, required this.listId, this.sectionId});
+  const _NewTaskForm({
+    required this.date,
+    this.time,
+    required this.listId,
+    this.sectionId,
+    this.tags = const [],
+    this.priority,
+  });
 
   final DateTime date;
   final int? time;
   final String listId;
+  final List<String> tags;
+  final int? priority;
 
   /// A section of [listId]; dropped if the person picks another list.
   final String? sectionId;
@@ -547,6 +565,8 @@ class _NewTaskFormState extends ConsumerState<_NewTaskForm> {
           sectionId: _listId == widget.listId ? widget.sectionId : null,
           date: widget.date,
           time: widget.time,
+          tags: widget.tags,
+          priority: widget.priority,
         ),
         hintText: '准备做什么？回车创建',
         onAdded: () => Navigator.pop(context),

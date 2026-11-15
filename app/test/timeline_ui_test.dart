@@ -11,6 +11,7 @@ import 'package:opentodo/domain/views.dart';
 import 'package:opentodo/state/providers.dart';
 import 'package:opentodo/ui/app.dart';
 import 'package:opentodo/ui/home_shell.dart';
+import 'package:opentodo/ui/task_tile.dart' show PriorityCheckbox;
 import 'package:opentodo/ui/timeline_view.dart';
 
 void main() {
@@ -115,6 +116,92 @@ void main() {
     final bar = tester.getRect(find.byKey(ValueKey('bar-${(await load('乙')).id}')));
     await dragFrom(tester, bar.centerRight - const Offset(1, 0), bar.centerRight + const Offset(2 * dayWidth, 0));
     expect((await load('乙')).duration, 2 * minutesPerDay);
+
+    // Its left edge a day on: it starts a day later and still ends there,
+    // the pill saying where it will start.
+    final from = tester.getRect(find.byKey(ValueKey('bar-${(await load('乙')).id}'))).centerLeft + const Offset(1, 0);
+    final g = await tester.startGesture(from, kind: PointerDeviceKind.mouse);
+    for (var i = 1; i <= 6; i++) {
+      await g.moveTo(from + Offset(dayWidth * i / 6, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final starts = addDays(today, 1);
+    expect(find.text('从${starts.month}月${starts.day}日'), findsOneWidget);
+    await g.up();
+    await tester.pumpAndSettle();
+    final restarted = await load('乙');
+    expect((restarted.dueDate, restarted.dueTime, restarted.duration), (day(1), 9 * 60, minutesPerDay));
+
+    await finish(tester);
+  });
+
+  testWidgets('desktop: 今天 and a tag as a timeline, with lanes by list',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS), (tester) async {
+    await pumpApp(tester, const Size(1400, 900), (list) async {
+      final repo = container(tester).read(repoProvider);
+      await repo.addTask(title: '晨会', listId: list, dueDate: today, tags: ['会']);
+      await repo.addTask(title: '交房租', dueDate: addDays(today, -1));
+      await repo.addTask(title: '周会', listId: list, tags: ['会']);
+    });
+    container(tester).read(selectedViewProvider.notifier).select(const SmartViewRef(SmartKind.today));
+    await tester.pumpAndSettle();
+    await showTimeline(tester);
+    expect(onTimeline('晨会'), findsOneWidget);
+    expect(onTimeline('交房租'), findsOneWidget);
+    // A lane per list; nothing undated in 今天.
+    expect(onTimeline('收集箱'), findsOneWidget);
+    expect(onTimeline('工作'), findsOneWidget);
+    expect(find.textContaining('无日期'), findsNothing);
+    expect(container(tester).read(viewPrefsProvider)['smart:today']?.layout, ListLayout.timeline);
+
+    // 交房租 down into 工作's lane: it moves to that list, on the same day.
+    final rent = tester.getCenter(onTimeline('交房租'));
+    await dragFrom(tester, rent, Offset(rent.dx, tester.getCenter(onTimeline('晨会')).dy));
+    final moved = await load('交房租');
+    expect((moved.listId, moved.dueDate), (work, day(-1)));
+
+    // A click on tomorrow adds nothing (今天 wouldn't show it); on today it
+    // adds to the lane's list.
+    final lane = tester.getCenter(onTimeline('晨会'));
+    await tester.tapAt(Offset(lane.dx + dayWidth, lane.dy + 40));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+    await tester.tapAt(Offset(lane.dx, lane.dy + 40));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsOneWidget);
+    await tester.enterText(find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)), '午饭');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    final added = await load('午饭');
+    expect((added.listId, added.dueDate), (work, day(0)));
+
+    // ⇅ offers lanes by list, tag, priority or none; not by date.
+    await tester.tap(find.byTooltip('分组和排序'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('分组：清单'));
+    await tester.pumpAndSettle();
+    expect(find.text('按时间'), findsNothing);
+    await tester.tap(find.text('不分组'));
+    await tester.pumpAndSettle();
+    expect(onTimeline('工作'), findsNothing);
+    expect(onTimeline('晨会'), findsOneWidget);
+
+    // A tag: its undated task waits beside, and dragged on keeps its list
+    // and tag.
+    container(tester).read(selectedViewProvider.notifier).select(const TagViewRef('会'));
+    await tester.pumpAndSettle();
+    await showTimeline(tester);
+    expect(find.text('无日期 1'), findsOneWidget);
+    await dragFrom(tester, tester.getCenter(find.text('周会')), tester.getCenter(onTimeline('晨会')) + const Offset(dayWidth, 0));
+    final weekly = await load('周会');
+    expect((weekly.listId, weekly.tags.join(), weekly.dueDate), (work, '会', day(1)));
+
+    // Back to the list, from the same menu.
+    await tester.tap(find.byTooltip('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('列表'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TimelineView), findsNothing);
 
     await finish(tester);
   });
@@ -228,6 +315,52 @@ void main() {
     await tester.tap(find.text('无日期 1'));
     await tester.pumpAndSettle();
     expect(find.text('丙'), findsOneWidget);
+
+    await finish(tester);
+  });
+
+  testWidgets('phone: a long press on an end of a bar drags that end', (tester) async {
+    await pumpApp(tester, const Size(400, 800), (list) async {
+      final repo = container(tester).read(repoProvider);
+      await repo.addTask(title: '甲', listId: list, dueDate: today);
+    });
+    await showTimeline(tester);
+    final id = (await load('甲')).id;
+    Rect bar() => tester.getRect(find.byKey(ValueKey('bar-$id')));
+
+    Future<void> longDrag(Offset start, Offset by) async {
+      final g = await tester.startGesture(start);
+      await tester.pump(const Duration(milliseconds: 600));
+      for (var i = 1; i <= 6; i++) {
+        await g.moveTo(start + by * (i / 6));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await g.up();
+      await tester.pumpAndSettle();
+    }
+
+    // The right end two days on.
+    await longDrag(bar().centerRight - const Offset(6, 0), const Offset(2 * dayWidth, 0));
+    var jia = await load('甲');
+    expect((jia.dueDate, jia.duration), (day(0), 3 * minutesPerDay));
+
+    // The left end a day on: it still ends on the same day.
+    await longDrag(bar().centerLeft + const Offset(6, 0), const Offset(dayWidth, 0));
+    jia = await load('甲');
+    expect((jia.dueDate, jia.duration), (day(1), 2 * minutesPerDay));
+
+    // A long press there that doesn't move opens the menu, and moves nothing.
+    await tester.longPress(find.byKey(ValueKey('end-$id')));
+    await tester.pumpAndSettle();
+    expect(find.text('多选'), findsOneWidget);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+    expect((await load('甲')).duration, 2 * minutesPerDay);
+
+    // A tap on an end still reaches the bar: its checkbox finishes it.
+    await tester.tap(find.descendant(of: find.byKey(ValueKey('bar-$id')), matching: find.byType(PriorityCheckbox)));
+    await tester.pumpAndSettle();
+    expect((await load('甲')).status, TaskStatus.done);
 
     await finish(tester);
   });

@@ -229,6 +229,23 @@ List<TaskGrouping> groupingsFor(ViewRef view) => switch (view) {
       _ => const [],
     };
 
+/// The groupings [view]'s timeline offers for its lanes, its default
+/// first: a list's lanes are always its sections; elsewhere the view's own
+/// groupings, but not by date (the timeline is laid out by date already).
+List<TaskGrouping> timelineGroupingsFor(ViewRef view) => arrangedListId(view) != null
+    ? const [TaskGrouping.sections]
+    : [
+        for (final g in groupingsFor(view))
+          if (g != TaskGrouping.date) g,
+      ];
+
+/// 今天, 明天 and 最近7天: views of the days ahead, which only list tasks
+/// with a date.
+bool isDateView(ViewRef view) =>
+    view == const SmartViewRef(SmartKind.today) ||
+    view == const SmartViewRef(SmartKind.tomorrow) ||
+    view == const SmartViewRef(SmartKind.next7);
+
 /// The orders [view] offers, its default first. Only a list (the inbox
 /// too) can be ordered by hand.
 List<TaskSort> sortsFor(ViewRef view) => arrangedListId(view) != null
@@ -578,10 +595,7 @@ List<TaskSection> buildSections({
     ];
   }
 
-  final isDateView = view is SmartViewRef &&
-      (view.kind == SmartKind.today ||
-          view.kind == SmartKind.tomorrow ||
-          view.kind == SmartKind.next7);
+  final dateView = isDateView(view);
   final groupings = groupingsFor(view);
   final groupBy = groupings.contains(grouping) ? grouping! : groupings.first;
   final sorts = sortsFor(view);
@@ -592,14 +606,14 @@ List<TaskSection> buildSections({
   // ever finished that was due in the past.
   final done = inView
       .where((t) =>
-          isDone(t) && (!isDateView || lastDueKey(t).compareTo(todayKey) >= 0))
+          isDone(t) && (!dateView || lastDueKey(t).compareTo(todayKey) >= 0))
       .toList()
     ..sort(_compareCompleted);
 
   final sections = switch (groupBy) {
     TaskGrouping.sections => _bySection(
         open, arrangedListId(view)!, sectionsByList[arrangedListId(view)] ?? const [], order),
-    TaskGrouping.date when isDateView =>
+    TaskGrouping.date when dateView =>
       _byViewDay(open, today, view == const SmartViewRef(SmartKind.next7) ? 7 : 1,
           firstKey: view == const SmartViewRef(SmartKind.tomorrow) ? dateKey(addDays(today, 1)) : todayKey),
     TaskGrouping.date => _byDate(open, today, manual),
@@ -718,6 +732,18 @@ List<TaskSection> _byDate(List<Task> open, DateTime today, bool manual) {
       },
   ];
 }
+
+/// [tasks] in groups by [grouping], for the lanes of a timeline: by list,
+/// first tag or priority, or all together (for [TaskGrouping.none], and
+/// the groupings a timeline doesn't offer). Each group keeps the order
+/// [tasks] come in; finished ones go with the rest.
+List<TaskSection> groupForTimeline(List<Task> tasks, TaskGrouping grouping, Map<String, TaskList> lists) =>
+    switch (grouping) {
+      TaskGrouping.list => _byList(tasks, lists),
+      TaskGrouping.tag => _byTag(tasks, false),
+      TaskGrouping.priority => _byPriority(tasks, false),
+      _ => [TaskSection(id: 'all', title: null, tasks: tasks)],
+    };
 
 /// By list, in the sidebar's order (收集箱 first).
 List<TaskSection> _byList(List<Task> open, Map<String, TaskList> lists) {

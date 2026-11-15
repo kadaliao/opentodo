@@ -158,6 +158,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.keyW);
     await tester.pumpAndSettle();
+    // The hours open two hours before now: bring the morning on screen.
+    await tester.ensureVisible(find.text('晨会'));
+    await tester.pumpAndSettle();
 
     // Two hours down (48 px an hour), a little extra so it isn't on the edge.
     await tester.drag(find.text('晨会'), const Offset(0, 2 * 48 + 6));
@@ -198,6 +201,10 @@ void main() {
     await tester.tap(find.byTooltip('日历'));
     await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.keyW);
+    await tester.pumpAndSettle();
+
+    // The hours open two hours before now: bring the morning on screen.
+    await tester.ensureVisible(find.text('晨会'));
     await tester.pumpAndSettle();
 
     Rect chip(String title) =>

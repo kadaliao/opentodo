@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/rendering.dart' show RenderProxyBox, ViewportOffset;
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -46,12 +47,13 @@ int _leadDays(TimelineScale s) => switch (s) {
       TimelineScale.month => 7,
     };
 
-/// A list as a timeline (时间线): its dated tasks as bars along the days,
-/// a lane per section, and its undated ones beside it (无日期) to drag on.
+/// A view as a timeline (时间线): its dated tasks as bars along the days,
+/// a lane per section of a list (per group elsewhere), and its undated ones
+/// beside it (无日期) to drag on.
 class TimelineView extends ConsumerStatefulWidget {
-  const TimelineView({super.key, required this.listId, required this.onOpenTask});
+  const TimelineView({super.key, required this.view, required this.onOpenTask});
 
-  final String listId;
+  final ViewRef view;
   final ValueChanged<String> onOpenTask;
 
   @override
@@ -64,7 +66,7 @@ class _TimelineViewState extends ConsumerState<TimelineView> {
   late final ScrollController _h;
   final _v = ScrollController();
 
-  /// Lanes the person folded, by section id ('' for 未分组).
+  /// Lanes the person folded, by [TimelineLane.id].
   final _collapsed = <String>{};
 
   /// The days a dragged task would cover if let go now, lit up along the
@@ -109,17 +111,27 @@ class _TimelineViewState extends ConsumerState<TimelineView> {
   Widget build(BuildContext context) {
     final prefs = ref.watch(timelinePrefsProvider);
     final scale = prefs.scale;
-    final listId = widget.listId;
-    final sort = (ref.watch(viewPrefsProvider)[listId] ?? const ViewPrefs()).sortIn(ListViewRef(listId))!;
-    final sections = ref.watch(sectionsByListProvider)[listId] ?? const <ListSection>[];
-    final timeline = buildTimeline(listId, ref.watch(tasksProvider).value ?? const [], sections,
-        sort: sort, showDone: prefs.showDone);
+    final view = widget.view;
+    final viewPrefs = ref.watch(viewPrefsProvider)[viewPrefsKey(view)] ?? const ViewPrefs();
+    final now = ref.watch(clockProvider);
+    final timeline = buildViewTimeline(
+      view,
+      ref.watch(tasksProvider).value ?? const [],
+      // Only the date matters; the clock ticks every minute.
+      now: dateOnly(now),
+      lists: ref.watch(listsByIdProvider),
+      filters: ref.watch(filterRulesProvider),
+      sectionsByList: ref.watch(sectionsByListProvider),
+      grouping: viewPrefs.timelineGroupingIn(view),
+      sort: viewPrefs.sortIn(view),
+      showDone: prefs.showDone,
+    );
     final rows = [for (final l in timeline.lanes) packRows(l.bars, minDays: scale.minDays)];
     final undated = timeline.undatedTasks.toList();
     final touch = dragsOnLongPress(context);
     final narrow = MediaQuery.sizeOf(context).width < Breakpoints.twoPane;
-    final trayOpen = prefs.trayOpen ?? !narrow;
-    final now = ref.watch(clockProvider);
+    // 今天, 明天 and 最近7天 have no tasks without a date.
+    final trayOpen = timeline.takesUndated && (prefs.trayOpen ?? !narrow);
 
     // Clicks with ⌘ / Shift pick tasks: the undated ones, then lane by lane.
     final order = [
@@ -136,7 +148,7 @@ class _TimelineViewState extends ConsumerState<TimelineView> {
 
     final tray = _UndatedTray(
       groups: timeline.undated,
-      titled: sections.isNotEmpty,
+      titled: timeline.titled,
       picked: picked,
       onOpen: open,
     );
@@ -170,7 +182,7 @@ class _TimelineViewState extends ConsumerState<TimelineView> {
         controller: _h,
         origin: _origin,
         prefs: prefs,
-        undatedCount: undated.length,
+        undatedCount: timeline.takesUndated ? undated.length : null,
         trayOpen: trayOpen,
         onToday: () => _goTo(_homeOffset(scale)),
         onPage: (d) => _page(d, scale),
@@ -205,7 +217,7 @@ class _TimelineViewState extends ConsumerState<TimelineView> {
   }) {
     final scheme = Theme.of(context).colorScheme;
     final today = dateOnly(now);
-    final showHeaders = timeline.lanes.length > 1 || timeline.lanes.any((l) => l.section != null);
+    final showHeaders = timeline.titled;
     // Where now is: through today's column on the time of day.
     final nowX = g.x(today) +
         (g.scale == TimelineScale.month ? g.dayWidth / 2 : g.dayWidth * (now.hour * 60 + now.minute) / minutesPerDay);
@@ -234,8 +246,8 @@ class _TimelineViewState extends ConsumerState<TimelineView> {
             children: [
               for (final (i, lane) in timeline.lanes.indexed)
                 _Lane(
-                  key: ValueKey('lane-${lane.section?.id ?? ''}'),
-                  listId: widget.listId,
+                  key: ValueKey('lane-${lane.id}'),
+                  view: widget.view,
                   lane: lane,
                   rows: rows[i],
                   geometry: g,
@@ -243,22 +255,28 @@ class _TimelineViewState extends ConsumerState<TimelineView> {
                   onOpen: open,
                   showHeader: showHeaders,
                   dropDays: _dropDays,
-                  collapsed: _collapsed.contains(lane.section?.id ?? ''),
+                  collapsed: _collapsed.contains(lane.id),
                   onToggle: () => setState(() {
-                    final id = lane.section?.id ?? '';
-                    if (!_collapsed.remove(id)) _collapsed.add(id);
+                    if (!_collapsed.remove(lane.id)) _collapsed.add(lane.id);
                   }),
                   // A lone lane fills the screen, so a click anywhere adds.
                   minHeight: timeline.lanes.length == 1
                       ? height - _headerHeight - 1 - 24 - (showHeaders ? _laneHeaderHeight : 0)
                       : 0,
-                  onNewTask: (day) => showNewTaskDialog(
-                    context,
-                    date: day,
-                    sheet: narrow,
-                    listId: widget.listId,
-                    sectionId: lane.section?.id,
-                  ),
+                  onNewTask: (day) {
+                    final n = laneNewTask(widget.view, lane.target, today, ref.read(filterRulesProvider));
+                    showNewTaskDialog(
+                      context,
+                      date: day,
+                      sheet: narrow,
+                      listId: n.listId,
+                      sectionId: n.sectionId,
+                      tags: n.tags,
+                      priority: n.priority,
+                    );
+                  },
+                  // 今天 and the like take only their own days.
+                  canAddOn: (day) => dateViewShows(widget.view, day, today),
                 ),
             ],
           ),
@@ -358,7 +376,8 @@ class _Toolbar extends ConsumerWidget {
   final ScrollController controller;
   final DateTime origin;
   final TimelinePrefs prefs;
-  final int undatedCount;
+  /// Null where the view has no tasks without a date: no 无日期.
+  final int? undatedCount;
   final bool trayOpen;
   final VoidCallback onToday;
   final ValueChanged<int> onPage;
@@ -384,16 +403,17 @@ class _Toolbar extends ConsumerWidget {
             },
           ),
         ),
-        TextButton.icon(
-          style: TextButton.styleFrom(
-            visualDensity: VisualDensity.compact,
-            foregroundColor: trayOpen ? scheme.primary : scheme.onSurfaceVariant,
-            backgroundColor: trayOpen ? scheme.primary.withValues(alpha: 0.08) : null,
+        if (undatedCount != null)
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              foregroundColor: trayOpen ? scheme.primary : scheme.onSurfaceVariant,
+              backgroundColor: trayOpen ? scheme.primary.withValues(alpha: 0.08) : null,
+            ),
+            icon: const Icon(Icons.event_busy_outlined, size: 16),
+            label: Text('无日期 $undatedCount'),
+            onPressed: () => notifier.set(prefs.copyWith(trayOpen: !trayOpen)),
           ),
-          icon: const Icon(Icons.event_busy_outlined, size: 16),
-          label: Text('无日期 $undatedCount'),
-          onPressed: () => notifier.set(prefs.copyWith(trayOpen: !trayOpen)),
-        ),
         const SizedBox(width: 4),
         if (!narrow)
           IconButton(
@@ -607,13 +627,13 @@ class _GridPainter extends CustomPainter {
       old.strong != strong;
 }
 
-/// One lane: a section's name across the top (unless the list has none),
-/// and its tasks in rows. Takes tasks dragged onto it: they move to the
-/// day they're let go on and into this section.
+/// One lane: a section's (or group's) name across the top, unless there's
+/// none, and its tasks in rows. Takes tasks dragged onto it: they move to
+/// the day they're let go on and into this section (list, tag…).
 class _Lane extends ConsumerStatefulWidget {
   const _Lane({
     super.key,
-    required this.listId,
+    required this.view,
     required this.lane,
     required this.rows,
     required this.geometry,
@@ -624,12 +644,13 @@ class _Lane extends ConsumerStatefulWidget {
     required this.onToggle,
     required this.minHeight,
     required this.onNewTask,
+    required this.canAddOn,
     required this.dropDays,
   });
 
   /// Shared by the lanes: the days a dragged task would land on.
   final ValueNotifier<_Days?> dropDays;
-  final String listId;
+  final ViewRef view;
   final TimelineLane lane;
   final List<List<TimelineBar>> rows;
   final _Geometry geometry;
@@ -643,6 +664,9 @@ class _Lane extends ConsumerStatefulWidget {
   final double minHeight;
   final ValueChanged<DateTime> onNewTask;
 
+  /// Whether a click on [day] adds a task there.
+  final bool Function(DateTime day) canAddOn;
+
   @override
   ConsumerState<_Lane> createState() => _LaneState();
 }
@@ -654,12 +678,59 @@ class _LaneState extends ConsumerState<_Lane> {
   /// The day under the mouse, where a click adds a task.
   DateTime? _hover;
 
-  /// A bar whose right edge is being dragged, and the last day it reaches.
-  ({String id, DateTime last})? _resize;
+  /// A bar whose edge is being dragged: the left one ([start]) or the
+  /// right one, and the day it's on.
+  ({String id, bool start, DateTime day})? _resize;
 
   _Geometry get g => widget.geometry;
 
-  bool _takes(Task t) => isOpen(t) && t.listId == widget.listId;
+  bool _takes(Task t) => isOpen(t) && (widget.lane.target?.takes(t) ?? true);
+
+  /// An edge of [b] that drags to another day: the left one moves where it
+  /// starts ([start]), the right one where it ends. With a mouse it's a
+  /// thin strip on the edge; on a touch screen a wider one, after a long
+  /// press (so a swipe still scrolls).
+  Widget _edge(TimelineBar b, {required bool start, required double left, required double width, required double top, required bool touch}) {
+    // On touch, some way out and at most a third of the bar in.
+    final inside = touch ? math.min(16.0, width / 3) : 5.0;
+    final outside = touch ? 12.0 : 3.0;
+    final edgeX = start ? left : left + width;
+    return Positioned(
+      key: ValueKey('${start ? 'start' : 'end'}-${b.task.id}'),
+      left: start ? edgeX - outside : edgeX - inside,
+      top: top,
+      width: inside + outside,
+      height: _barHeight,
+      child: _ResizeEdge(
+        touch: touch,
+        label: start ? '拖动改开始日期' : '拖动改结束日期',
+        onStart: () => setState(() => _resize = (id: b.task.id, start: start, day: start ? b.start : b.last)),
+        onUpdate: (dx) {
+          final moved = addDays(start ? b.start : b.last, (dx / g.dayWidth).round());
+          // Never past the other end.
+          final day = start ? (moved.isAfter(b.last) ? b.last : moved) : (moved.isBefore(b.start) ? b.start : moved);
+          if (_resize?.day != day) setState(() => _resize = (id: b.task.id, start: start, day: day));
+        },
+        onEnd: () {
+          final day = _resize?.day;
+          setState(() => _resize = null);
+          if (day == null || day == (start ? b.start : b.last)) return;
+          final repo = ref.read(repoProvider);
+          if (start) {
+            final to = restartedSchedule(b.task, day);
+            repo.setStart(b.task.id, to.date, to.duration);
+          } else {
+            repo.setDuration(b.task.id, resizedDuration(b.task, day));
+          }
+        },
+        onStill: () {
+          final box = context.findRenderObject()! as RenderBox;
+          final at = box.localToGlobal(Offset(edgeX, top + _barHeight / 2));
+          showTaskMenu(context, ref, b.task, at);
+        },
+      ),
+    );
+  }
 
   /// The day a dragged task would start on: the part of its bar the pointer
   /// holds stays under the pointer; a task without a date goes on the day
@@ -690,7 +761,8 @@ class _LaneState extends ConsumerState<_Lane> {
       Positioned.fill(
         child: MouseRegion(
           onHover: touch ? null : (e) {
-            final day = g.dayAt(e.localPosition.dx);
+            final at = g.dayAt(e.localPosition.dx);
+            final day = widget.canAddOn(at) ? at : null;
             if (day != _hover) setState(() => _hover = day);
           },
           onExit: (_) {
@@ -698,7 +770,10 @@ class _LaneState extends ConsumerState<_Lane> {
           },
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapUp: (d) => widget.onNewTask(g.dayAt(d.localPosition.dx)),
+            onTapUp: (d) {
+              final day = g.dayAt(d.localPosition.dx);
+              if (widget.canAddOn(day)) widget.onNewTask(day);
+            },
           ),
         ),
       ),
@@ -714,9 +789,11 @@ class _LaneState extends ConsumerState<_Lane> {
     for (final (row, bars) in widget.rows.indexed) {
       for (final b in bars) {
         if (!b.overlaps(from, to) && !isTaskDragged(b.task.id)) continue;
-        final resizing = _resize?.id == b.task.id ? _resize!.last : null;
-        final days = resizing == null ? b.days : daysBetween(b.start, resizing) + 1;
-        final left = g.x(b.start) + _barInset;
+        final resizing = _resize?.id == b.task.id ? _resize : null;
+        final first = resizing != null && resizing.start ? resizing.day : b.start;
+        final last = resizing != null && !resizing.start ? resizing.day : b.last;
+        final days = daysBetween(first, last) + 1;
+        final left = g.x(first) + _barInset;
         final width = days * g.dayWidth - 2 * _barInset;
         final top = row * _rowHeight + (_rowHeight - _barHeight) / 2 + 4;
         final open = !b.done;
@@ -730,13 +807,24 @@ class _LaneState extends ConsumerState<_Lane> {
           height: _barHeight,
           child: bar,
         ));
-        // While its right edge is dragged: where it will end, beside it.
+        // While an edge is dragged: where it will start or end, beside
+        // that edge, but never off the screen.
         if (resizing != null) {
+          const room = 96.0;
           body.add(Positioned(
             key: const ValueKey('resize-label'),
-            left: left + width + 4,
-            top: top + 4,
-            child: IgnorePointer(child: _Pill('到${_dayLabel(resizing)}')),
+            left: resizing.start
+                ? math.max(4.0, left - 4 - room)
+                : math.min(left + width + 4, g.width - room - 4),
+            width: room,
+            top: top,
+            height: _barHeight,
+            child: IgnorePointer(
+              child: Align(
+                alignment: resizing.start ? Alignment.centerRight : Alignment.centerLeft,
+                child: _Pill(resizing.start ? '从${_dayLabel(resizing.day)}' : '到${_dayLabel(resizing.day)}'),
+              ),
+            ),
           ));
         } else if (width < _titleInside) {
           // Too narrow for its title: the title beside it.
@@ -766,30 +854,10 @@ class _LaneState extends ConsumerState<_Lane> {
             ),
           ));
         }
-        // The right edge sets the last day (with a mouse).
-        if (open && !touch) {
-          body.add(Positioned(
-            key: ValueKey('edge-${b.task.id}'),
-            left: left + width - 5,
-            top: top,
-            width: 8,
-            height: _barHeight,
-            child: _ResizeEdge(
-              dayWidth: g.dayWidth,
-              onStart: () => setState(() => _resize = (id: b.task.id, last: b.last)),
-              onUpdate: (dx) {
-                final last = addDays(b.last, (dx / g.dayWidth).round());
-                final clamped = last.isBefore(b.start) ? b.start : last;
-                if (_resize?.last != clamped) setState(() => _resize = (id: b.task.id, last: clamped));
-              },
-              onEnd: () {
-                final last = _resize?.last;
-                setState(() => _resize = null);
-                if (last == null || last == b.last) return;
-                ref.read(repoProvider).setDuration(b.task.id, resizedDuration(b.task, last));
-              },
-            ),
-          ));
+        // The edges set the first and the last day.
+        if (open) {
+          body.add(_edge(b, start: true, left: left, width: width, top: top, touch: touch));
+          body.add(_edge(b, start: false, left: left, width: width, top: top, touch: touch));
         }
       }
     }
@@ -825,13 +893,13 @@ class _LaneState extends ConsumerState<_Lane> {
               ids,
               days: lead.dueDate == null ? 0 : daysBetween(parseDateKey(lead.dueDate!), at.start),
               day: at.start,
-              sectionId: lane.section?.id,
+              target: lane.target,
             );
       },
       builder: (context, _, _) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (widget.showHeader)
           _LaneHeader(
-            title: lane.title,
+            title: lane.title ?? '',
             count: count,
             collapsed: widget.collapsed,
             onToggle: widget.onToggle,
@@ -1027,15 +1095,26 @@ class _Bar extends ConsumerWidget {
   }
 }
 
-/// The right edge of a bar, dragged with a mouse to make it end on another
-/// day; [onUpdate] gets how far it has gone.
+/// An edge of a bar that drags to another day. With a mouse it drags
+/// straight away; on a touch screen after a long press, and letting go
+/// without moving calls [onStill] instead (the task's menu, as a long press
+/// on the bar gives). [onUpdate] gets how far it has gone.
 class _ResizeEdge extends StatefulWidget {
-  const _ResizeEdge({required this.dayWidth, required this.onStart, required this.onUpdate, required this.onEnd});
+  const _ResizeEdge({
+    required this.touch,
+    required this.label,
+    required this.onStart,
+    required this.onUpdate,
+    required this.onEnd,
+    required this.onStill,
+  });
 
-  final double dayWidth;
+  final bool touch;
+  final String label;
   final VoidCallback onStart;
   final ValueChanged<double> onUpdate;
   final VoidCallback onEnd;
+  final VoidCallback onStill;
 
   @override
   State<_ResizeEdge> createState() => _ResizeEdgeState();
@@ -1044,23 +1123,49 @@ class _ResizeEdge extends StatefulWidget {
 class _ResizeEdgeState extends State<_ResizeEdge> {
   double _dx = 0;
 
+  /// Where the long press began, on a touch screen.
+  double _x0 = 0;
+
   @override
-  Widget build(BuildContext context) => MouseRegion(
-        cursor: SystemMouseCursors.resizeLeftRight,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onHorizontalDragStart: (_) {
-            _dx = 0;
-            widget.onStart();
-          },
-          onHorizontalDragUpdate: (d) {
-            _dx += d.delta.dx;
-            widget.onUpdate(_dx);
-          },
-          onHorizontalDragEnd: (_) => widget.onEnd(),
-          onHorizontalDragCancel: widget.onEnd,
-        ),
-      );
+  Widget build(BuildContext context) {
+    final Widget detector = widget.touch
+        ? GestureDetector(
+            // A tap goes on to what's under it (the bar's checkbox, the
+            // lane); a long press here beats the bar's own, which would
+            // move it, as it's asked first.
+            behavior: HitTestBehavior.translucent,
+            onLongPressStart: (d) {
+              _x0 = d.globalPosition.dx;
+              _dx = 0;
+              HapticFeedback.selectionClick();
+              widget.onStart();
+            },
+            onLongPressMoveUpdate: (d) {
+              _dx = d.globalPosition.dx - _x0;
+              widget.onUpdate(_dx);
+            },
+            onLongPressEnd: (_) {
+              widget.onEnd();
+              if (_dx.abs() < 8) widget.onStill();
+            },
+          )
+        : GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragStart: (_) {
+              _dx = 0;
+              widget.onStart();
+            },
+            onHorizontalDragUpdate: (d) {
+              _dx += d.delta.dx;
+              widget.onUpdate(_dx);
+            },
+            onHorizontalDragEnd: (_) => widget.onEnd(),
+            onHorizontalDragCancel: widget.onEnd,
+          );
+    final child = Semantics(label: widget.label, child: detector);
+    // A mouse region takes the hit itself, which a touch edge mustn't.
+    return widget.touch ? child : MouseRegion(cursor: SystemMouseCursors.resizeLeftRight, child: child);
+  }
 }
 
 /// The list's open tasks without a date (无日期), beside the timeline: drag
@@ -1074,9 +1179,9 @@ class _UndatedTray extends ConsumerWidget {
     required this.onOpen,
   });
 
-  final List<ListGroup> groups;
+  final List<UndatedGroup> groups;
 
-  /// The list has sections: show which each task is in.
+  /// The lanes have headers: show which group each task is in.
   final bool titled;
   final List<Task> picked;
   final ValueChanged<String> onOpen;
@@ -1116,10 +1221,10 @@ class _UndatedTray extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                   children: [
                     for (final g in groups) ...[
-                      if (titled)
+                      if (titled && g.title != null)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
-                          child: Text(g.title, style: TextStyle(fontSize: 11, color: scheme.outline)),
+                          child: Text(g.title!, style: TextStyle(fontSize: 11, color: scheme.outline)),
                         ),
                       for (final t in g.tasks)
                         Padding(

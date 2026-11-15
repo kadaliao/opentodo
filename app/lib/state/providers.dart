@@ -84,6 +84,22 @@ class ViewPrefs {
     return groupings.contains(grouping) ? grouping : groupings.firstOrNull;
   }
 
+  /// The grouping of [view]'s timeline lanes: [grouping] if the timeline
+  /// offers it, else its default (never by date).
+  TaskGrouping? timelineGroupingIn(ViewRef view) {
+    final groupings = timelineGroupingsFor(view);
+    return groupings.contains(grouping) ? grouping : groupings.firstOrNull;
+  }
+
+  /// What [view] shows as: a board only for a list (the inbox too), a
+  /// timeline for any view whose tasks can be arranged (not 已完成 or
+  /// 垃圾桶), else a list.
+  ListLayout layoutIn(ViewRef view) => switch (layout) {
+        ListLayout.board when arrangedListId(view) != null => ListLayout.board,
+        ListLayout.timeline when groupingsFor(view).isNotEmpty => ListLayout.timeline,
+        _ => ListLayout.list,
+      };
+
   Map<String, String> toJson() => {
         'layout': layout.name,
         if (sort != null) 'sort': sort!.name,
