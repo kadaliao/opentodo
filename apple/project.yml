@@ -1,0 +1,180 @@
+# XcodeGen: `./scripts/generate.sh` writes OpenTodo.xcodeproj from this
+# (the project file is not checked in). Edit this, not the project.
+name: OpenTodo
+options:
+  bundleIdPrefix: com.liaoxingyi
+  developmentLanguage: zh-Hans
+  deploymentTarget:
+    iOS: "26.0"
+    macOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: HMDAVG9B8J
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+  # System integration (docs/apple.md, 系统集成): the App Group the app and
+  # its extensions share the database through, and the URL scheme the app
+  # answers to. The debug build has its own of both. macOS groups carry the
+  # team prefix; iOS ones are `group.` ids registered with the developer
+  # account (needed only to sign for a device, see the docs).
+  configs:
+    Debug:
+      OT_APP_GROUP: group.com.liaoxingyi.opentodo.dev
+      "OT_APP_GROUP[sdk=macosx*]": $(TeamIdentifierPrefix)group.com.liaoxingyi.opentodo.dev
+      OT_URL_SCHEME: opentodo-dev
+    Release:
+      OT_APP_GROUP: group.com.liaoxingyi.opentodo
+      "OT_APP_GROUP[sdk=macosx*]": $(TeamIdentifierPrefix)group.com.liaoxingyi.opentodo
+      OT_URL_SCHEME: opentodo
+packages:
+  OpenTodoKit:
+    path: OpenTodoKit
+targets:
+  OpenTodo:
+    type: application
+    supportedDestinations: [iOS, macOS]
+    sources:
+      - path: App
+        excludes: [Info.plist]
+      # App Intents (Siri, Shortcuts, the widgets' buttons): compiled into
+      # the app and the widget extension both.
+      - path: Intents
+    dependencies:
+      - package: OpenTodoKit
+        product: OpenTodoUI
+      - package: OpenTodoKit
+        product: OpenTodoSystem
+      - target: OpenTodoWidgets
+      - target: OpenTodoShare
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: OpenTodo
+        CFBundleDevelopmentRegion: zh-Hans
+        LSApplicationCategoryType: public.app-category.productivity
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        UILaunchScreen: {}
+        OTAppGroup: $(OT_APP_GROUP)
+        OTURLScheme: $(OT_URL_SCHEME)
+        CFBundleURLTypes:
+          - CFBundleURLName: com.liaoxingyi.opentodo
+            CFBundleURLSchemes: [$(OT_URL_SCHEME)]
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        UISupportedInterfaceOrientations:
+          [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad:
+          [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+    settings:
+      base:
+        PRODUCT_NAME: OpenTodo
+        INFOPLIST_KEY_CFBundleDisplayName: OpenTodo
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: App/OpenTodo.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphone*]: App/OpenTodo-iOS.entitlements
+        ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.liaoxingyi.opentodo.dev
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.liaoxingyi.opentodo
+  # Widgets (今天的任务, 快速添加, 倒数日, 习惯): read the shared database;
+  # their 完成 buttons run `CompleteTaskIntent` here, in the extension.
+  OpenTodoWidgets:
+    type: app-extension
+    supportedDestinations: [iOS, macOS]
+    sources:
+      - path: Widgets
+        excludes: [Info.plist]
+      - path: Intents
+    dependencies:
+      - package: OpenTodoKit
+        product: OpenTodoSystem
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: OpenTodo
+        CFBundleDevelopmentRegion: zh-Hans
+        OTAppGroup: $(OT_APP_GROUP)
+        OTURLScheme: $(OT_URL_SCHEME)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_NAME: OpenTodoWidgets
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME: WidgetBackground
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Extensions/Extension-macOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphone*]: Extensions/Extension-iOS.entitlements
+        ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: YES
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.liaoxingyi.opentodo.dev.widgets
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.liaoxingyi.opentodo.widgets
+  # Share extension: text or a link from another app becomes a task.
+  OpenTodoShare:
+    type: app-extension
+    supportedDestinations: [iOS, macOS]
+    sources:
+      - path: ShareExtension
+        excludes: [Info.plist]
+    dependencies:
+      - package: OpenTodoKit
+        product: OpenTodoSystem
+    info:
+      path: ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: OpenTodo
+        CFBundleDevelopmentRegion: zh-Hans
+        OTAppGroup: $(OT_APP_GROUP)
+        OTURLScheme: $(OT_URL_SCHEME)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsWebPageWithMaxCount: 1
+    settings:
+      base:
+        PRODUCT_NAME: OpenTodoShare
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Extensions/Extension-macOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphone*]: Extensions/Extension-iOS.entitlements
+        ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: YES
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.liaoxingyi.opentodo.dev.share
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.liaoxingyi.opentodo.share
+  # Interface tests on the iOS simulator (XCUITest): what only a finger can
+  # check. A folder per feature under UITestsIOS/; how to add and run cases
+  # is in UITestsIOS/Support/LaunchOpenTodo.swift.
+  OpenTodoUITestsIOS:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITestsIOS]
+    dependencies:
+      - target: OpenTodo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.liaoxingyi.opentodo.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: OpenTodo
+    scheme:
+      testTargets: [OpenTodoUITestsIOS]

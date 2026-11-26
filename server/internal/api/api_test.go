@@ -307,6 +307,28 @@ func TestInvalidChangesAreRejected(t *testing.T) {
 	}
 }
 
+func TestEfficiencyRecordsSync(t *testing.T) {
+	srv := newServer(t)
+	phone := register(t, srv, "me@example.com")
+	mac := login(t, srv, "me@example.com")
+	var sent []change
+	for i, entity := range []string{"habit", "checkin", "focus", "countdown"} {
+		sent = append(sent, change{Entity: entity, ID: entity + "-1", UpdatedAt: int64(100 + i), Data: json.RawMessage(`{"name":"x"}`)})
+	}
+	if res := phone.sync(0, sent...); len(res.Accepted) != 4 {
+		t.Fatalf("accepted %d of 4", len(res.Accepted))
+	}
+	got := map[string]bool{}
+	for _, r := range mac.sync(0).Changes {
+		got[r.Entity+"/"+r.ID] = true
+	}
+	for _, c := range sent {
+		if !got[c.Entity+"/"+c.ID] {
+			t.Errorf("%s/%s did not arrive", c.Entity, c.ID)
+		}
+	}
+}
+
 func TestSignInAttemptsAreLimited(t *testing.T) {
 	srv := newServer(t)
 	anon := &client{t: t, base: srv.URL}

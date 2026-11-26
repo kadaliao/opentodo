@@ -1,2 +1,12 @@
 reference/
 CLAUDE.local.md
+
+# Swift (apple/)
+apple/OpenTodo.xcodeproj/
+apple/.derived/
+apple/OpenTodoKit/.build/
+apple/OpenTodoKit/.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+apple/.shots/

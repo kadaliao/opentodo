@@ -25,8 +25,12 @@ var (
 	ErrEmailTaken = errors.New("store: email already registered")
 )
 
-// Entities lists the record types clients may sync.
-var Entities = map[string]bool{"list": true, "task": true, "checklist": true, "filter": true, "section": true}
+// Entities lists the record types clients may sync. habit, checkin, focus
+// and countdown are the efficiency module of the Swift client (schema 8).
+var Entities = map[string]bool{
+	"list": true, "task": true, "checklist": true, "filter": true, "section": true,
+	"habit": true, "checkin": true, "focus": true, "countdown": true,
+}
 
 type Store struct {
 	db  *sql.DB

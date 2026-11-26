@@ -1,5 +1,7 @@
 # 架构
 
+两个客户端（Flutter 的 `app/`、苹果平台 Swift 原生的 `apple/`）用同样的数据库结构、同样的同步格式和同样的行为规则；下面“客户端”一节按 Flutter 版的代码写，规则对两边都成立，Swift 版的分层见下一节。
+
 ## 客户端（`app/`）
 
 本地优先：所有读写都先落到本机 SQLite，界面直接订阅数据库的变化；联网时再由同步引擎和服务器交换改动。没网、服务器挂了，应用照样能用。
@@ -149,6 +151,20 @@
 - 窄屏：手机的月视图是小月历（有任务的日子带点）加选中那天的列表；电脑宽屏有侧栏（小月历、要显示的清单、账号），点任务在右边打开详情，中屏打开详情页。
 - 模式和显示选项存在本机的 `KeyValues`（`calendar.prefs`，JSON），不同步。
 
+## Swift 客户端（`apple/`）
+
+结构和约定的细节在 [apple.md](apple.md)。分层和 Flutter 版一一对应，同样是本地优先：
+
+| 层 | 位置 | 对应 Flutter | 说明 |
+|---|---|---|---|
+| 领域 | `OpenTodoKit/Sources/OpenTodoDomain` | `lib/domain/` | 纯函数，只依赖 Foundation；模型是纯结构体，日期用不带时区的 `Day` / `LocalDateTime`；效率模块的逻辑也在这里 |
+| 数据 | `OpenTodoKit/Sources/OpenTodoData` | `lib/data`、`lib/sync`、`lib/notify` | GRDB：表结构和迁移（和 drift 生成的完全一样，8 起是 Swift 版加的）、`TaskRepo` / `EfficiencyRepo`（所有写操作的入口）、本机设置、同步、提醒调度、`AppServices`（启动时把这些按顺序建好） |
+| 界面 | `OpenTodoKit/Sources/OpenTodoUI` | `lib/state`、`lib/ui` | SwiftUI；每个窗口一个 `AppModel`（`@Observable`），订阅一个一次读五张表的快照（`TaskData`），各功能的状态是挂在它上面的子模型；视图不碰数据库 |
+| 系统集成 | `OpenTodoKit/Sources/OpenTodoSystem`、`Widgets/`、`ShareExtension/`、`Intents/` | 无 | 应用和扩展共用的部分：小组件内容、扩展经 `TaskRepo` 写库、链接、分享转任务 |
+| 外壳 | `App/` | `lib/main.dart` | `@main`、图标、entitlements，很薄 |
+
+数据库放在 App Group 容器里，应用、小组件、分享扩展共用；扩展写完发一个 Darwin 通知，应用收到后重读。
+
 ## 同步（M2）
 
 服务端在 `server/`：Go，SQLite（纯 Go 驱动，不用 cgo），部署时只有一个程序文件加一个数据库文件。存储层封装在 `internal/store`，用户量上来后换 PostgreSQL 只改这一层。
@@ -165,6 +181,6 @@
 - 推送期间本地又改过的行，`updatedAt` 已经变了，不会被误标为已同步，下次再推。
 - 删除靠 `deletedAt` 删除标记传播；服务器确认后，客户端把已同步的删除标记物理删掉。
 - 已知限制：用设备时钟比较新旧，设备时间不准时可能误判；以后改成混合逻辑时钟（HLC）。
-- 记录类型：`list`、`task`、`checklist`、`filter`、`section`，服务端 `store.Entities` 是白名单，推上来不认识的类型整个请求被拒，所以加新类型要先部署服务端。客户端拉到不认识的类型会跳过，但 `cursor` 照样往前走，升级以后就再也拉不到那些记录了；所以加新类型的那次表结构迁移把 `sync.cursor` 归零，升级后从头拉一遍（v5 加过滤器、v6 加分组时都这样做了）。
+- 记录类型：`list`、`task`、`checklist`、`filter`、`section`，Swift 版的效率模块加了 `habit`、`checkin`、`focus`、`countdown`（schema 8），服务端 `store.Entities` 是白名单，推上来不认识的类型整个请求被拒，所以加新类型要先部署服务端。客户端拉到不认识的类型会跳过，但 `cursor` 照样往前走，升级以后就再也拉不到那些记录了；所以加新类型的那次表结构迁移把 `sync.cursor` 归零，升级后从头拉一遍（v5 加过滤器、v6 加分组、v8 加效率模块时都这样做了）。
 
-客户端在 `app/lib/sync/`：`codec.dart`（逐字段的网络格式，旧客户端能读新字段）、`sync_engine.dart`（一次同步）、`account.dart`（登录接口和错误文案）；调度在 `app/lib/state/sync_providers.dart`。账号、令牌和同步进度存在本地的 `KeyValues` 表里，不参与同步。
+Swift 客户端的同步在 `apple/OpenTodoKit/Sources/OpenTodoData/`：`Codec.swift`（逐字段照 `codec.dart`）、`SyncEngine.swift`、`Account.swift`，调度是 `SyncController.swift`；登录令牌存系统钥匙串。Flutter 客户端在 `app/lib/sync/`：`codec.dart`（逐字段的网络格式，旧客户端能读新字段）、`sync_engine.dart`（一次同步）、`account.dart`（登录接口和错误文案）；调度在 `app/lib/state/sync_providers.dart`。账号、令牌和同步进度存在本地的 `KeyValues` 表里，不参与同步。

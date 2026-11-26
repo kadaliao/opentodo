@@ -1,8 +1,11 @@
 # OpenTodo
 
-开源的多端待办清单：手机和电脑共用一套 Flutter 客户端，Go 写的同步服务可以自己部署。
+开源的多端待办清单，Go 写的同步服务可以自己部署。有两个客户端，连同一个账号、用同一种数据：
 
-> 早期开发中。本地任务管理、多端同步、提醒、重复任务、日历、搜索、过滤器和看板已经可用，番茄专注、习惯打卡等还在路上，见[路线图](docs/roadmap.md)。
+- **苹果平台（macOS、iOS / iPadOS）用 Swift 原生客户端**（`apple/`），界面用系统自带的组件，像系统的提醒事项和日历。
+- **Flutter 客户端**（`app/`）是先做的那一版，功能是 Swift 版的规格，留给 Android、Windows、Linux。
+
+> 早期开发中。本地任务管理、多端同步、提醒、重复任务、日历、搜索、过滤器、看板和时间线两个客户端都有；番茄专注、习惯打卡、倒数日、四象限、小组件、菜单栏和分享扩展目前只在 Swift 版里。见[路线图](docs/roadmap.md)。
 
 ## 功能
 
@@ -19,22 +22,31 @@
 - 过滤器：按清单、标签、日期、优先级、内容把任务筛到一起，比如“本周的高优先级工作”；高级模式可以“不包含”、可以“满足任一”；跟着账号同步
 - 设置：新任务的默认提醒、时间段默认时长、稍后提醒的时长
 - 本地优先：没有网络也能用，联网后自动增量同步；冲突时较新的修改胜出
-- 电脑上左边一列切换任务和日历，任务三栏布局；手机上底部切换，单栏加抽屉
+- 效率模块（Swift 版）：番茄专注（计时、记录、统计）、习惯打卡（连续天数、月历）、倒数纪念日（农历、生日岁数）、四象限
+- 系统集成（Swift 版）：桌面小组件（今天、快速添加、倒数日、习惯）、macOS 菜单栏小窗和全局快捷键快速添加、分享扩展、快捷指令、Spotlight
 
 ## 技术栈
 
 | 目录 | 内容 |
 |---|---|
-| `app/` | Flutter 客户端（iOS、Android、macOS、Windows、Linux），drift（SQLite）+ Riverpod |
+| `apple/` | Swift 原生客户端（macOS、iOS / iPadOS），SwiftUI + GRDB（SQLite），XcodeGen 生成工程 |
+| `app/` | Flutter 客户端（Android、Windows、Linux，也能编苹果平台），drift（SQLite）+ Riverpod |
 | `server/` | Go 同步服务，SQLite，单个可执行文件 |
-| `docs/` | [开发文档](docs/development.md)、[架构](docs/architecture.md)、[路线图](docs/roadmap.md) |
+| `docs/` | [开发文档](docs/development.md)、[Swift 版](docs/apple.md)、[架构](docs/architecture.md)、[路线图](docs/roadmap.md) |
 
 ## 开发
 
-需要 Flutter 3.50+（Dart 3.14）、Go 1.27+，iOS/macOS 还需要 Xcode。
+Swift 版需要 Xcode 27（macOS 26 / iOS 26 SDK）和 XcodeGen；Flutter 版需要 Flutter 3.50+（Dart 3.14）；同步服务和两个客户端的同步集成测试需要 Go 1.27+。
 
 ```sh
-# 客户端（在 app/ 下）
+# Swift 客户端（在 apple/ 下）
+(cd OpenTodoKit && swift build && swift test)   # 逻辑、数据、同步、界面模型的测试
+./scripts/build.sh macos                        # 生成工程并编 macOS 调试版
+./scripts/build.sh ios                          # iOS 模拟器调试版
+open .derived/Build/Products/Debug/OpenTodo.app # 调试版用自己的包名和数据库，不碰正式数据
+./scripts/shot.sh macos smart:today shot.png    # 用演示数据打开某个界面并截图
+
+# Flutter 客户端（在 app/ 下）
 flutter pub get
 dart run build_runner build      # 改了 lib/data/db.dart 的表结构后重新生成代码
 flutter analyze
