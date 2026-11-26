@@ -6,6 +6,7 @@ import OpenTodoDomain
 import SwiftUI
 
 struct HabitDetailView: View {
+    @Environment(\.uiScale) private var s
     var habit: Habit
     var checkins: [HabitCheckin]
     var today: Day
@@ -39,14 +40,14 @@ struct HabitDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: 16 * s) {
                 header
                 stats
                 calendar
                 heatmap
             }
             .padding()
-            .frame(maxWidth: 640)
+            .frame(maxWidth: 640 * s)
             .frame(maxWidth: .infinity)
         }
         .background(Color.groupedBackground)
@@ -84,15 +85,15 @@ struct HabitDetailView: View {
     // MARK: Parts
 
     private var header: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 14 * s) {
             EmojiBadge(emoji: habit.emoji, color: habit.color, fallback: "leaf.fill", size: 56)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(habit.name).font(.title2.bold())
+            VStack(alignment: .leading, spacing: 4 * s) {
+                Text(habit.name).uiFont(.title2) { $0.bold() }
                 Text("\(frequencyText(habit.frequency)) · \(goalText(habit)) · \(dayText(habit.startDate, today: today))开始")
-                    .font(.subheadline)
+                    .uiFont(.subheadline)
                     .foregroundStyle(.secondary)
                 if habit.archivedAt != nil {
-                    Label("已归档", systemImage: "archivebox").font(.footnote).foregroundStyle(.secondary)
+                    Label("已归档", systemImage: "archivebox").uiFont(.footnote).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 0)
@@ -121,9 +122,9 @@ struct HabitDetailView: View {
             checkins.filter { $0.habitId == habit.id && $0.deletedAt == nil }.map { ($0.day, $0) },
             uniquingKeysWith: { a, b in a.updatedAt >= b.updatedAt ? a : b }
         )
-        return VStack(spacing: 10) {
+        return VStack(spacing: 10 * s) {
             HStack {
-                Text("\(String(month.year))年\(month.month)月").font(.headline)
+                Text("\(String(month.year))年\(month.month)月").uiFont(.headline)
                 Spacer()
                 Button("上个月", systemImage: "chevron.left") { month = month.addingMonths(-1) }
                 Button("下个月", systemImage: "chevron.right") { month = month.addingMonths(1) }
@@ -133,7 +134,7 @@ struct HabitDetailView: View {
             .buttonStyle(.borderless)
             HStack(spacing: 0) {
                 ForEach(weekdayNames, id: \.self) { n in
-                    Text(String(n.dropFirst())).font(.caption2).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                    Text(String(n.dropFirst())).uiFont(.caption2).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                 }
             }
             Grid(horizontalSpacing: 0, verticalSpacing: 6) {
@@ -143,7 +144,7 @@ struct HabitDetailView: View {
                             if let d = week[i] {
                                 dayCell(d, byDay[d])
                             } else {
-                                Color.clear.frame(height: 36)
+                                Color.clear.frame(height: 36 * s)
                             }
                         }
                     }
@@ -180,19 +181,19 @@ struct HabitDetailView: View {
             checkins.filter { $0.habitId == habit.id && $0.deletedAt == nil }.map { ($0.day, $0) },
             uniquingKeysWith: { a, b in a.updatedAt >= b.updatedAt ? a : b }
         )
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("最近20周").font(.headline)
+        return VStack(alignment: .leading, spacing: 10 * s) {
+            Text("最近20周").uiFont(.headline)
             ViewThatFits(in: .horizontal) {
                 heatmapGrid(weeks, log, size: 14)
                 heatmapGrid(Array(weeks.suffix(14)), log, size: 14)
                 heatmapGrid(Array(weeks.suffix(10)), log, size: 14)
             }
-            HStack(spacing: 12) {
+            HStack(spacing: 12 * s) {
                 legend(tint, "完成")
                 legend(tint.opacity(0.4), "部分")
                 legend(Color.secondary.opacity(0.15), "未打卡")
             }
-            .font(.caption)
+            .uiFont(.caption)
             .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -200,13 +201,13 @@ struct HabitDetailView: View {
     }
 
     private func heatmapGrid(_ weeks: [[Day]], _ log: [Day: HabitCheckin], size: CGFloat) -> some View {
-        HStack(alignment: .top, spacing: 3) {
+        HStack(alignment: .top, spacing: 3 * s) {
             ForEach(weeks, id: \.first) { week in
-                VStack(spacing: 3) {
+                VStack(spacing: 3 * s) {
                     ForEach(week, id: \.self) { d in
                         RoundedRectangle(cornerRadius: 3)
                             .fill(heatColor(dayState(habit, on: d, checkin: log[d], today: today)))
-                            .frame(width: size, height: size)
+                            .frame(width: size * s, height: size * s)
                     }
                 }
             }
@@ -227,8 +228,8 @@ struct HabitDetailView: View {
     }
 
     private func legend(_ c: Color, _ text: String) -> some View {
-        HStack(spacing: 4) {
-            RoundedRectangle(cornerRadius: 3).fill(c).frame(width: 10, height: 10)
+        HStack(spacing: 4 * s) {
+            RoundedRectangle(cornerRadius: 3 * s).fill(c).frame(width: 10 * s, height: 10 * s)
             Text(text)
         }
     }
@@ -245,6 +246,7 @@ func deletedHabit(_ h: Habit, now: Int) -> Habit {
 
 /// A day on the habit's month calendar.
 struct HabitDayCell: View {
+    @Environment(\.uiScale) private var s
     var day: Day
     var state: HabitDayState
     var isToday: Bool
@@ -269,14 +271,14 @@ struct HabitDayCell: View {
                 Circle().strokeBorder(Color.accentColor, lineWidth: 1.5)
             }
             Text("\(day.day)")
-                .font(.callout.weight(isToday ? .semibold : .regular))
+                .uiFont(.callout, weight: isToday ? .semibold : .regular)
                 .monospacedDigit()
                 .foregroundStyle(foreground)
             if state == .abandoned {
-                Image(systemName: "xmark").font(.system(size: 7, weight: .bold)).foregroundStyle(.secondary).offset(y: 11)
+                Image(systemName: "xmark").uiFont(size: 7, weight: .bold).foregroundStyle(.secondary).offset(y: 11 * s)
             }
         }
-        .frame(width: 34, height: 34)
+        .frame(width: 34 * s, height: 34 * s)
         .contentShape(.circle)
         .accessibilityElement()
         .accessibilityLabel(Text("\(dayText(day))，\(stateName)"))
@@ -306,6 +308,7 @@ struct HabitDayCell: View {
 
 /// A number with its label: the habit and focus statistics.
 struct StatTile: View {
+    @Environment(\.uiScale) private var s
     var title: String
     var value: String
     var unit: String
@@ -313,14 +316,14 @@ struct StatTile: View {
     var tint: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6 * s) {
             Label(title, systemImage: symbol)
-                .font(.subheadline)
+                .uiFont(.subheadline)
                 .foregroundStyle(.secondary)
                 .labelStyle(TintedIconLabelStyle(tint: tint))
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value).font(.title.bold()).monospacedDigit()
-                Text(unit).font(.subheadline).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 2 * s) {
+                Text(value).uiFont(.title) { $0.bold() }.monospacedDigit()
+                Text(unit).uiFont(.subheadline).foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -330,10 +333,11 @@ struct StatTile: View {
 }
 
 struct TintedIconLabelStyle: LabelStyle {
+    @Environment(\.uiScale) private var s
     var tint: Color
 
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 5 * s) {
             configuration.icon.foregroundStyle(tint)
             configuration.title
         }

@@ -22,9 +22,12 @@ struct MiniMonth: View {
     var selected: Day?
     let today: Day
     let marks: Marks
+    /// At 标准; both grow with 界面大小.
     var rowHeight: CGFloat = 32
     var fontSize: CGFloat = 13
     let onTap: (Day) -> Void
+    @Environment(\.uiScale) private var s
+    private var row: CGFloat { rowHeight * s }
 
     var body: some View {
         let days = monthGrid(year, month).days
@@ -32,17 +35,17 @@ struct MiniMonth: View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(shortWeekdays, id: \.self) { d in
-                    Text(d).font(.system(size: fontSize - 2)).foregroundStyle(.tertiary).frame(maxWidth: .infinity)
+                    Text(d).uiFont(size: fontSize - 2).foregroundStyle(.tertiary).frame(maxWidth: .infinity)
                 }
             }
-            .frame(height: rowHeight * 0.7)
+            .frame(height: row * 0.7)
             ForEach(weeks, id: \.first) { week in
                 HStack(spacing: 0) {
                     ForEach(week, id: \.self) { day in
                         cell(day).frame(maxWidth: .infinity)
                     }
                 }
-                .frame(height: rowHeight)
+                .frame(height: row)
             }
         }
     }
@@ -51,7 +54,7 @@ struct MiniMonth: View {
         let inMonth = day.month == month && day.year == year
         let isSelected = day == selected
         let isToday = day == today
-        let size = min(rowHeight - 6, fontSize * 2)
+        let size = min(rowHeight - 6, fontSize * 2) * s
         let shade: Double = {
             guard case .density(let counts) = marks, inMonth else { return 0 }
             return [0, 0.18, 0.35, 0.55, 0.8][densityLevel(counts[day] ?? 0)]
@@ -63,9 +66,9 @@ struct MiniMonth: View {
         return Button {
             onTap(day)
         } label: {
-            VStack(spacing: 1) {
+            VStack(spacing: 1 * s) {
                 Text(verbatim: "\(day.day)")
-                    .font(.system(size: fontSize, weight: isToday || isSelected ? .semibold : .regular))
+                    .uiFont(size: fontSize, weight: isToday || isSelected ? .semibold : .regular)
                     .monospacedDigit()
                     .foregroundStyle(
                         isSelected ? AnyShapeStyle(Color.white)
@@ -84,7 +87,7 @@ struct MiniMonth: View {
                 if case .dots = marks {
                     Circle()
                         .fill(dotted ? (inMonth ? AnyShapeStyle(.secondary) : AnyShapeStyle(.quaternary)) : AnyShapeStyle(Color.clear))
-                        .frame(width: 4, height: 4)
+                        .frame(width: 4 * s, height: 4 * s)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -127,17 +130,18 @@ struct PhoneMonth: View {
 /// Twelve small months, each day shaded by how many tasks it has. A day
 /// opens in the day view.
 struct YearView: View {
+    @Environment(\.uiScale) private var s
     let ctx: CalendarContext
 
     var body: some View {
         let year = ctx.model.anchor.year
         let counts = dayDensity(ctx.entries(visibleRange(.year, ctx.model.anchor)))
         ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: ctx.compact ? 150 : 200), spacing: 24, alignment: .top)], spacing: 24) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: (ctx.compact ? 150 : 200) * s), spacing: 24 * s, alignment: .top)], spacing: 24 * s) {
                 ForEach(1...12, id: \.self) { m in
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 6 * s) {
                         Text(verbatim: "\(m)月")
-                            .font(.headline)
+                            .uiFont(.headline)
                             .foregroundStyle(year == ctx.today.year && m == ctx.today.month ? AnyShapeStyle(Color.red) : AnyShapeStyle(.primary))
                         MiniMonth(
                             year: year, month: m, selected: nil, today: ctx.today, marks: .density(counts),
@@ -146,7 +150,7 @@ struct YearView: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(20 * s)
         }
     }
 }

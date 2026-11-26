@@ -31,7 +31,7 @@ struct ServicesSelfTestScreen: View {
     @State private var lines: [String] = []
 
     var body: some View {
-        List(lines, id: \.self) { Text($0).font(.caption.monospaced()) }
+        List(lines, id: \.self) { Text($0).uiFont(.caption) { $0.monospaced() } }
             .task { await run() }
     }
 

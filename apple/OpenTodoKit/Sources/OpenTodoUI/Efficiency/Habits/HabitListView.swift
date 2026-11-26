@@ -5,6 +5,7 @@ import OpenTodoDomain
 import SwiftUI
 
 struct HabitListView: View {
+    @Environment(\.uiScale) private var s
     var habits: [Habit]
     var today: Day
     var onSaveHabit: (Habit) -> Void
@@ -29,10 +30,14 @@ struct HabitListView: View {
                     ContentUnavailableView("还没有习惯", systemImage: "leaf", description: Text("点右上角的加号新建一个。"))
                 }
                 if !active.isEmpty {
-                    Section("进行中") { ForEach(active, content: row) }
+                    Section { ForEach(active, content: row) } header: {
+                        Text("进行中").uiDefaultFont(.subheadline, weight: .semibold)
+                    }
                 }
                 if !archived.isEmpty {
-                    Section("已归档") { ForEach(archived, content: row) }
+                    Section { ForEach(archived, content: row) } header: {
+                        Text("已归档").uiDefaultFont(.subheadline, weight: .semibold)
+                    }
                 }
             }
             .navigationTitle("全部习惯")
@@ -62,7 +67,7 @@ struct HabitListView: View {
             }
         }
         #if os(macOS)
-        .frame(minWidth: 380, minHeight: 440)
+        .frame(minWidth: 380 * s, minHeight: 440 * s)
         #endif
     }
 
@@ -70,12 +75,12 @@ struct HabitListView: View {
         Button {
             editor = HabitEditorTarget(habitId: h.id)
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: 12 * s) {
                 EmojiBadge(emoji: h.emoji, color: h.color, fallback: "leaf.fill", size: 34)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 2 * s) {
                     Text(h.name).foregroundStyle(h.archivedAt == nil ? .primary : .secondary)
                     Text("\(frequencyText(h.frequency)) · \(goalText(h)) · \(h.section.name)")
-                        .font(.footnote)
+                        .uiFont(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()

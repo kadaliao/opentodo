@@ -70,6 +70,7 @@ struct MonthPage: Hashable {
 }
 
 struct MonthCalendar: View {
+    @Environment(\.uiScale) private var s
     @Binding var selection: Day
     let today: Day
     @State private var page: MonthPage
@@ -81,18 +82,18 @@ struct MonthCalendar: View {
     }
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 6 * s) {
             header
             HStack(spacing: 0) {
                 ForEach(CustomRepeatEditor.weekdayShort, id: \.self) { w in
                     Text(w)
-                        .font(.caption2.weight(.semibold))
+                        .uiFont(.caption2, weight: .semibold)
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity)
                 }
             }
             .accessibilityHidden(true)
-            VStack(spacing: 2) {
+            VStack(spacing: 2 * s) {
                 ForEach(Array(page.weeks.enumerated()), id: \.offset) { _, week in
                     HStack(spacing: 0) {
                         ForEach(0..<7, id: \.self) { i in
@@ -101,7 +102,7 @@ struct MonthCalendar: View {
                                     selection = d
                                 }
                             } else {
-                                Color.clear.frame(maxWidth: .infinity).frame(height: Self.cellHeight)
+                                Color.clear.frame(maxWidth: .infinity).frame(height: Self.cellHeight * s)
                             }
                         }
                     }
@@ -122,9 +123,9 @@ struct MonthCalendar: View {
     #endif
 
     private var header: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 4 * s) {
             Text(page.title)
-                .font(.headline)
+                .uiFont(.headline)
                 .contentTransition(.numericText())
                 .accessibilityAddTraits(.isHeader)
             Spacer()
@@ -132,28 +133,28 @@ struct MonthCalendar: View {
                 withAnimation(.snappy) { page = MonthPage(today) }
             } label: {
                 Image(systemName: "circle")
-                    .font(.system(size: 9, weight: .bold))
-                    .frame(width: 24, height: 28)
+                    .uiFont(size: 9, weight: .bold)
+                    .frame(width: 24 * s, height: 28 * s)
             }
             .accessibilityLabel("本月")
             .disabled(page == MonthPage(today))
             Button {
                 withAnimation(.snappy) { page = page.adding(months: -1) }
             } label: {
-                Image(systemName: "chevron.left").frame(width: 28, height: 28)
+                Image(systemName: "chevron.left").frame(width: 28 * s, height: 28 * s)
             }
             .accessibilityLabel("上个月")
             Button {
                 withAnimation(.snappy) { page = page.adding(months: 1) }
             } label: {
-                Image(systemName: "chevron.right").frame(width: 28, height: 28)
+                Image(systemName: "chevron.right").frame(width: 28 * s, height: 28 * s)
             }
             .accessibilityLabel("下个月")
         }
-        .font(.body.weight(.semibold))
+        .uiFont(.body, weight: .semibold)
         .buttonStyle(.borderless)
         .tint(.accentColor)
-        .padding(.leading, 4)
+        .padding(.leading, 4 * s)
     }
 
     private var swipe: some Gesture {
@@ -165,6 +166,7 @@ struct MonthCalendar: View {
 }
 
 private struct DayCell: View {
+    @Environment(\.uiScale) private var s
     let day: Day
     let selected: Bool
     let today: Bool
@@ -175,17 +177,17 @@ private struct DayCell: View {
         Button(action: action) {
             VStack(spacing: 0) {
                 Text("\(day.day)")
-                    .font(.system(.body, design: .default).weight(today || selected ? .semibold : .regular))
+                    .uiFont(.body, weight: today || selected ? .semibold : .regular, design: .default)
                     .monospacedDigit()
                     .foregroundStyle(selected ? Color.white : (today ? Color.accentColor : Color.primary))
                 Text(note.label)
-                    .font(.system(size: 9))
+                    .uiFont(size: 9)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .foregroundStyle(selected ? AnyShapeStyle(Color.white.opacity(0.9))
                                      : note.special ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
             }
-            .frame(width: MonthCalendar.cellHeight - 4, height: MonthCalendar.cellHeight - 4)
+            .frame(width: (MonthCalendar.cellHeight - 4) * s, height: (MonthCalendar.cellHeight - 4) * s)
             .background {
                 if selected {
                     Circle().fill(Color.accentColor)
@@ -196,13 +198,13 @@ private struct DayCell: View {
             .overlay(alignment: .topTrailing) {
                 if let off = note.off {
                     Text(off ? "休" : "班")
-                        .font(.system(size: 8, weight: .semibold))
+                        .uiFont(size: 8, weight: .semibold)
                         .foregroundStyle(off ? Color.red : Color.secondary)
                         .offset(x: 5, y: -1)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: MonthCalendar.cellHeight)
+            .frame(height: MonthCalendar.cellHeight * s)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

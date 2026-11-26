@@ -102,10 +102,12 @@ public struct HabitsRootView: View {
                     }
                 }
                 ForEach(groups, id: \.section) { group in
-                    Section(group.section.name) {
+                    Section {
                         ForEach(group.habits) { h in
                             row(h)
                         }
+                    } header: {
+                        Text(group.section.name).uiDefaultFont(.subheadline, weight: .semibold)
                     }
                 }
             }
@@ -192,31 +194,35 @@ struct HabitEditorTarget: Identifiable, Hashable {
 // MARK: - Row
 
 struct HabitRow: View {
+    @Environment(\.uiScale) private var s
     var habit: Habit
     var state: HabitDayState
     var subtitle: String
     var onTap: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 12 * s) {
             EmojiBadge(emoji: habit.emoji, color: habit.color, fallback: "leaf.fill", size: 38)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 2 * s) {
                 Text(habit.name)
+                    // A navigation link's label has a font of its own.
+                    .uiFont(.body)
                     .strikethrough(state == .abandoned, color: .secondary)
                 Text(subtitle)
-                    .font(.footnote)
+                    .uiFont(.footnote)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             CheckButton(habit: habit, state: state, action: onTap)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 2 * s)
     }
 }
 
 /// The round button on a habit's row: a tick for a single check-in, a ring
 /// filling up (with a plus) for a count.
 struct CheckButton: View {
+    @Environment(\.uiScale) private var s
     var habit: Habit
     var state: HabitDayState
     var action: () -> Void
@@ -237,11 +243,11 @@ struct CheckButton: View {
                 switch state {
                 case .done:
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 28))
+                        .uiFont(size: 28)
                         .foregroundStyle(.white, tint)
                 case .abandoned:
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 28))
+                        .uiFont(size: 28)
                         .foregroundStyle(.white, Color.secondary.opacity(0.6))
                 default:
                     Circle().stroke(Color.secondary.opacity(0.35), lineWidth: 2)
@@ -251,12 +257,12 @@ struct CheckButton: View {
                             .stroke(tint, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                             .rotationEffect(.degrees(-90))
                         Image(systemName: "plus")
-                            .font(.system(size: 12, weight: .bold))
+                            .uiFont(size: 12, weight: .bold)
                             .foregroundStyle(tint)
                     }
                 }
             }
-            .frame(width: 28, height: 28)
+            .frame(width: 28 * s, height: 28 * s)
             .contentShape(.circle)
             .animation(.snappy, value: progress)
         }
@@ -359,6 +365,7 @@ extension View {
 /// The last seven days, each with a ring of how many of its habits were
 /// done; tap one to check in on it.
 struct WeekStrip: View {
+    @Environment(\.uiScale) private var s
     var days: [Day]
     var today: Day
     @Binding var selected: Day
@@ -371,9 +378,9 @@ struct WeekStrip: View {
                 Button {
                     selected = d
                 } label: {
-                    VStack(spacing: 6) {
+                    VStack(spacing: 6 * s) {
                         Text(d == today ? "今" : weekdayLetter(d))
-                            .font(.caption2)
+                            .uiFont(.caption2)
                             .foregroundStyle(d == today ? Color.accentColor : .secondary)
                         ZStack {
                             Circle().stroke(Color.secondary.opacity(0.2), lineWidth: 3)
@@ -382,14 +389,14 @@ struct WeekStrip: View {
                                 .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                                 .rotationEffect(.degrees(-90))
                             if d == selected {
-                                Circle().fill(Color.accentColor).padding(5)
+                                Circle().fill(Color.accentColor).padding(5 * s)
                             }
                             Text("\(d.day)")
-                                .font(.subheadline.weight(d == selected ? .semibold : .regular))
+                                .uiFont(.subheadline, weight: d == selected ? .semibold : .regular)
                                 .monospacedDigit()
                                 .foregroundStyle(d == selected ? Color.white : .primary)
                         }
-                        .frame(width: 38, height: 38)
+                        .frame(width: 38 * s, height: 38 * s)
                     }
                     .frame(maxWidth: .infinity)
                     .contentShape(.rect)

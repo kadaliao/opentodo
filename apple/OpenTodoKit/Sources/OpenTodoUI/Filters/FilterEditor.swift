@@ -24,6 +24,7 @@ import OpenTodoDomain
 import SwiftUI
 
 public struct FilterEditor: View {
+    @Environment(\.uiScale) private var s
     let lists: [TaskList]
     let tags: [String]
     let tasks: [TodoTask]
@@ -89,7 +90,7 @@ public struct FilterEditor: View {
             Divider()
             HStack {
                 Text(FilterEditorModel.countText(model.matchingCount(tasks, now: now)))
-                    .font(.callout)
+                    .uiFont(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button("取消", role: .cancel) { cancel() }
@@ -98,10 +99,10 @@ public struct FilterEditor: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(!model.canSave)
             }
-            .padding(16)
+            .padding(16 * s)
         }
-        .frame(width: 540)
-        .frame(minHeight: 420, idealHeight: 520)
+        .frame(width: 540 * s)
+        .frame(minHeight: 420 * s, idealHeight: 520 * s)
         .onAppear { nameFocused = model.filterId == nil }
         #else
         NavigationStack {
@@ -131,7 +132,7 @@ public struct FilterEditor: View {
                     .onSubmit(save)
             } header: {
                 #if os(macOS)
-                Text(title ?? model.title).font(.headline).foregroundStyle(.primary)
+                Text(title ?? model.title).uiFont(.headline).foregroundStyle(.primary)
                 #endif
             }
             FilterRuleSections(model: $model, context: context, footer: footer)

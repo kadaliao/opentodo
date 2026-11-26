@@ -103,26 +103,27 @@ struct ChipInteractions: ViewModifier {
 /// What follows the pointer while an entry is dragged: the bar, with how
 /// many go along.
 struct ChipDragPreview: View {
+    @Environment(\.uiScale) private var s
     let entry: CalendarEntry
     let ctx: CalendarContext
 
     var body: some View {
         let count = ctx.dragAlong(entry).count + 1
         let tint = ctx.color(of: entry.task)
-        HStack(spacing: 6) {
+        HStack(spacing: 6 * s) {
             Text(entry.task.title.isEmpty ? "无标题" : entry.task.title)
-                .font(.system(size: 12, weight: .medium))
+                .uiFont(size: 12, weight: .medium)
                 .lineLimit(1)
             if count > 1 {
                 Text(verbatim: "\(count)")
-                    .font(.system(size: 11, weight: .bold))
+                    .uiFont(size: 11, weight: .bold)
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 6)
+                    .padding(.horizontal, 6 * s)
                     .background(Capsule().fill(tint))
             }
         }
-        .padding(.horizontal, 8)
-        .frame(height: 24)
+        .padding(.horizontal, 8 * s)
+        .frame(height: 24 * s)
         .background(RoundedRectangle(cornerRadius: 5).fill(tint.opacity(0.3)))
         .background(RoundedRectangle(cornerRadius: 5).fill(.background))
     }
@@ -132,6 +133,7 @@ struct ChipDragPreview: View {
 /// row. `columns` > 1 draws one bar across that many days; the ends that go
 /// on into another row are left square.
 struct EntryBar: View {
+    @Environment(\.uiScale) private var s
     let entry: CalendarEntry
     let ctx: CalendarContext
     let order: [String]
@@ -148,25 +150,25 @@ struct EntryBar: View {
             topLeadingRadius: openStart ? 0 : 4, bottomLeadingRadius: openStart ? 0 : 4,
             bottomTrailingRadius: openEnd ? 0 : 4, topTrailingRadius: openEnd ? 0 : 4
         )
-        HStack(spacing: 2) {
+        HStack(spacing: 2 * s) {
             mark(tint: tint, style: style)
             Text(task.title.isEmpty ? "无标题" : task.title)
-                .font(.system(size: 11.5, weight: .medium))
+                .uiFont(size: 11.5, weight: .medium)
                 .foregroundStyle(style.text)
                 .strikethrough(entry.done)
                 .lineLimit(1)
             Spacer(minLength: 0)
             if showTime, let time = entry.time, entry.dayIndex == 0 {
                 Text(timeLabel(time))
-                    .font(.system(size: 10))
+                    .uiFont(size: 10)
                     .foregroundStyle(overdue ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
                     .lineLimit(1)
                     .fixedSize()
             }
         }
-        .padding(.leading, 1)
-        .padding(.trailing, 4)
-        .frame(height: CalendarMetrics.chipHeight)
+        .padding(.leading, 1 * s)
+        .padding(.trailing, 4 * s)
+        .frame(height: CalendarMetrics.chipHeight * s)
         .background(shape.fill(style.fill))
         .overlay {
             if let stroke = style.stroke {
@@ -181,9 +183,9 @@ struct EntryBar: View {
     @ViewBuilder private func mark(tint: Color, style: ChipStyle) -> some View {
         if entry.projected {
             Image(systemName: "repeat")
-                .font(.system(size: 8, weight: .semibold))
+                .uiFont(size: 8, weight: .semibold)
                 .foregroundStyle(.secondary)
-                .frame(width: 18)
+                .frame(width: 18 * s)
                 .accessibilityLabel("重复")
         } else {
             PriorityCheckbox(checked: entry.done, priority: entry.task.priority, size: 11) {
@@ -206,6 +208,7 @@ struct EntryBar: View {
 /// task at one moment). A tall one says when it starts and ends; while its
 /// bottom edge is dragged, it says where it will end.
 struct TimedBlock: View {
+    @Environment(\.uiScale) private var s
     let placement: TimedPlacement
     let ctx: CalendarContext
     let order: [String]
@@ -219,42 +222,42 @@ struct TimedBlock: View {
         let tint = ctx.color(of: task)
         let style = ChipStyle(entry, tint: tint, selected: ctx.isSelected(entry), dragging: false)
         let overdue = !entry.projected && !entry.done && isOverdue(task, ctx.now)
-        let tall = height > 26
+        let tall = height > 26 * s
         HStack(alignment: tall ? .top : .center, spacing: 0) {
-            RoundedRectangle(cornerRadius: 1.5).fill(style.stripe).frame(width: 3)
-                .padding(.vertical, 2)
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(alignment: .center, spacing: 2) {
+            RoundedRectangle(cornerRadius: 1.5 * s).fill(style.stripe).frame(width: 3 * s)
+                .padding(.vertical, 2 * s)
+            VStack(alignment: .leading, spacing: 1 * s) {
+                HStack(alignment: .center, spacing: 2 * s) {
                     if entry.projected {
-                        Image(systemName: "repeat").font(.system(size: 8, weight: .semibold)).foregroundStyle(.secondary)
-                            .frame(width: 16)
+                        Image(systemName: "repeat").uiFont(size: 8, weight: .semibold).foregroundStyle(.secondary)
+                            .frame(width: 16 * s)
                     } else {
                         PriorityCheckbox(checked: entry.done, priority: task.priority, size: 11) {
                             ctx.actions.setDone(task.id, !entry.done)
                         }
                     }
                     Text(task.title.isEmpty ? "无标题" : task.title)
-                        .font(.system(size: 11.5, weight: .semibold))
+                        .uiFont(size: 11.5, weight: .semibold)
                         .foregroundStyle(style.text)
                         .strikethrough(entry.done)
                         .lineLimit(1)
                     if let resizingTo {
                         Spacer(minLength: 2)
-                        Text(verbatim: "→ \(clockLabel(resizingTo))").font(.system(size: 10, weight: .semibold)).foregroundStyle(tint)
+                        Text(verbatim: "→ \(clockLabel(resizingTo))").uiFont(size: 10, weight: .semibold).foregroundStyle(tint)
                     }
                 }
-                if height >= 40, let start = entry.time {
+                if height >= 40 * s, let start = entry.time {
                     let end = entry.endTime
                     Text(end.map { "\(clockLabel(start))-\(clockLabel($0))" } ?? clockLabel(start))
-                        .font(.system(size: 10))
+                        .uiFont(size: 10)
                         .monospacedDigit()
                         .foregroundStyle(overdue ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                        .padding(.leading, 18)
+                        .padding(.leading, 18 * s)
                 }
             }
-            .padding(.top, tall ? 2 : 0)
+            .padding(.top, tall ? 2 * s : 0)
             Spacer(minLength: 0)
         }
         .frame(height: height, alignment: .top)

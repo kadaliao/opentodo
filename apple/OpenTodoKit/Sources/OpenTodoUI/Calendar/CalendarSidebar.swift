@@ -10,6 +10,7 @@ import SwiftUI
 /// The calendar's sidebar: put it in the sidebar column next to a
 /// `CalendarView` on the same model.
 public struct CalendarSidebar: View {
+    @Environment(\.uiScale) private var s
     let model: CalendarModel
     let tasks: [TodoTask]
     let lists: [TaskList]
@@ -32,9 +33,9 @@ public struct CalendarSidebar: View {
         ).keys)
         List {
             Section {
-                VStack(spacing: 4) {
+                VStack(spacing: 4 * s) {
                     HStack {
-                        Text(verbatim: "\(shown.year)年\(shown.month)月").font(.headline)
+                        Text(verbatim: "\(shown.year)年\(shown.month)月").uiFont(.headline)
                         Spacer()
                         Button { monthOffset -= 1 } label: { Image(systemName: "chevron.left") }
                             .accessibilityLabel("上个月")
@@ -52,13 +53,17 @@ public struct CalendarSidebar: View {
                         model.anchor = day
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 4 * s)
             }
-            Section("显示的清单") {
+            Section {
                 CalendarListToggles(model: model, lists: lists)
+            } header: {
+                Text("显示的清单").uiDefaultFont(.subheadline, weight: .semibold)
             }
-            Section("显示") {
+            Section {
                 CalendarDisplayToggles(model: model)
+            } header: {
+                Text("显示").uiDefaultFont(.subheadline, weight: .semibold)
             }
         }
         .listStyle(.sidebar)
@@ -111,6 +116,7 @@ struct CalendarDisplayToggles: View {
 /// Tasks without a date, by list, to drag onto the calendar (on a phone, a
 /// tap puts one on the day selected). New in the Swift version.
 struct ArrangePanel: View {
+    @Environment(\.uiScale) private var s
     let ctx: CalendarContext
 
     /// The list shown; nil for all.
@@ -128,8 +134,8 @@ struct ArrangePanel: View {
                 }
             }
             .labelsHidden()
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12 * s)
+            .padding(.vertical, 8 * s)
             if tasks.isEmpty {
                 ContentUnavailableView("都排好了", systemImage: "checkmark.circle", description: Text("没有日期的任务会列在这里"))
             } else {
@@ -140,21 +146,21 @@ struct ArrangePanel: View {
                 .listStyle(.inset)
                 #endif
                 Text(ctx.compact ? "点一下排到\(daySectionTitle(ctx.model.anchor, today: ctx.today))" : "拖到日历上安排日期")
-                    .font(.caption)
+                    .uiFont(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(8)
+                    .padding(8 * s)
             }
         }
     }
 
     private func row(_ task: TodoTask) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8 * s) {
             PriorityCheckbox(checked: false, priority: task.priority, size: 16) {
                 ctx.actions.setDone(task.id, true)
             }
             Text(task.title.isEmpty ? "无标题" : task.title).lineLimit(1)
             Spacer(minLength: 4)
-            Text(ctx.listName(task.listId)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Text(ctx.listName(task.listId)).uiFont(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
         .contentShape(Rectangle())
         .onTapGesture {

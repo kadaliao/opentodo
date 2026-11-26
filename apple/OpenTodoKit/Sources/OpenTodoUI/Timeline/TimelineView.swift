@@ -38,6 +38,7 @@ import OpenTodoDomain
 import SwiftUI
 
 public struct TimelineView<TaskMenu: View>: View {
+    @Environment(\.uiScale) private var s
     let timeline: Timeline
     let view: ViewRef
     let now: LocalDateTime
@@ -122,7 +123,9 @@ public struct TimelineView<TaskMenu: View>: View {
         timeline.lanes.map { packRows($0.bars, minDays: scale.minDays) }
     }
 
-    private var lanesHeight: Double { max(canvasFrame.height - TimelineMetrics.headerHeight, 0) }
+    /// The days along the top: taller with 界面大小, for its bigger text.
+    private var headerHeight: Double { TimelineMetrics.headerHeight * s }
+    private var lanesHeight: Double { max(canvasFrame.height - headerHeight, 0) }
 
     private func layout(_ rows: [[[TimelineBar]]]) -> TimelineLaneLayout {
         let titled = timeline.titled
@@ -182,7 +185,7 @@ public struct TimelineView<TaskMenu: View>: View {
             let stack = narrow ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
             stack {
                 if trayOpen && !narrow {
-                    tray(target: target).frame(width: 220)
+                    tray(target: target).frame(width: 220 * s)
                     Divider()
                 }
                 canvas(rows: rows, layout: layout, target: target)
@@ -190,7 +193,7 @@ public struct TimelineView<TaskMenu: View>: View {
                     .ignoresSafeArea(.container, edges: narrow && !trayOpen ? .bottom : [])
                 if trayOpen && narrow {
                     Divider()
-                    tray(target: target).frame(height: 132)
+                    tray(target: target).frame(height: 132 * s)
                 }
             }
         }
@@ -214,8 +217,8 @@ public struct TimelineView<TaskMenu: View>: View {
         ) { m in
             VStack(alignment: .leading, spacing: 0) { taskMenu(m.task) }
                 .buttonStyle(TimelineMenuButtonStyle())
-                .padding(.vertical, 6)
-                .frame(minWidth: 220, alignment: .leading)
+                .padding(.vertical, 6 * s)
+                .frame(minWidth: 220 * s, alignment: .leading)
                 .simultaneousGesture(TapGesture().onEnded { menu = nil })
                 .presentationCompactAdaptation(.popover)
         }
@@ -225,9 +228,9 @@ public struct TimelineView<TaskMenu: View>: View {
     // MARK: Toolbar
 
     private var toolbar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10 * s) {
             Text(timelineMonthLabel(geometry.leftDay))
-                .font(narrow ? .headline : .title2.weight(.semibold))
+                .font(narrow ? Font.ui(.headline, scale: s) : Font.ui(.title2, weight: .semibold, scale: s))
                 .lineLimit(1)
                 .contentTransition(.numericText())
             Spacer(minLength: 8)
@@ -260,7 +263,7 @@ public struct TimelineView<TaskMenu: View>: View {
                 }
                 .fixedSize()
                 #else
-                HStack(spacing: 2) {
+                HStack(spacing: 2 * s) {
                     Button { page(-1) } label: { Image(systemName: "chevron.left") }
                         .accessibilityLabel("往前")
                     Button("今天") { goHome() }
@@ -288,8 +291,8 @@ public struct TimelineView<TaskMenu: View>: View {
             .menuIndicator(.hidden)
             .fixedSize()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, narrow ? 6 : 10)
+        .padding(.horizontal, 16 * s)
+        .padding(.vertical, (narrow ? 6 : 10) * s)
     }
 
     private func goHome() {
@@ -345,14 +348,14 @@ public struct TimelineView<TaskMenu: View>: View {
         ScrollView(.horizontal, showsIndicators: false) {
             ZStack(alignment: .topLeading) {
                 TimelineGrid(geometry: g, minX: win.minX)
-                    .frame(width: win.width, height: max(height - TimelineMetrics.headerHeight, 0))
-                    .offset(x: win.minX, y: TimelineMetrics.headerHeight)
+                    .frame(width: win.width, height: max(height - headerHeight, 0))
+                    .offset(x: win.minX, y: headerHeight)
                     .allowsHitTesting(false)
                 VStack(spacing: 0) {
                     TimelineDayHeader(geometry: g, minX: win.minX, today: today, drop: dropDays)
-                        .frame(width: win.width, height: TimelineMetrics.headerHeight)
+                        .frame(width: win.width, height: headerHeight)
                         .offset(x: win.minX)
-                        .frame(width: g.contentWidth, height: TimelineMetrics.headerHeight, alignment: .leading)
+                        .frame(width: g.contentWidth, height: headerHeight, alignment: .leading)
                         #if os(macOS)
                         .contentShape(Rectangle())
                         .gesture(headerDrag)
@@ -371,12 +374,12 @@ public struct TimelineView<TaskMenu: View>: View {
                         scrollY = y
                     }
                     .scrollDisabled(touch && drag != nil)
-                    .frame(width: g.contentWidth, height: max(height - TimelineMetrics.headerHeight, 0))
+                    .frame(width: g.contentWidth, height: max(height - headerHeight, 0))
                 }
                 if nowX >= win.minX && nowX <= win.minX + win.width {
                     TimelineNowLine()
-                        .frame(width: 9, height: max(height - TimelineMetrics.headerHeight + 4, 0))
-                        .offset(x: nowX - 4.5, y: TimelineMetrics.headerHeight - 4)
+                        .frame(width: 9, height: max(height - headerHeight + 4, 0))
+                        .offset(x: nowX - 4.5, y: headerHeight - 4)
                         .allowsHitTesting(false)
                 }
             }
@@ -445,19 +448,19 @@ public struct TimelineView<TaskMenu: View>: View {
                 .overlay(alignment: .bottom) { Rectangle().fill(.separator).frame(height: 0.5) }
                 .frame(width: win.width)
                 .offset(x: win.minX)
-            HStack(spacing: 6) {
+            HStack(spacing: 6 * s) {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
+                    .uiFont(size: 10, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(folded ? -90 : 0))
                 Text(lane.title ?? "")
-                    .font(.system(size: 13, weight: .semibold))
+                    .uiFont(size: 13, weight: .semibold)
                     .lineLimit(1)
                 Text("\(count)")
-                    .font(.system(size: 12).monospacedDigit())
+                    .uiFont(size: 12) { $0.monospacedDigit() }
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 12 * s)
             .fixedSize()
             // Stays at the left edge of the screen.
             .visualEffect { content, proxy in
@@ -509,9 +512,9 @@ public struct TimelineView<TaskMenu: View>: View {
                     .overlay(alignment: .topLeading) {
                         if g.dayWidth >= 30 {
                             Image(systemName: "plus")
-                                .font(.system(size: 12, weight: .semibold))
+                                .uiFont(size: 12, weight: .semibold)
                                 .foregroundStyle(Color.accentColor)
-                                .padding(6)
+                                .padding(6 * s)
                         }
                     }
                     .frame(width: g.dayWidth, height: height)
@@ -620,7 +623,7 @@ public struct TimelineView<TaskMenu: View>: View {
             let room = Double(max(scale.minDays, days)) * g.dayWidth - width - 3 * TimelineMetrics.barInset
             if room > 12 {
                 Text(TimelineStyle.title(b.task))
-                    .font(.system(size: 12))
+                    .uiFont(size: 12)
                     .strikethrough(b.done)
                     .foregroundStyle(b.done ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                     .lineLimit(1)
@@ -650,7 +653,7 @@ public struct TimelineView<TaskMenu: View>: View {
     /// A bar's place in the component's space.
     private func barRect(left: Double, top: Double, lane: Int, width: Double) -> CGRect {
         let lanes = layout(rows)
-        let y = canvasFrame.minY + TimelineMetrics.headerHeight + lanes.lanes[lane].bodyTop + top - scrollY
+        let y = canvasFrame.minY + headerHeight + lanes.lanes[lane].bodyTop + top - scrollY
         return CGRect(x: canvasFrame.minX + left - scrollX, y: y, width: width, height: TimelineMetrics.barHeight)
     }
 
@@ -684,7 +687,7 @@ public struct TimelineView<TaskMenu: View>: View {
                 switch staged.kind {
                 case .move(let toLane):
                     let grab = CGPoint(x: min(30, width / 2), y: rect.height / 2)
-                    let laneTop = canvasFrame.minY + TimelineMetrics.headerHeight - scrollY
+                    let laneTop = canvasFrame.minY + headerHeight - scrollY
                         + lanes.lanes[toLane ?? i].bodyTop + (toLane == nil ? top : TimelineLaneLayout.barTop(row: 1))
                     let p = CGPoint(x: rect.minX + grab.x + dx, y: laneTop + grab.y)
                     drag = TimelineDrag(kind: .move(lead: b.task, tasks: together(b.task), grab: grab, width: width), pointer: p)
@@ -747,7 +750,7 @@ public struct TimelineView<TaskMenu: View>: View {
             return TimelineDragMath.unscheduled(tasks).isEmpty ? nil : .tray
         }
         let lanes = CGRect(
-            x: canvasFrame.minX, y: canvasFrame.minY + TimelineMetrics.headerHeight,
+            x: canvasFrame.minX, y: canvasFrame.minY + headerHeight,
             width: canvasFrame.width, height: lanesHeight
         )
         guard lanes.contains(p) else { return nil }
@@ -789,7 +792,7 @@ public struct TimelineView<TaskMenu: View>: View {
     private func autoScroll() async {
         while !Task.isCancelled, let d = drag {
             let lanes = CGRect(
-                x: canvasFrame.minX, y: canvasFrame.minY + TimelineMetrics.headerHeight,
+                x: canvasFrame.minX, y: canvasFrame.minY + headerHeight,
                 width: canvasFrame.width, height: lanesHeight
             )
             let p = d.pointer
@@ -831,10 +834,10 @@ public struct TimelineView<TaskMenu: View>: View {
                     .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
                 if count > 1 {
                     Text("\(count)")
-                        .font(.system(size: 11, weight: .bold).monospacedDigit())
+                        .uiFont(size: 11, weight: .bold) { $0.monospacedDigit() }
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .frame(minWidth: 20, minHeight: 20)
+                        .padding(.horizontal, 6 * s)
+                        .frame(minWidth: 20 * s, minHeight: 20 * s)
                         .background(Capsule().fill(Color.accentColor))
                         .offset(x: 8, y: -9)
                 }
@@ -939,11 +942,12 @@ struct TimelineMenu: Identifiable {
 
 /// Rows of a menu shown in a popover.
 struct TimelineMenuButtonStyle: ButtonStyle {
+    @Environment(\.uiScale) private var s
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 16 * s)
+            .padding(.vertical, 10 * s)
             .background(configuration.isPressed ? Color.primary.opacity(0.08) : Color.clear)
             .contentShape(Rectangle())
     }

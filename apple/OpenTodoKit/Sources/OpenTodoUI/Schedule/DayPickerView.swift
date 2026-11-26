@@ -8,6 +8,7 @@ import OpenTodoDomain
 import SwiftUI
 
 public struct DayPickerView: View {
+    @Environment(\.uiScale) private var s
     @State private var day: Day
     private let today: Day
     private let title: String
@@ -30,15 +31,15 @@ public struct DayPickerView: View {
                 Button {
                     withAnimation(.snappy) { day = q.day }
                 } label: {
-                    VStack(spacing: 3) {
+                    VStack(spacing: 3 * s) {
                         Image(systemName: q.symbol)
-                            .font(.system(size: 17))
+                            .uiFont(size: 17)
                             .symbolVariant(on ? .fill : .none)
-                            .frame(height: 22)
-                        Text(q.title).font(.caption2)
+                            .frame(height: 22 * s)
+                        Text(q.title).uiFont(.caption2)
                     }
                     .foregroundStyle(on ? Color.accentColor : Color.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .frame(maxWidth: .infinity, minHeight: 44 * s)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -68,19 +69,19 @@ public struct DayPickerView: View {
         .environment(\.locale, ScheduleEditorView.locale)
         #else
         VStack(spacing: 0) {
-            Text(title).font(.headline).padding(.top, 12).padding(.bottom, 4)
-            quick.padding(.horizontal, 6)
+            Text(title).uiFont(.headline).padding(.top, 12 * s).padding(.bottom, 4 * s)
+            quick.padding(.horizontal, 6 * s)
             MonthCalendar(selection: $day, today: today)
-                .padding(.horizontal, 10).padding(.top, 4).padding(.bottom, 8)
+                .padding(.horizontal, 10 * s).padding(.top, 4 * s).padding(.bottom, 8 * s)
             Divider()
             HStack {
                 Spacer()
                 Button("取消", action: onCancel).keyboardShortcut(.cancelAction)
                 Button("确定") { onPick(day) }.keyboardShortcut(.defaultAction)
             }
-            .padding(12)
+            .padding(12 * s)
         }
-        .frame(width: 320)
+        .frame(width: 320 * s)
         .environment(\.locale, ScheduleEditorView.locale)
         #endif
     }

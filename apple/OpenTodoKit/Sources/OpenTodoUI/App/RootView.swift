@@ -51,6 +51,7 @@ public struct RootView: View {
             #endif
             // Outermost, so every modifier above can read it.
             .environment(model)
+            .interfaceScaleRoot()
     }
 
     /// The app, or one feature's demo screen when a debug route asks for it.

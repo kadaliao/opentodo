@@ -20,6 +20,7 @@ public struct SettingsView: View {
 
     public var body: some View {
         OpenTodoSettingsView(settings: services.settings, sync: services.sync, reminders: services.reminders, tab: tab)
+            .interfaceScaleRoot()
     }
 }
 

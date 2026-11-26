@@ -48,6 +48,7 @@ extension AppModule {
 
 /// What `ModuleScreen` shows for an efficiency module.
 struct EfficiencyScreen: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
     var module: AppModule
 
@@ -60,7 +61,7 @@ struct EfficiencyScreen: View {
                 NavigationSplitView {
                     EfficiencySidebar()
                         .moduleBar()
-                        .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 320)
+                        .navigationSplitViewColumnWidth(min: 200, ideal: 230 * s, max: 320 * s)
                         #if os(iOS)
                         .navigationTitle("效率")
                         #endif
@@ -241,17 +242,18 @@ extension View {
 
 /// The wide layout's sidebar: the four modules, each with a line of news.
 struct EfficiencySidebar: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
 
     var body: some View {
         List(selection: Binding(get: { Optional(model.module) }, set: { if let m = $0 { model.switchTo(m) } })) {
-            Section("效率") {
+            Section {
                 ForEach(AppModule.efficiencyModules) { m in
                     Label {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 2 * s) {
                             Text(m.title)
                             Text(efficiencySummary(m, model: model))
-                                .font(.caption)
+                                .uiFont(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
@@ -260,6 +262,8 @@ struct EfficiencySidebar: View {
                     }
                     .tag(m)
                 }
+            } header: {
+                Text("效率").uiDefaultFont(.subheadline, weight: .semibold)
             }
         }
         #if os(macOS)
@@ -299,26 +303,27 @@ func efficiencySummary(_ m: AppModule, model: AppModel) -> String {
 /// The countdowns marked 显示在“今天” whose day is today, as a row at the
 /// top of 今天; a tap opens the countdown.
 struct TodayCountdownsRow: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
 
     var body: some View {
         let items = model.efficiency.todayCountdowns(model.today)
         if !items.isEmpty {
             ScrollView(.horizontal) {
-                HStack(spacing: 8) {
+                HStack(spacing: 8 * s) {
                     ForEach(items) { c in
                         Button {
                             model.efficiency.open(.countdowns, detail: c.id, in: model)
                         } label: {
-                            HStack(spacing: 6) {
+                            HStack(spacing: 6 * s) {
                                 EmojiBadge(emoji: c.emoji, color: c.color, fallback: countdownSymbol(c.kind), size: 22)
                                 Text(c.title).lineLimit(1)
                                 Text(todayCountdownCaption(c, today: model.today))
                                     .foregroundStyle(.secondary)
                             }
-                            .font(.subheadline)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 10)
+                            .uiFont(.subheadline)
+                            .padding(.vertical, 6 * s)
+                            .padding(.horizontal, 10 * s)
                             .background(EfficiencyPalette.color(c.color).opacity(0.12), in: .capsule)
                         }
                         .buttonStyle(.plain)

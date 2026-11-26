@@ -22,6 +22,7 @@ import OpenTodoDomain
 import SwiftUI
 
 public struct FocusRootView: View {
+    @Environment(\.uiScale) private var s
     public var timer: FocusTimer
     public var settings: FocusSettings
     public var sessions: [FocusSession]
@@ -94,21 +95,21 @@ public struct FocusRootView: View {
     public var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 24 * s) {
                     Picker("模式", selection: modeBinding) {
                         Text("番茄").tag(FocusKind.pomodoro)
                         Text("正计时").tag(FocusKind.stopwatch)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    .frame(maxWidth: 240)
+                    .frame(maxWidth: 240 * s)
                     .disabled(current.phase != .idle)
 
                     SwiftUI.TimelineView(.periodic(from: .now, by: 1)) { context in
                         let now = Int(context.date.timeIntervalSince1970 * 1000)
                         FocusRing(timer: current, now: now, taskTitle: taskTitle, onTask: chooseTask)
                     }
-                    .frame(maxWidth: 320)
+                    .frame(maxWidth: 320 * s)
 
                     controls
                     if current.mode == .pomodoro { cycleDots }
@@ -116,7 +117,7 @@ public struct FocusRootView: View {
                     todaySessions
                 }
                 .padding()
-                .frame(maxWidth: 560)
+                .frame(maxWidth: 560 * s)
                 .frame(maxWidth: .infinity)
             }
             .background(Color.groupedBackground)
@@ -188,14 +189,14 @@ public struct FocusRootView: View {
 
     private var controls: some View {
         let cs = focusControls(current)
-        return HStack(spacing: 16) {
+        return HStack(spacing: 16 * s) {
             ForEach(Array(cs.enumerated()), id: \.element) { i, c in
                 if i == 0 {
                     Button {
                         perform(c)
                     } label: {
                         Label(c.title, systemImage: c.symbol)
-                            .frame(minWidth: 120)
+                            .frame(minWidth: 120 * s)
                     }
                     .buttonStyle(.borderedProminent)
                 } else {
@@ -203,7 +204,7 @@ public struct FocusRootView: View {
                         if c == .abandon { confirmingAbandon = true } else { perform(c) }
                     } label: {
                         Label(c.title, systemImage: c.symbol)
-                            .frame(minWidth: 80)
+                            .frame(minWidth: 80 * s)
                     }
                     .buttonStyle(.bordered)
                 }
@@ -216,11 +217,11 @@ public struct FocusRootView: View {
 
     private var cycleDots: some View {
         let (done, total) = focusCycleDots(current)
-        return HStack(spacing: 6) {
+        return HStack(spacing: 6 * s) {
             ForEach(0..<total, id: \.self) { i in
                 Circle()
                     .fill(i < done ? Color.accentColor : Color.secondary.opacity(0.25))
-                    .frame(width: 7, height: 7)
+                    .frame(width: 7 * s, height: 7 * s)
             }
         }
         .accessibilityElement()
@@ -242,15 +243,15 @@ public struct FocusRootView: View {
         if !todays.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Text("今天的专注").font(.headline)
+                    Text("今天的专注").uiFont(.headline)
                     Spacer()
-                    Button("全部记录") { path.append(.records) }.font(.subheadline)
+                    Button("全部记录") { path.append(.records) }.uiFont(.subheadline)
                 }
-                .padding(.bottom, 8)
-                ForEach(todays.prefix(5)) { s in
-                    FocusSessionRow(session: s, taskTitle: tasks.first { $0.id == s.taskId }?.title, timeZone: timeZone)
-                        .padding(.vertical, 6)
-                    if s.id != todays.prefix(5).last?.id { Divider() }
+                .padding(.bottom, 8 * s)
+                ForEach(todays.prefix(5)) { session in
+                    FocusSessionRow(session: session, taskTitle: tasks.first { $0.id == session.taskId }?.title, timeZone: timeZone)
+                        .padding(.vertical, 6 * s)
+                    if session.id != todays.prefix(5).last?.id { Divider() }
                 }
             }
             .panel()
@@ -313,6 +314,7 @@ enum FocusPage: Hashable {
 // MARK: - Ring
 
 struct FocusRing: View {
+    @Environment(\.uiScale) private var s
     var timer: FocusTimer
     var now: Int
     var taskTitle: String?
@@ -326,35 +328,35 @@ struct FocusRing: View {
     var body: some View {
         let progress = timer.progress(at: now)
         ZStack {
-            Circle().stroke(Color.secondary.opacity(0.14), lineWidth: 14)
+            Circle().stroke(Color.secondary.opacity(0.14), lineWidth: 14 * s)
             Circle()
                 .trim(from: 0, to: progress ?? (timer.phase == .idle ? 0 : 1))
-                .stroke(tint, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                .stroke(tint, style: StrokeStyle(lineWidth: 14 * s, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.linear(duration: 1), value: progress)
-            VStack(spacing: 10) {
+            VStack(spacing: 10 * s) {
                 Text(focusPhaseTitle(timer))
-                    .font(.subheadline.weight(.medium))
+                    .uiFont(.subheadline, weight: .medium)
                     .foregroundStyle(.secondary)
                 Text(clockText(focusClockSeconds(timer, at: now)))
-                    .font(.system(size: 60, weight: .light, design: .rounded))
+                    .uiFont(size: 60, weight: .light, design: .rounded)
                     .monospacedDigit()
                     .contentTransition(.numericText(countsDown: timer.mode == .pomodoro))
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                 Button(action: onTask) {
                     Label(taskTitle ?? "选择任务", systemImage: taskTitle == nil ? "plus.circle" : "checklist")
-                        .font(.subheadline)
+                        .uiFont(.subheadline)
                         .lineLimit(1)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12 * s)
+                        .padding(.vertical, 6 * s)
                         .background(Color.secondary.opacity(0.12), in: .capsule)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(taskTitle == nil ? .secondary : .primary)
-                .frame(maxWidth: 200)
+                .frame(maxWidth: 200 * s)
             }
-            .padding(36)
+            .padding(36 * s)
         }
         .aspectRatio(1, contentMode: .fit)
         .accessibilityElement(children: .contain)
@@ -364,26 +366,27 @@ struct FocusRing: View {
 // MARK: - Session row
 
 struct FocusSessionRow: View {
+    @Environment(\.uiScale) private var s
     var session: FocusSession
     var taskTitle: String?
     var timeZone: TimeZone
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 12 * s) {
             Image(systemName: session.kind == .stopwatch ? "stopwatch.fill" : (session.completed ? "timer" : "timer.circle"))
-                .font(.body)
+                .uiFont(.body)
                 .foregroundStyle(session.kind == .pomodoro && session.completed ? Color.red : .secondary)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
+                .frame(width: 24 * s)
+            VStack(alignment: .leading, spacing: 2 * s) {
                 Text(taskTitle ?? (session.note.isEmpty ? "专注" : session.note)).lineLimit(1)
                 Text(focusTimeRange(session, in: timeZone) + (session.kind == .pomodoro && !session.completed ? " · 未完成" : ""))
-                    .font(.footnote)
+                    .uiFont(.footnote)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
             Spacer()
             Text(durationText(session.duration))
-                .font(.callout)
+                .uiFont(.callout)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
         }
@@ -396,6 +399,7 @@ struct FocusSessionRow: View {
 /// The built-in task picker, used when the caller doesn't give its own:
 /// the open tasks, searchable.
 struct FocusTaskPicker: View {
+    @Environment(\.uiScale) private var s
     var tasks: [TodoTask]
     var lists: [TaskList]
     var selected: String?
@@ -423,9 +427,9 @@ struct FocusTaskPicker: View {
                         dismiss()
                     } label: {
                         HStack {
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: 2 * s) {
                                 Text(t.title).foregroundStyle(.primary)
-                                Text(lists.first { $0.id == t.listId }?.name ?? "收集箱").font(.footnote).foregroundStyle(.secondary)
+                                Text(lists.first { $0.id == t.listId }?.name ?? "收集箱").uiFont(.footnote).foregroundStyle(.secondary)
                             }
                             Spacer()
                             if t.id == selected { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
@@ -448,7 +452,7 @@ struct FocusTaskPicker: View {
             }
         }
         #if os(macOS)
-        .frame(minWidth: 360, minHeight: 420)
+        .frame(minWidth: 360 * s, minHeight: 420 * s)
         #endif
     }
 }

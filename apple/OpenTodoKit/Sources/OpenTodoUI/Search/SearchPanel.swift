@@ -24,6 +24,7 @@ import OpenTodoDomain
 import SwiftUI
 
 public struct SearchPanel: View {
+    @Environment(\.uiScale) private var s
     let data: SearchData
     let now: LocalDateTime
     let recentSearches: [String]
@@ -67,9 +68,9 @@ public struct SearchPanel: View {
         let model = memo.model(query: query, data: data, recent: recent)
         let active = cursor.active(in: model)
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: 10 * s) {
                 Image(systemName: "magnifyingglass")
-                    .font(.title2)
+                    .uiFont(.title2)
                     .foregroundStyle(.secondary)
                 PanelSearchField(
                     text: $text,
@@ -92,16 +93,16 @@ public struct SearchPanel: View {
                     .accessibilityLabel("清除")
                 }
             }
-            .padding(.horizontal, 18)
-            .frame(height: 54)
+            .padding(.horizontal, 18 * s)
+            .frame(height: 54 * s)
 
             Divider()
 
             results(model, active: active, recent: recent)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 640, height: 470)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
+        .frame(width: 640 * s, height: 470 * s)
+        .glassEffect(.regular, in: .rect(cornerRadius: 24 * s))
         .onChange(of: query) { cursor.reset() }
     }
 
@@ -112,7 +113,7 @@ public struct SearchPanel: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 1) {
+                    LazyVStack(alignment: .leading, spacing: 1 * s) {
                         ForEach(model.sections) { section in
                             sectionHeader(section, recent: recent)
                             ForEach(Array(section.entries.enumerated()), id: \.element.id) { i, entry in
@@ -122,14 +123,14 @@ public struct SearchPanel: View {
                         }
                         if let note = model.moreTasksNote {
                             Text(note)
-                                .font(.caption)
+                                .uiFont(.caption)
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity)
-                                .padding(12)
+                                .padding(12 * s)
                         }
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10 * s)
+                    .padding(.vertical, 8 * s)
                 }
                 .scrollIndicators(.automatic)
                 .onChange(of: active) { _, new in
@@ -143,18 +144,18 @@ public struct SearchPanel: View {
     private func sectionHeader(_ section: SearchSection, recent: RecentSearches) -> some View {
         HStack {
             Text(section.title)
-                .font(.subheadline.weight(.semibold))
+                .uiFont(.subheadline, weight: .semibold)
                 .foregroundStyle(.secondary)
             Spacer()
             if section.kind == .recent {
                 Button("清除") { onRecentSearchesChange([]) }
                     .buttonStyle(.borderless)
-                    .font(.subheadline)
+                    .uiFont(.subheadline)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.top, 10)
-        .padding(.bottom, 4)
+        .padding(.horizontal, 10 * s)
+        .padding(.top, 10 * s)
+        .padding(.bottom, 4 * s)
     }
 
     private func row(_ entry: SearchEntry, model: SearchModel, recent: RecentSearches, active: Bool) -> some View {
@@ -168,11 +169,11 @@ public struct SearchPanel: View {
                 SearchViewRow(entry: entry, terms: model.terms)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 10 * s)
+        .padding(.vertical, 7 * s)
         .background {
             if active {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 10 * s, style: .continuous)
                     .fill(Color.accentColor.opacity(0.18))
             }
         }
@@ -238,7 +239,7 @@ struct PanelSearchField: NSViewRepresentable {
         field.isBordered = false
         field.drawsBackground = false
         field.focusRingType = .none
-        field.font = .systemFont(ofSize: 22, weight: .regular)
+        field.font = Self.font(context.environment.uiScale)
         field.placeholderString = placeholder
         field.cell?.usesSingleLineMode = true
         field.cell?.lineBreakMode = .byTruncatingTail
@@ -249,8 +250,13 @@ struct PanelSearchField: NSViewRepresentable {
         return field
     }
 
+    /// 22 points at 标准, growing with 界面大小.
+    private static func font(_ scale: CGFloat) -> NSFont { .systemFont(ofSize: 22 * scale, weight: .regular) }
+
     func updateNSView(_ field: NSTextField, context: Context) {
         context.coordinator.parent = self
+        let font = Self.font(context.environment.uiScale)
+        if field.font != font { field.font = font }
         if field.stringValue != text {
             field.stringValue = text
             field.currentEditor()?.selectedRange = NSRange(location: (text as NSString).length, length: 0)

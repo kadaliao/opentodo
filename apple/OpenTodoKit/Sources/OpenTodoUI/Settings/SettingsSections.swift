@@ -51,11 +51,17 @@ struct NotificationSettingsSection: View {
                 }
             }
         } header: {
-            Text("提醒与通知")
+            Group {
+                Text("提醒与通知")
+            }
+            .uiDefaultFont(.headline)
         } footer: {
-            #if os(iOS)
-            Text(Self.snoozeHint + "。")
-            #endif
+            Group {
+                #if os(iOS)
+                Text(Self.snoozeHint + "。")
+                #endif
+            }
+            .uiDefaultFont(.subheadline)
         }
     }
 }
@@ -71,9 +77,15 @@ struct TaskDefaultsSection: View {
             reminderPicker("有时间的任务", allDay: false, value: defaults.timedReminders) { d, r in d.timedReminders = r }
             reminderPicker("全天任务", allDay: true, value: defaults.allDayReminders) { d, r in d.allDayReminders = r }
         } header: {
-            Text("新任务的默认提醒")
+            Group {
+                Text("新任务的默认提醒")
+            }
+            .uiDefaultFont(.headline)
         } footer: {
-            Text("快速添加、日期对话框和在日历里拖动时，任务新有了日期或时间，就带上这里的提醒。")
+            Group {
+                Text("快速添加、日期对话框和在日历里拖动时，任务新有了日期或时间，就带上这里的提醒。")
+            }
+            .uiDefaultFont(.subheadline)
         }
         Section {
             Picker("时间段默认时长", selection: binding(\.spanMinutes)) {
@@ -82,7 +94,10 @@ struct TaskDefaultsSection: View {
                 }
             }
         } footer: {
-            Text("设置只保存在这台设备上。")
+            Group {
+                Text("设置只保存在这台设备上。")
+            }
+            .uiDefaultFont(.subheadline)
         }
     }
 
@@ -113,10 +128,12 @@ struct CalendarDisplaySection: View {
     var onChange: (CalendarPrefs) -> Void
 
     var body: some View {
-        Section("日历") {
+        Section {
             Toggle("显示农历和节假日", isOn: binding(\.showLunar))
             Toggle("显示已完成", isOn: binding(\.showCompleted))
             Toggle("显示重复任务以后的日期", isOn: binding(\.showRepeats))
+        } header: {
+            Text("日历").uiDefaultFont(.headline)
         }
     }
 
@@ -153,7 +170,10 @@ struct FocusSettingsSection: View {
                 Text("番茄结束后直接开始休息，休息结束后直接开始下一个番茄")
             }
         } header: {
-            Text("专注")
+            Group {
+                Text("专注")
+            }
+            .uiDefaultFont(.headline)
         }
     }
 
@@ -190,25 +210,32 @@ struct AboutSection: View {
                 Link("github.com/kadaliao/opentodo", destination: URL(string: AboutInfo.repository)!)
             }
         } header: {
-            if showsVersion { Text("关于") }
+            Group {
+                if showsVersion { Text("关于") }
+            }
+            .uiDefaultFont(.headline)
         } footer: {
-            Text("OpenTodo 是开源软件，按 GNU Affero 通用公共许可证第 3 版发布。")
+            Group {
+                Text("OpenTodo 是开源软件，按 GNU Affero 通用公共许可证第 3 版发布。")
+            }
+            .uiDefaultFont(.subheadline)
         }
     }
 }
 
 /// The app's icon and name, at the top of 关于 on macOS.
 struct AppBadge: View {
+    @Environment(\.uiScale) private var s
     let version: String
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 6 * s) {
             icon
-            Text("OpenTodo").font(.title3.weight(.semibold))
-            Text("版本 \(version)").font(.callout).foregroundStyle(.secondary)
+            Text("OpenTodo").uiFont(.title3, weight: .semibold)
+            Text("版本 \(version)").uiFont(.callout).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
+        .padding(.vertical, 6 * s)
     }
 
     /// The app's own icon on macOS; a drawn stand-in elsewhere.
@@ -216,14 +243,14 @@ struct AppBadge: View {
         #if os(macOS)
         Image(nsImage: NSApplication.shared.applicationIconImage)
             .resizable()
-            .frame(width: 72, height: 72)
+            .frame(width: 72 * s, height: 72 * s)
             .accessibilityHidden(true)
         #else
         Image(systemName: "checklist")
-            .font(.system(size: 30, weight: .semibold))
+            .uiFont(size: 30, weight: .semibold)
             .foregroundStyle(.white)
-            .frame(width: 64, height: 64)
-            .background(Palette.accent.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .frame(width: 64 * s, height: 64 * s)
+            .background(Palette.accent.gradient, in: RoundedRectangle(cornerRadius: 14 * s, style: .continuous))
         #endif
     }
 }

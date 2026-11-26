@@ -24,6 +24,7 @@ enum SchedulePage: Hashable {
 }
 
 public struct ScheduleEditorView: View {
+    @Environment(\.uiScale) private var s
     @State private var editor: ScheduleEditor
     private let timeZone: TimeZone
     private let notificationsAllowed: Bool?
@@ -175,15 +176,15 @@ public struct ScheduleEditorView: View {
                 Button {
                     withAnimation(.snappy) { editor.setDate(q.day) }
                 } label: {
-                    VStack(spacing: 3) {
+                    VStack(spacing: 3 * s) {
                         Image(systemName: q.symbol)
-                            .font(.system(size: 17))
+                            .uiFont(size: 17)
                             .symbolVariant(on ? .fill : .none)
-                            .frame(height: 22)
-                        Text(q.title).font(.caption2)
+                            .frame(height: 22 * s)
+                        Text(q.title).uiFont(.caption2)
                     }
                     .foregroundStyle(on ? Color.accentColor : Color.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .frame(maxWidth: .infinity, minHeight: 44 * s)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -199,15 +200,15 @@ public struct ScheduleEditorView: View {
 
     @ViewBuilder private var notificationWarning: some View {
         if !editor.reminders.isEmpty && notificationsAllowed == false {
-            HStack(spacing: 8) {
+            HStack(spacing: 8 * s) {
                 Image(systemName: "bell.slash.fill").foregroundStyle(.red)
                 Text("系统通知已关闭，提醒不会弹出")
-                    .font(.footnote)
+                    .uiFont(.footnote)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 4)
                 if let openNotificationSettings {
                     Button("去开启", action: openNotificationSettings)
-                        .font(.footnote.weight(.semibold))
+                        .uiFont(.footnote, weight: .semibold)
                         .buttonStyle(.borderless)
                 }
             }
@@ -215,7 +216,7 @@ public struct ScheduleEditorView: View {
     }
 
     private var spanError: some View {
-        Text("结束要晚于开始").font(.footnote).foregroundStyle(.red)
+        Text("结束要晚于开始").uiFont(.footnote).foregroundStyle(.red)
     }
 
     private var spanComponents: DatePicker<Text>.Components {
@@ -291,7 +292,7 @@ extension ScheduleEditorView {
                     Button(role: .close, action: onCancel)
                 }
                 ToolbarItem(placement: .principal) {
-                    modePicker.frame(width: 180)
+                    modePicker.frame(width: 180 * s)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(role: .confirm, action: commit)
@@ -343,7 +344,7 @@ extension ScheduleEditorView {
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
-        .frame(width: 320)
+        .frame(width: 320 * s)
         .clipped()
         .animation(.snappy(duration: 0.3), value: page)
         .task {
@@ -356,15 +357,15 @@ extension ScheduleEditorView {
     private var main: some View {
         VStack(spacing: 0) {
             modePicker
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 14 * s)
+                .padding(.top, 14 * s)
+                .padding(.bottom, 8 * s)
             if editor.isSpan {
-                spanRows.padding(.horizontal, 14).padding(.vertical, 6)
+                spanRows.padding(.horizontal, 14 * s).padding(.vertical, 6 * s)
             } else {
-                quickDates.padding(.horizontal, 6)
-                monthCalendar.padding(.horizontal, 10).padding(.top, 4).padding(.bottom, 6)
-                Divider().padding(.horizontal, 14)
+                quickDates.padding(.horizontal, 6 * s)
+                monthCalendar.padding(.horizontal, 10 * s).padding(.top, 4 * s).padding(.bottom, 6 * s)
+                Divider().padding(.horizontal, 14 * s)
                 MacRow(symbol: "clock", tint: editor.time != nil) {
                     Text("时间")
                 } trailing: {
@@ -376,23 +377,23 @@ extension ScheduleEditorView {
                     Toggle("时间", isOn: hasTime).labelsHidden().toggleStyle(.switch).controlSize(.mini)
                 }
             }
-            Divider().padding(.horizontal, 14)
+            Divider().padding(.horizontal, 14 * s)
             MacRow(symbol: "bell", tint: !editor.reminders.isEmpty) {
                 Text("提醒")
             } trailing: {
                 Button {
                     page = .reminders
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 4 * s) {
                         Text(editor.remindersText ?? "无").lineLimit(1)
-                        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                        Image(systemName: "chevron.right").uiFont(.caption, weight: .semibold).foregroundStyle(.tertiary)
                     }
                     .foregroundStyle(editor.reminders.isEmpty ? Color.secondary : Color.primary)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
-            notificationWarning.padding(.horizontal, 14).padding(.bottom, 6)
+            notificationWarning.padding(.horizontal, 14 * s).padding(.bottom, 6 * s)
             MacRow(symbol: "repeat", tint: editor.repeatRule != nil) {
                 Text("重复")
             } trailing: {
@@ -407,7 +408,7 @@ extension ScheduleEditorView {
                     .keyboardShortcut(.defaultAction)
                     .disabled(editor.result == nil)
             }
-            .padding(12)
+            .padding(12 * s)
         }
     }
 
@@ -416,7 +417,7 @@ extension ScheduleEditorView {
     private func pageView(_ p: SchedulePage) -> some View {
         VStack(spacing: 0) {
             ZStack {
-                Text(p == .reminders ? "提醒" : "自定义重复").font(.headline)
+                Text(p == .reminders ? "提醒" : "自定义重复").uiFont(.headline)
                 HStack {
                     Button {
                         page = nil
@@ -429,8 +430,8 @@ extension ScheduleEditorView {
                     Spacer()
                 }
             }
-            .padding(.horizontal, 14)
-            .frame(height: 44)
+            .padding(.horizontal, 14 * s)
+            .frame(height: 44 * s)
             Divider()
             switch p {
             case .reminders:
@@ -480,7 +481,7 @@ extension ScheduleEditorView {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         if !editor.isSpanValid {
-            spanError.frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
+            spanError.frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4 * s)
         }
     }
 }
@@ -488,28 +489,30 @@ extension ScheduleEditorView {
 /// A line of the macOS panel: icon and title on the left, the control on
 /// the right.
 private struct MacRow<Title: View, Trailing: View>: View {
+    @Environment(\.uiScale) private var s
     let symbol: String
     let tint: Bool
     @ViewBuilder let title: Title
     @ViewBuilder let trailing: Trailing
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8 * s) {
             Image(systemName: symbol)
                 .foregroundStyle(tint ? Color.accentColor : Color.secondary)
-                .frame(width: 18)
+                .frame(width: 18 * s)
             title
             Spacer(minLength: 8)
             trailing
         }
-        .padding(.horizontal, 14)
-        .frame(minHeight: 34)
+        .padding(.horizontal, 14 * s)
+        .frame(minHeight: 34 * s)
     }
 }
 #endif
 
 /// iOS: a title with a coloured symbol tile, as in Settings and Reminders.
 struct ScheduleRowLabel: View {
+    @Environment(\.uiScale) private var s
     let title: String
     let symbol: String
     let tint: Color
@@ -525,10 +528,10 @@ struct ScheduleRowLabel: View {
             Text(title)
         } icon: {
             Image(systemName: symbol)
-                .font(.system(size: 14, weight: .semibold))
+                .uiFont(size: 14, weight: .semibold)
                 .foregroundStyle(.white)
-                .frame(width: 28, height: 28)
-                .background(tint.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .frame(width: 28 * s, height: 28 * s)
+                .background(tint.gradient, in: RoundedRectangle(cornerRadius: 7 * s, style: .continuous))
         }
     }
 }

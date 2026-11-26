@@ -269,6 +269,7 @@ public struct CalendarView: View {
 /// of its own. (As an inspector on a phone its title took over the
 /// calendar's month title even while it was closed.)
 private struct ArrangePanelPresentation: ViewModifier {
+    @Environment(\.uiScale) private var s
     @Binding var isPresented: Bool
     let compact: Bool
     let ctx: CalendarContext
@@ -292,13 +293,13 @@ private struct ArrangePanelPresentation: ViewModifier {
         } else {
             content.inspector(isPresented: $isPresented) {
                 ArrangePanel(ctx: ctx)
-                    .inspectorColumnWidth(min: 240, ideal: 280, max: 360)
+                    .inspectorColumnWidth(min: 240, ideal: 280 * s, max: 360 * s)
             }
         }
         #else
         content.inspector(isPresented: $isPresented) {
             ArrangePanel(ctx: ctx)
-                .inspectorColumnWidth(min: 240, ideal: 280, max: 360)
+                .inspectorColumnWidth(min: 240, ideal: 280 * s, max: 360 * s)
         }
         #endif
     }

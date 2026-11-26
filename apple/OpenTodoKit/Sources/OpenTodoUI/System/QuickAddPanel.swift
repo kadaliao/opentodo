@@ -24,6 +24,8 @@ final class QuickAddPanelController {
     func show(model: AppModel) {
         let panel = self.panel ?? make(model: model)
         self.panel = panel
+        // As big as the view is at the current 界面大小.
+        if let host = panel.contentView { panel.setContentSize(host.fittingSize) }
         let screen = NSScreen.main ?? NSScreen.screens.first
         if let frame = screen?.visibleFrame {
             let size = panel.frame.size
@@ -55,8 +57,11 @@ final class QuickAddPanelController {
         panel.onClose = { [weak self] in self?.close() }
         let view = QuickAddPanelView(state: state) { [weak self] in self?.close() }
             .environment(model)
+            .interfaceScaleRoot()
         let host = NSHostingView(rootView: view)
         host.frame = NSRect(x: 0, y: 0, width: QuickAddPanelView.width, height: QuickAddPanelView.height)
+        // The panel takes the view's size, which grows with 界面大小.
+        host.sizingOptions = [.intrinsicContentSize]
         panel.contentView = host
         return panel
     }
@@ -85,19 +90,21 @@ final class QuickAddPanel: NSPanel {
 }
 
 struct QuickAddPanelView: View {
+    /// At 标准; they grow with 界面大小.
     static let width: CGFloat = 640
     static let height: CGFloat = 64
 
     let state: QuickAddPanelState
     let close: () -> Void
+    @Environment(\.uiScale) private var s
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 12 * s) {
             QuickAddField(prompt: "添加任务：明天下午3点开会 #工作 !高", focusRequests: state.shows) { _ in close() }
         }
-        .padding(.horizontal, 20)
-        .frame(width: Self.width, height: Self.height)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(.horizontal, 20 * s)
+        .frame(width: Self.width * s, height: Self.height * s)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22 * s, style: .continuous))
         .onExitCommand(perform: close)
     }
 }

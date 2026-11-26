@@ -73,22 +73,24 @@ struct CalendarContext {
 struct CalendarDayNote: View {
     let date: Day
     var dim = false
-    var font: Font = .system(size: 10)
+    /// The text's style; nil: 10 points.
+    var style: Font.TextStyle?
+    @Environment(\.uiScale) private var s
 
     var body: some View {
         let note = dayNote(date)
-        HStack(spacing: 3) {
+        HStack(spacing: 3 * s) {
             Text(note.label)
-                .font(font)
+                .font(style.map { Font.ui($0, scale: s) } ?? Font.ui(size: 10, scale: s))
                 .foregroundStyle(dim ? AnyShapeStyle(.quaternary) : note.special ? AnyShapeStyle(Palette.accent) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .layoutPriority(-1)
             if let off = note.off {
                 Text(off ? "休" : "班")
-                    .font(.system(size: 9, weight: .semibold))
+                    .uiFont(size: 9, weight: .semibold)
                     .foregroundStyle(off ? DayMarkColors.off : DayMarkColors.worked)
-                    .padding(.horizontal, 2)
+                    .padding(.horizontal, 2 * s)
                     .background((off ? DayMarkColors.off : DayMarkColors.worked).opacity(dim ? 0.06 : 0.14),
                                 in: RoundedRectangle(cornerRadius: 3))
                     .opacity(dim ? 0.5 : 1)
@@ -102,15 +104,16 @@ struct CalendarDayNote: View {
 struct CalendarMoreButton: View {
     let count: Int
     let action: () -> Void
+    @Environment(\.uiScale) private var s
 
     var body: some View {
         Button(action: action) {
             Text(verbatim: "+\(count)")
-                .font(.system(size: 11, weight: .medium))
+                .uiFont(size: 11, weight: .medium)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
-                .frame(height: CalendarMetrics.chipHeight)
+                .padding(.horizontal, 4 * s)
+                .frame(height: CalendarMetrics.chipHeight * s)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -123,17 +126,19 @@ struct CalendarDayNumber: View {
     let text: String
     let isToday: Bool
     var dim = false
+    /// At 标准.
     var size: CGFloat = 12
+    @Environment(\.uiScale) private var s
 
     var body: some View {
         Text(text)
-            .font(.system(size: size, weight: isToday ? .semibold : .regular))
+            .uiFont(size: size, weight: isToday ? .semibold : .regular)
             .monospacedDigit()
             .foregroundStyle(isToday ? AnyShapeStyle(Color.white) : dim ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
             .lineLimit(1)
             .fixedSize()
-            .padding(.horizontal, isToday ? 6 : 4)
-            .frame(minWidth: size + 10, minHeight: size + 8)
+            .padding(.horizontal, (isToday ? 6 : 4) * s)
+            .frame(minWidth: (size + 10) * s, minHeight: (size + 8) * s)
             .background {
                 if isToday { Capsule().fill(Color.red) }
             }
@@ -194,18 +199,19 @@ extension CalendarContext {
 struct NewTaskPanel: View {
     let ctx: CalendarContext
     let request: CalendarNewTask
+    @Environment(\.uiScale) private var s
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12 * s) {
             Label(CalendarLogic.newTaskHeading(date: request.date, time: request.time, today: ctx.today), systemImage: "calendar.badge.plus")
-                .font(.headline)
+                .uiFont(.headline)
                 .foregroundStyle(Palette.accent)
             if let field = ctx.options.quickAdd {
                 field(request) { ctx.model.newTask = nil }
             }
         }
-        .padding(16)
-        .frame(minWidth: 320, idealWidth: 380, alignment: .leading)
+        .padding(16 * s)
+        .frame(minWidth: 320 * s, idealWidth: 380 * s, alignment: .leading)
     }
 }
 

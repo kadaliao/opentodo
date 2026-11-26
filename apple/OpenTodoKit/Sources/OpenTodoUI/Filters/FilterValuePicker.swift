@@ -21,6 +21,7 @@ struct FilterPickerContext {
 }
 
 struct FilterValuePicker: View {
+    @Environment(\.uiScale) private var s
     let field: FilterField
     @Binding var values: [String]
     let context: FilterPickerContext
@@ -36,13 +37,13 @@ struct FilterValuePicker: View {
         let button = Button {
             open.toggle()
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 4 * s) {
                 Text(context.summary(field, values))
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: label == nil ? .leading : .trailing)
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2.weight(.semibold))
+                    .uiFont(.caption2, weight: .semibold)
                     .foregroundStyle(.secondary)
             }
             .contentShape(.rect)
@@ -51,8 +52,8 @@ struct FilterValuePicker: View {
         .foregroundStyle(.primary)
         .popover(isPresented: $open, arrowEdge: .bottom) {
             FilterValueChecklist(field: field, values: $values, context: context)
-                .frame(width: 260)
-                .frame(maxHeight: 420)
+                .frame(width: 260 * s)
+                .frame(maxHeight: 420 * s)
         }
         .accessibilityLabel(label ?? field.label)
         .accessibilityValue(context.summary(field, values))
@@ -80,6 +81,7 @@ struct FilterValuePicker: View {
 
 /// The choices with a tick each; for dates, the custom range after them.
 struct FilterValueChecklist: View {
+    @Environment(\.uiScale) private var s
     let field: FilterField
     @Binding var values: [String]
     let context: FilterPickerContext
@@ -88,17 +90,17 @@ struct FilterValueChecklist: View {
         let options = filterValueOptions(field, values: values, lists: context.lists, tags: context.tags)
         #if os(macOS)
         ScrollView {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 6 * s) {
                 ForEach(options) { o in
                     Toggle(o.label, isOn: tick(o, options))
                         .toggleStyle(.checkbox)
                 }
                 if field == .date {
-                    Divider().padding(.vertical, 2)
+                    Divider().padding(.vertical, 2 * s)
                     rangeEditor
                 }
             }
-            .padding(14)
+            .padding(14 * s)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollBounceBehavior(.basedOnSize)
@@ -114,7 +116,7 @@ struct FilterValueChecklist: View {
                             Spacer()
                             if values.contains(o.value) {
                                 Image(systemName: "checkmark")
-                                    .font(.body.weight(.semibold))
+                                    .uiFont(.body, weight: .semibold)
                                     .foregroundStyle(.tint)
                             }
                         }

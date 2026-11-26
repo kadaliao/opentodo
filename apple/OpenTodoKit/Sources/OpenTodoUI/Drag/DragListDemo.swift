@@ -83,7 +83,7 @@ struct DragListDemo: View {
 
     private func header(_ section: TaskSection, title: String, drop: GroupDrop?, listSections: [ListSection]) -> some View {
         HStack {
-            Text(title).font(.headline).foregroundStyle(section.alert ? .red : .primary)
+            Text(title).uiFont(.headline).foregroundStyle(section.alert ? .red : .primary)
             Text(section.tasks.count, format: .number).foregroundStyle(.secondary)
             Spacer()
             if let s = section.listSection {
@@ -118,7 +118,7 @@ struct DragListDemo: View {
             Text(task.title).lineLimit(1)
             Spacer()
             if let due = task.dueDate {
-                Text(dueLabel(due, task.dueTime, today: BoardDemoStore.now.day)).font(.caption).foregroundStyle(.secondary)
+                Text(dueLabel(due, task.dueTime, today: BoardDemoStore.now.day)).uiFont(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 9)
@@ -148,7 +148,7 @@ private struct HeaderSection: ViewModifier {
             content
                 .dropSlot("section-\(section.id)", .section(section, among: among, axis: .vertical))
                 .sectionDragSource(section) {
-                    Text(title).font(.headline).padding(10).frame(width: 240, alignment: .leading)
+                    Text(title).uiFont(.headline).padding(10).frame(width: 240, alignment: .leading)
                         .background(BoardStyle.cardFill, in: .rect(cornerRadius: 10))
                 }
         } else {

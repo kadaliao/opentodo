@@ -110,3 +110,33 @@ struct DebugWindowSizer: NSViewRepresentable {
     }
 }
 #endif
+
+#if os(macOS)
+/// `-OTHiddenWindows yes`: every window goes one level below the desktop
+/// picture as it's ordered in, so nobody sees it come and go, while it is
+/// still on a screen, drawn and capturable (`screencapture -l`,
+/// ScreenCaptureKit), like a window covered by others. (Off the screens
+/// altogether neither of them could capture it.) Debug builds started by
+/// scripts only.
+@MainActor
+enum DebugHiddenWindows {
+    static let level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
+    private static var installed = false
+
+    static func install() {
+        guard !installed else { return }
+        installed = true
+        guard let a = class_getInstanceMethod(NSWindow.self, #selector(NSWindow.order(_:relativeTo:))),
+              let b = class_getInstanceMethod(NSWindow.self, #selector(NSWindow.ot_order(_:relativeTo:))) else { return }
+        method_exchangeImplementations(a, b)
+    }
+}
+
+extension NSWindow {
+    /// Swapped with `order(_:relativeTo:)`: this name then runs the original.
+    @objc fileprivate func ot_order(_ place: NSWindow.OrderingMode, relativeTo other: Int) {
+        if place != .out && level != DebugHiddenWindows.level { level = DebugHiddenWindows.level }
+        ot_order(place, relativeTo: other)
+    }
+}
+#endif

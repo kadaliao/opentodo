@@ -60,10 +60,15 @@ apple/
 ## 4. 界面原则
 
 - 像系统应用：macOS 用 `NavigationSplitView`（侧栏 / 列表 / 详情）、工具栏、菜单栏命令和快捷键、设置窗口、右键菜单；iOS 用 `TabView` + `NavigationStack`、半屏 sheet、滑动操作、长按菜单。控件、间距、字体、图标（SF Symbols）、材质都用系统默认的，不自己画一套。
+- **界面大小**（macOS，设置 → 通用，显示菜单 ⌘+ / ⌘- / ⌘0）：小 / 标准 / 大 / 特大，存在本机 UserDefaults（`InterfacePrefs`）。macOS 的系统文字样式不跟 `.dynamicTypeSize` 变，`@ScaledMetric` 也不变，所以缩放是一个环境值 `uiScale`，只在每个窗口的根上由 `.interfaceScaleRoot()` 设一次（主窗口、设置窗口、菜单栏小窗、快速添加面板；同时设默认字体、控件大小、侧栏行高）。写界面照这个约定，就会跟着变（`Components/InterfaceScale.swift` 文件头有例子）：
+  - 字体用 `.uiFont(.body)`、`.uiFont(.caption, weight: .semibold)`、`.uiFont(size: 11)`，不用 `.font(…)`；要 `Font` 值（`Text` 里拼 `Text`、Canvas）用 `Font.ui(.caption, scale: s)`。没写字体的文字跟根上的默认字体走。
+  - 写死的尺寸（frame、padding、spacing、圆角、图标框、行高）乘 `@Environment(\.uiScale) private var s`：`.frame(width: 16 * s)`；存起来的尺寸可以用 `@UIScaled private var box: CGFloat = 16`。窗口最小尺寸、分栏的最小宽度、日历每小时的高度、时间线的行高和每天的宽度不乘。
+  - 系统自己定字体的文字（`Section` 的 header / footer、侧栏分组标题）加 `.uiDefaultFont(.headline)` 之类：标准档什么都不做，别的档给一个跟着变的字体（否则会变成和行一样大）。
+  - 标准档时这些帮手返回的就是原来的字体和尺寸，根上什么都不设，所以默认外观一个像素都不变；iOS 上 `uiScale` 恒为 1，照旧跟系统的动态字体走。
 - 深色模式、动态字体、VoiceOver 标签要正常。强调色是 `#14A38B`（Assets 里的 AccentColor），优先级颜色照 `app/lib/ui/theme.dart`。
 - 状态放在 `@Observable` 的模型里（`AppModel` 经 `.environment` 传下去），视图里不直接碰数据库；写操作都走 `TaskRepo`。
 - 竞品截图在 `reference/dida-app/`（不进仓库；用 worktree 时它只在主工作区里，位置见 `CLAUDE.local.md`），只看功能怎么组织；名字、图标、文案、配色不能用。
-- 调试入口（只在调试版里，应用外壳用 `#if DEBUG` 把 `DebugLaunch.current` 传给 `RootView`）：`-OTDatabasePath <文件>` 指定数据库（这时通知放内存、令牌放库里、不注册全局快捷键）、`-OTSeed demo` 填演示数据、`-OTOpen <路由>` 直接打开某个界面、`-OTAppearance light|dark`、`-OTQuickAdd <文字>` 预填快速添加、`-OTSnapshot <png>`（macOS）窗口出来、数据到了以后自己画成 PNG 再退出。路由（`smart:today`、`list:<id>`、`task:<id>`、`calendar:month`，各功能的演示路由）的完整列表在 `OpenTodoUI/App/DebugLaunch.swift` 文件头。macOS 版开了沙盒，只能写自己的容器，所以文件参数写相对路径时落在应用的临时目录（`~/Library/Containers/com.liaoxingyi.opentodo.dev/Data/tmp/`），脚本都这么传。
+- 调试入口（只在调试版里，应用外壳用 `#if DEBUG` 把 `DebugLaunch.current` 传给 `RootView`）：`-OTDatabasePath <文件>` 指定数据库（这时通知放内存、令牌放库里、不注册全局快捷键）、`-OTSeed demo` 填演示数据、`-OTOpen <路由>` 直接打开某个界面、`-OTAppearance light|dark`、`-OTQuickAdd <文字>` 预填快速添加、`-OTInterfaceSize small|standard|large|extraLarge`（macOS）这次运行用的界面大小（不管存的是什么）、`-OTHiddenWindows yes`（macOS）窗口都放到桌面后面（第 5 节）、`-OTSnapshot <png>`（macOS）窗口出来、数据到了以后自己画成 PNG 再退出。路由（`smart:today`、`list:<id>`、`task:<id>`、`calendar:month`，各功能的演示路由）的完整列表在 `OpenTodoUI/App/DebugLaunch.swift` 文件头。macOS 版开了沙盒，只能写自己的容器，所以文件参数写相对路径时落在应用的临时目录（`~/Library/Containers/com.liaoxingyi.opentodo.dev/Data/tmp/`），脚本都这么传。
 
 ## 5. 怎么验证
 
@@ -77,9 +82,9 @@ cd apple && ./scripts/generate.sh                      # 生成 OpenTodo.xcodepr
 ```
 
 - 脚本按自己所在的位置找路径，在哪个 worktree 里都能原样用。build.sh 失败时只打印错误，完整日志在 `.derived/build-<平台>.log`。
-- shot.sh 的环境变量：`OT_NO_BUILD=1` 不重新编；`OT_APPEARANCE=dark` 深色；`OT_SEED=` 不填演示数据（默认 `demo`）；`OT_QUICKADD=<文字>` 预填快速添加；`OT_SIM_TYPE` 新建模拟器的机型（默认 iPhone 18 Pro）。iOS 截图会把状态栏固定成 9:41、满电，模拟器截完不关。macOS 另有 `OT_WINDOW_SIZE=760x460` 窗口内容尺寸（默认 1180x760，经 `-OTWindowSize`，不用上次记住的大小）；`OT_MAC_METHOD=app` 用 ScreenCaptureKit 截应用自己的全部窗口，popover 和 sheet 叠在窗口上一起截出来（`OT_SHOT_WINDOW=settings` 截设置窗口，配 `settings:<页>` 路由：general / tasks / notifications / focus / quickAdd / account / about）。
+- shot.sh 的环境变量：`OT_NO_BUILD=1` 不重新编；`OT_INTERFACE_SIZE=large` 界面大小（macOS，经 `-OTInterfaceSize`）；`OT_APPEARANCE=dark` 深色；`OT_SEED=` 不填演示数据（默认 `demo`）；`OT_QUICKADD=<文字>` 预填快速添加；`OT_SIM_TYPE` 新建模拟器的机型（默认 iPhone 18 Pro）。iOS 截图会把状态栏固定成 9:41、满电，模拟器截完不关。macOS 另有 `OT_WINDOW_SIZE=760x460` 窗口内容尺寸（默认 1180x760，经 `-OTWindowSize`，不用上次记住的大小）；`OT_MAC_METHOD=app` 用 ScreenCaptureKit 截应用自己的全部窗口，popover 和 sheet 叠在窗口上一起截出来（`OT_SHOT_WINDOW=settings` 截设置窗口，配 `settings:<页>` 路由：general / tasks / notifications / focus / quickAdd / account / about）。
 - macOS 截图有两种办法（`OT_MAC_METHOD`）：`window` 是 `screencapture -l<窗口号>`，要终端有“屏幕录制”权限，截出来和屏幕上一模一样（窗口不在前台，所以红绿灯是灰的）；`self` 是应用自己用 `-OTSnapshot` 把窗口画成 PNG，不要权限，但 AppKit 画不出 Liquid Glass 之类的材质，`NavigationSplitView` 的侧栏一整栏是空白。不指定时脚本先问系统有没有权限（`CGPreflightScreenCaptureAccess`），有就用 `window`，没有就退回 `self`。两种办法的限制见第 10 节。
-- macOS 调试版用 `open -g -n -F` 在后台启动（不抢前台、不恢复旧窗口），截完自动退出。
+- macOS 调试版用 `open -g -n -F` 在后台启动（不抢前台、不恢复旧窗口），截完自动退出。脚本默认还带 `-OTHiddenWindows yes`：调试版的每个窗口（主窗口、设置、弹出框、sheet、面板）一出来就放到桌面图片下面一层（`DebugHiddenWindows`，交换了 `NSWindow.order(_:relativeTo:)`），用户看不见窗口开开关关，`screencapture -l` 和 ScreenCaptureKit 照样截得到。要看得见就 `OT_VISIBLE=1`。放到所有屏幕之外不行：窗口能挪出去，但两种截图方法都截不到（“could not create image from window”、SCStream -3811）。`OT_MAC_METHOD=app` 现在逐个窗口截（`desktopIndependentWindow`）再按位置叠起来；弹出框这样截，顶上的玻璃底会画成整个窗口的缩略图，要看弹出框用 `OT_VISIBLE=1`。
 - 经 ssh 登进来的会话（比如 herdr 远程连回本机）没有“屏幕录制”权限，`screencapture -l` 报 “could not create image from window”，脚本退回自绘；登录钥匙串在那种会话里也可能锁着，codesign 报 errSecInternalComponent，这时用 `OT_UNSIGNED=1 ./scripts/build.sh macos` 编不签名的调试版（没有沙盒和 App Group，带 `-OTDatabasePath` 的截图和自检够用）。真窗口截图要在本机终端（有屏幕录制权限的那个应用）里跑。
 - 脚本启动的窗口会排到别的窗口后面（`-OTWindowSize` 时，`DebugWindowSizer`），不挡用户正在用的窗口；用户在全屏应用里时它开在桌面那个空间，`screencapture -l` 照样截得到（`windowid` 也找别的空间里的窗口），但 `OT_MAC_METHOD=app`（ScreenCaptureKit）截不到，popover 和设置窗口要等用户回到桌面再截。屏幕锁着时什么都截不到（“could not create image from window”），要等解锁；判断锁屏看 `CGSessionCopyCurrentDictionary()` 的 `CGSSessionScreenIsLocked`。
 
@@ -134,7 +139,7 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
   - 工具栏：每个模块只在自己的视图上加按钮，外壳不加通用按钮（任务模块的搜索放大镜除外）。
 - **菜单栏命令**（`AppCommands`，经 `.focusedSceneValue(\.appModel, …)` 找到当前窗口，文件头有完整的表）：
   - 文件 › 新建任务 ⌘N、新建清单 ⇧⌘N；编辑 › 搜索 ⌘F（⌘A、Esc 归列表和日历自己）。
-  - 显示 › 各模块 ⌘1–⌘6；任务模块的显示为列表 / 看板 / 时间线 ⌃⌘1–3、显示已完成 ⇧⌘H；日历的日 / 3天 / 周 / 月 / 日程 ⌃⌘1–5、年、多周。
+  - 显示 › 各模块 ⌘1–⌘6；任务模块的显示为列表 / 看板 / 时间线 ⌃⌘1–3、显示已完成 ⇧⌘H；日历的日 / 3天 / 周 / 月 / 日程 ⌃⌘1–5、年、多周；放大 ⌘+（⌘= 也行，`InterfaceSizeKeys`）、缩小 ⌘-、实际大小 ⌘0（界面大小，不要窗口在前台）。
   - 前往 › 今天 / 明天 / 最近7天 / 收集箱 ⇧⌘1–4、各清单、已完成、垃圾桶；日历的回到今天 ⌃⌘T、上一页 ⌃⌘←、下一页 ⌃⌘→。
   - 任务 › 完成 ⌘↩、日期（今天 ⌃⌘T、明天 ⌃⌘M、下周一、选择日期… ⌘D、清除日期）、优先级 ⌥⌘1/2/3/0、置顶 ⇧⌘P、跳过此次、创建副本、删除 ⌘⌫。对打开的任务（在日历里是日历打开的），有多选时完成、优先级、删除对所选的。
   - 清单 › 编辑清单、添加分组、删除清单（当前清单）。
@@ -232,7 +237,7 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 | `ViewIcon` | 智能清单 / 清单 / 过滤器 / 标签的图标：清单有 emoji 用 emoji，否则 SF Symbol。`.plain` 用在侧栏（颜色由行的 `.listItemTint(icon.tint)` 给，选中时系统会反白），`.badge` 用在 iOS 列表（彩色圆底白图标） |
 | `Palette` | 强调色、优先级颜色（照 `app/lib/ui/theme.dart`）、过期红、清单颜色（ARGB 整数转 `Color`）；`SmartKind` 的 `title` / `symbol` / `tint` 也在这里 |
 
-字号和间距只在 `TaskRow.Metrics` 里分平台定一次（标题 `.body`、小字 `.subheadline`），其余都用系统默认：列表样式（Mac `.inset`、iPhone `.plain`、侧栏 `.sidebar`、详情 `Form` 的 `.grouped`）、工具栏、标签栏的 Liquid Glass 都是系统自己画的，不要自己仿。
+字号和间距只在 `TaskRow.Metrics` 里分平台定一次（标题 `.body`、小字 `.subheadline`，都是标准档的，经 `uiFont` / `uiScale` 跟着界面大小变），其余都用系统默认：列表样式（Mac `.inset`、iPhone `.plain`、侧栏 `.sidebar`、详情 `Form` 的 `.grouped`）、工具栏、标签栏的 Liquid Glass 都是系统自己画的，不要自己仿。
 
 ### 应用图标
 
@@ -388,10 +393,13 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 - 窄列里“星期 + 日期 + 农历”挤一行会互相盖住；用 `ViewThatFits`：放得下一行就一行，放不下就星期在上、日期在下、不显示农历。
 - macOS 26 上用 `safeAreaInset` 挂在列表上下的栏（侧栏顶上的模块栏、底下的账号行）没有滚动边缘效果，列表滚到它下面时文字叠在一起；改用 `safeAreaBar`。
 - macOS 的工具栏：`.secondaryAction` 放在整条工具栏的中间，不是主按钮旁边（要放一起就都用 `.primaryAction`，iOS 再用 `.secondaryAction` 收进 … 菜单，见 `ToolbarItemPlacement.moreActions`）；三栏里 detail 栏的 `.primaryAction` 排在这一栏的最左边，要靠右先放 `ToolbarSpacer(.flexible)`；`.inspector` 内容里的 `.toolbar` 在 inspector 关着时照样显示，要按开没开加 `if`。
-- `NavigationSplitView` 各栏的最小宽度加起来比窗口的最小宽度（`RootView` 的 760）大时，窗口缩到最窄各栏互相压住：侧栏的行被截掉左边、详情被截掉右边。各栏的 `min` 要加得起来。
+- `NavigationSplitView` 各栏的最小宽度加起来比窗口的最小宽度（`RootView` 的 760）大时，窗口缩到最窄各栏互相压住：侧栏的行被截掉左边、详情被截掉右边。各栏的 `min` 要加得起来。栏里有定宽的内容也会撑开这一栏：模块栏六个图标在界面大小特大时比侧栏最小宽度还宽，最窄窗口里三栏又压住了；现在图标能压窄（`frame(minWidth:idealWidth:maxWidth:)`，`layoutPriority(1)` 让它们先于 Spacer 拿到宽度，标准档照旧 30）。
 - 选中的列表行（前台窗口里是强调色底、白字）里写死颜色的文字（`.tint`、红色）不会跟着变白，读 `@Environment(\.backgroundProminence)`，`.increased` 时改用 `.secondary`。
 - 很宽的横向 `ScrollView`（时间线前后各十年，几十万点宽）在 Mac 窗口的分栏排版还没定下来时会被排回最开头，`ScrollPosition(x:)` 的初值也不再生效，时间线就开在十年前。`TimelineView` 现在等画布有了宽度才建滚动视图，宽窄两种排法用同一个 `AnyLayout` 不重建它，滚动位置一下子跳回开头时再放回去。这类问题用脚本截图不一定碰得上（有时对有时错），要多跑几次、往 stderr 打滚动位置看。
 - `.preferredColorScheme` 只管它所在的窗口，`Settings` 场景的窗口要单独加（调试的 `-OTAppearance`）。
+- macOS 26 上 `.dynamicTypeSize(.xxxLarge)` 放在窗口根上，`.body` 这些文字样式和 `@ScaledMetric` 都纹丝不动（截图逐像素一样），界面大小因此是自己的 `uiScale`（第 4 节）。
+- 往环境里写一个值，哪怕和原来的一样，也会改样子：`.controlSize(.regular)` 让 `Form` 里的开关从它自己挑的小号变成普通大小、工具栏按钮变小；`.font(nil)`（或 `transformEnvironment` 原样写回）让侧栏分组标题从系统的小号粗体变成正文大小。要“标准档什么都不变”，只能在标准档干脆不加这个修饰器（`InterfaceScaleRoot`、`uiDefaultFont` 都是这样），代价是在标准和别的档之间切换时下面的视图会重建。
+- 根上设了默认字体以后，`Section` 的 header / footer 和侧栏分组标题会直接用它（和行一样大、不加粗）；`NavigationLink` 的标签反而不吃根上的字体，标题要自己 `.uiFont(.body)`。表单里菜单样式 `Picker` 的当前值是系统画的弹出按钮，字号既不跟字体走，`.controlSize(.large / .extraLarge)` 也不变（只有开关变大），所以界面大小变大时它还是 13pt。
 
 **启动和数据**
 - 窗口的 `AppModel` 在启动时先填种子数据、再开始观察数据库，它的第一份快照之前不算“已加载”，`-OTOpen` 路由就等在这里。但系统集成的 `SystemSync` 收到外部写入的信号时，会把读到的快照交给所有登记过的模型，包括还在填种子的窗口：窗口拿到一份空快照，就以为已经加载，路由（`task:<id>`）在空库上执行，找不到任务就丢掉了，手机上停在首页。现在 `SystemSync` 跳过已经开始但还没收到第一份快照的模型（`AppModel.awaitingFirstSnapshot`）。

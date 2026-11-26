@@ -5,29 +5,30 @@
 import SwiftUI
 
 struct NoticeBanner: ViewModifier {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
 
     func body(content: Content) -> some View {
         content.overlay(alignment: .bottom) {
             if let notice = model.notices.current {
-                HStack(spacing: 12) {
+                HStack(spacing: 12 * s) {
                     Text(notice.text)
-                        .font(.callout)
+                        .uiFont(.callout)
                         .lineLimit(2)
                     if notice.action != nil {
                         Button(notice.actionLabel) {
                             Task { await model.notices.runAction() }
                         }
-                        .font(.callout.weight(.semibold))
+                        .uiFont(.callout, weight: .semibold)
                         .buttonStyle(.plain)
                         .foregroundStyle(.tint)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 16 * s)
+                .padding(.vertical, 10 * s)
                 .glassEffect(.regular, in: Capsule())
                 .padding(.bottom, bottomInset)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 16 * s)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .id(notice.id)
                 .accessibilityElement(children: .combine)

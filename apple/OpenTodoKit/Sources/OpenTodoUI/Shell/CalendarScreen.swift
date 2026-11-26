@@ -47,6 +47,7 @@ private struct CalendarArea: View {
 }
 
 private struct CalendarSplitView: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
     /// Room for the detail or batch panel beside the calendar; narrower,
     /// the batch bar goes along the bottom and a task opens in a sheet.
@@ -58,7 +59,7 @@ private struct CalendarSplitView: View {
             CalendarSidebar(model: calendar, tasks: calendar.shownTasks(model.data.tasks, filters: model.filters, now: model.now), lists: model.lists, now: model.now)
                 .moduleBar()
                 .modifier(AccountFooter())
-                .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 320)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 250 * s, max: 320 * s)
                 #if os(iOS)
                 .navigationTitle("日历")
                 #endif
@@ -94,14 +95,14 @@ private struct CalendarSplitView: View {
                     ) { action in
                         model.run { await model.applyBatch(action, order: model.calendarOrder) }
                     }
-                    .frame(width: 340)
+                    .frame(width: 340 * s)
                 } else if beside, let id = calendar.openTaskId, model.task(id) != nil {
                     Divider()
                     CalendarDetailPane(taskId: id)
-                        .frame(width: CalendarLogic.sidePanelWidth)
+                        .frame(width: CalendarLogic.sidePanelWidth * s)
                 }
             }
-            .onGeometryChange(for: Bool.self) { CalendarLogic.panelsBeside(width: $0.size.width) } action: { beside = $0 }
+            .onGeometryChange(for: Bool.self) { [s] in CalendarLogic.panelsBeside(width: $0.size.width, scale: s) } action: { beside = $0 }
             .sheet(item: Binding(
                 get: { beside ? nil : calendar.openTaskId.flatMap { model.task($0) != nil ? OpenTask(id: $0) : nil } },
                 set: { if $0 == nil { calendar.openTaskId = nil } }
@@ -115,13 +116,14 @@ private struct CalendarSplitView: View {
 /// The open task beside the calendar, under a 任务详情 heading with a close
 /// button.
 private struct CalendarDetailPane: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
     let taskId: String
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("任务详情").font(.subheadline).foregroundStyle(.secondary)
+                Text("任务详情").uiFont(.subheadline).foregroundStyle(.secondary)
                 Spacer()
                 Button {
                     model.calendar.openTaskId = nil
@@ -132,8 +134,8 @@ private struct CalendarDetailPane: View {
                 .help("关闭")
                 .accessibilityLabel("关闭")
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 14 * s)
+            .padding(.vertical, 8 * s)
             TaskDetailView(taskId: taskId)
         }
     }
@@ -169,6 +171,7 @@ private struct OpenTask: Identifiable {
 /// A task's detail over the calendar when the window has no room beside
 /// it (the Flutter version pushes the detail page there).
 private struct CalendarDetailSheet: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
     let taskId: String
 
@@ -186,7 +189,7 @@ private struct CalendarDetailSheet: View {
                 }
         }
         #if os(macOS)
-        .frame(minWidth: 420, idealWidth: 460, minHeight: 520, idealHeight: 620)
+        .frame(minWidth: 420 * s, idealWidth: 460 * s, minHeight: 520 * s, idealHeight: 620 * s)
         #endif
     }
 }

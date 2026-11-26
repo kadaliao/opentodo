@@ -27,6 +27,7 @@ public struct TaskRow: View {
     /// (done, total) of the checklist; nothing shows when total is 0.
     public var checklist: (done: Int, total: Int)
     public var onToggle: (() -> Void)?
+    @Environment(\.uiScale) private var s
 
     public init(_ task: TodoTask, now: LocalDateTime, list: TaskList? = nil, showList: Bool = false,
                 checklist: (done: Int, total: Int) = (0, 0), onToggle: (() -> Void)? = nil) {
@@ -42,20 +43,20 @@ public struct TaskRow: View {
     private var trashed: Bool { task.trashedAt != nil }
 
     public var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Metrics.gap) {
+        HStack(alignment: .firstTextBaseline, spacing: Metrics.gap * s) {
             // A hidden copy of the title's first line gives the checkbox
             // its baseline, so it sits on the first line however many lines
             // the title wraps to.
             Text(verbatim: "我")
-                .font(Metrics.titleFont)
+                .uiFont(Metrics.titleFont)
                 .hidden()
-                .frame(width: PriorityCheckbox.defaultSize)
+                .frame(width: PriorityCheckbox.defaultSize * s)
                 .overlay {
                     PriorityCheckbox(checked: finished, priority: task.priority, action: trashed ? nil : onToggle)
                 }
-            VStack(alignment: .leading, spacing: Metrics.lineGap) {
+            VStack(alignment: .leading, spacing: Metrics.lineGap * s) {
                 Text(task.title.isEmpty ? "无标题" : task.title)
-                    .font(Metrics.titleFont)
+                    .uiFont(Metrics.titleFont)
                     .foregroundStyle(finished || task.title.isEmpty ? .secondary : .primary)
                     .lineLimit(2)
                 if hasDetails { details }
@@ -63,13 +64,13 @@ public struct TaskRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             if task.pinnedAt != nil && !finished {
                 Image(systemName: "pin.fill")
-                    .font(.caption2)
+                    .uiFont(.caption2)
                     .foregroundStyle(.orange)
                     .rotationEffect(.degrees(45))
                     .accessibilityLabel("已置顶")
             }
         }
-        .padding(.vertical, Metrics.rowPadding)
+        .padding(.vertical, Metrics.rowPadding * s)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
@@ -79,13 +80,13 @@ public struct TaskRow: View {
     }
 
     private var details: some View {
-        HStack(spacing: Metrics.detailGap) {
+        HStack(spacing: Metrics.detailGap * s) {
             if let due = DueLabel(task, now: now) {
                 due.layoutPriority(2)
             }
             if showList {
-                HStack(spacing: 3) {
-                    if let e = list?.emoji, !e.isEmpty { Text(e).font(.caption2) }
+                HStack(spacing: 3 * s) {
+                    if let e = list?.emoji, !e.isEmpty { Text(e).uiFont(.caption2) }
                     Text(list?.name ?? "收集箱")
                 }
                 .foregroundStyle(.secondary)
@@ -101,21 +102,22 @@ public struct TaskRow: View {
             }
             ForEach(task.tags.prefix(3), id: \.self) { TagLabel($0) }
         }
-        .font(Metrics.detailFont)
+        .uiFont(Metrics.detailFont)
         .opacity(finished ? 0.7 : 1)
     }
 
+    /// At 标准; all of them grow with 界面大小 (`uiScale`).
     enum Metrics {
         #if os(macOS)
-        static let titleFont = Font.body
-        static let detailFont = Font.subheadline
+        static let titleFont = Font.TextStyle.body
+        static let detailFont = Font.TextStyle.subheadline
         static let gap: CGFloat = 8
         static let lineGap: CGFloat = 2
         static let detailGap: CGFloat = 8
         static let rowPadding: CGFloat = 4
         #else
-        static let titleFont = Font.body
-        static let detailFont = Font.subheadline
+        static let titleFont = Font.TextStyle.body
+        static let detailFont = Font.TextStyle.subheadline
         static let gap: CGFloat = 12
         static let lineGap: CGFloat = 3
         static let detailGap: CGFloat = 10

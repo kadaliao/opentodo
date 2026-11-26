@@ -5,6 +5,7 @@ import OpenTodoDomain
 import SwiftUI
 
 struct HabitEditorView: View {
+    @Environment(\.uiScale) private var s
     /// Nil for a new habit.
     var habit: Habit?
     var today: Day
@@ -26,16 +27,16 @@ struct HabitEditorView: View {
         NavigationStack {
             Form {
                 Section {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 12 * s) {
                         EmojiPickerButton(emoji: $draft.emoji, color: draft.color, fallback: "leaf.fill")
                         TextField("习惯名称", text: $draft.name, prompt: Text("比如：每天喝水"))
                             .focused($nameFocused)
-                            .font(.title3)
+                            .uiFont(.title3)
                     }
                     ColorDotsPicker(color: $draft.color)
                 }
 
-                Section("目标") {
+                Section {
                     Picker("目标", selection: $draft.goalKind) {
                         Text("打卡一次").tag(HabitGoalKind.once)
                         Text("计数").tag(HabitGoalKind.count)
@@ -54,9 +55,11 @@ struct HabitEditorView: View {
                             LabeledContent("每次记", value: "\(amountText(draft.step))\(draft.unit)")
                         }
                     }
+                } header: {
+                    Text("目标").uiDefaultFont(.headline)
                 }
 
-                Section("频率") {
+                Section {
                     Picker("频率", selection: $draft.frequencyKind) {
                         ForEach(FrequencyKind.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
@@ -70,6 +73,8 @@ struct HabitEditorView: View {
                             LabeledContent("每周", value: "\(draft.timesPerWeek)天")
                         }
                     }
+                } header: {
+                    Text("频率").uiDefaultFont(.headline)
                 }
 
                 Section {
@@ -95,9 +100,15 @@ struct HabitEditorView: View {
                         draft.reminders.append(draft.nextReminder)
                     }
                 } header: {
-                    Text("提醒")
+                    Group {
+                        Text("提醒")
+                    }
+                    .uiDefaultFont(.headline)
                 } footer: {
-                    Text("在该打卡的日子按时提醒。")
+                    Group {
+                        Text("在该打卡的日子按时提醒。")
+                    }
+                    .uiDefaultFont(.subheadline)
                 }
             }
             .formStyle(.grouped)
@@ -120,7 +131,7 @@ struct HabitEditorView: View {
             .onAppear { if habit == nil { nameFocused = true } }
         }
         #if os(macOS)
-        .frame(minWidth: 420, idealWidth: 460, minHeight: 560)
+        .frame(minWidth: 420 * s, idealWidth: 460 * s, minHeight: 560 * s)
         #endif
     }
 }
@@ -137,6 +148,7 @@ extension HabitEditorView {
 
 /// 一 二 三 四 五 六 日 as round toggles.
 struct HabitWeekdayToggles: View {
+    @Environment(\.uiScale) private var s
     @Binding var selection: Set<Int>
 
     var body: some View {
@@ -147,8 +159,8 @@ struct HabitWeekdayToggles: View {
                     if on { selection.remove(d) } else { selection.insert(d) }
                 } label: {
                     Text(String(weekdayNames[d - 1].dropFirst()))
-                        .font(.subheadline.weight(.medium))
-                        .frame(width: 34, height: 34)
+                        .uiFont(.subheadline, weight: .medium)
+                        .frame(width: 34 * s, height: 34 * s)
                         .background(on ? Color.accentColor : Color.secondary.opacity(0.15), in: .circle)
                         .foregroundStyle(on ? Color.white : .primary)
                 }
@@ -158,6 +170,6 @@ struct HabitWeekdayToggles: View {
                 if d < 7 { Spacer(minLength: 0) }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 2 * s)
     }
 }

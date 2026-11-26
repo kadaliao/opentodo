@@ -97,6 +97,7 @@ public struct AccountPane: View {
 /// Signing in in a sheet (from the sidebar, or 重新登录): the form, then the
 /// first sync's progress, then it closes on its own.
 public struct SignInSheet: View {
+    @Environment(\.uiScale) private var s
     let sync: SyncController
     @Environment(\.dismiss) private var dismiss
     @State private var request: SignInRequest
@@ -145,7 +146,7 @@ public struct SignInSheet: View {
             }
         }
         #if os(macOS)
-        .frame(width: 420, height: signedIn ? 220 : 400)
+        .frame(width: 420 * s, height: (signedIn ? 220 : 400) * s)
         #endif
         .onChange(of: sync.status.phase) { _, phase in
             // The first sync is done: nothing left to watch.
@@ -167,6 +168,7 @@ public struct SignInSheet: View {
 
 /// After signing in: the first sync, which can take a while.
 struct FirstSyncSection: View {
+    @Environment(\.uiScale) private var s
     let status: SyncStatus
     let progress: SyncReport?
 
@@ -179,13 +181,16 @@ struct FirstSyncSection: View {
             case .idle:
                 Label("同步完成", systemImage: "checkmark.icloud")
             default:
-                HStack(spacing: 10) {
+                HStack(spacing: 10 * s) {
                     ProgressView().controlSize(.small)
                     Text(SyncLine(status, progress: progress, now: .now).text)
                 }
             }
         } footer: {
-            Text("第一次同步会把这台设备上的任务和账号里的合在一起。")
+            Group {
+                Text("第一次同步会把这台设备上的任务和账号里的合在一起。")
+            }
+            .uiDefaultFont(.subheadline)
         }
     }
 }

@@ -55,6 +55,7 @@ struct DialogHost: ViewModifier {
 
 /// A one-line prompt: 添加分组, 重命名分组, 添加标签.
 private struct TextPromptSheet: View {
+    @Environment(\.uiScale) private var s
     let request: TextPromptRequest
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
@@ -80,7 +81,7 @@ private struct TextPromptSheet: View {
                 }
             }
         }
-        .frame(minWidth: 360, minHeight: 150)
+        .frame(minWidth: 360 * s, minHeight: 150 * s)
         .presentationDetents([.height(220)])
         .onAppear {
             text = request.initial
@@ -97,6 +98,7 @@ private struct TextPromptSheet: View {
 
 /// 添加清单 / 编辑清单: a name and an emoji (the Flutter version's choices).
 private struct ListEditorSheet: View {
+    @Environment(\.uiScale) private var s
     let request: ListEditorRequest
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -114,24 +116,26 @@ private struct ListEditorSheet: View {
                         .focused($focused)
                         .onSubmit(submit)
                 }
-                Section("图标") {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 6), spacing: 6) {
+                Section {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6 * s), count: 6), spacing: 6 * s) {
                         ForEach(Self.emojis, id: \.self) { e in
                             Button {
                                 emoji = e
                             } label: {
                                 Text(e)
-                                    .font(.title2)
-                                    .frame(maxWidth: .infinity, minHeight: 40)
+                                    .uiFont(.title2)
+                                    .frame(maxWidth: .infinity, minHeight: 40 * s)
                                     .background(emoji == e ? AnyShapeStyle(.tint.opacity(0.2)) : AnyShapeStyle(.clear),
-                                                in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                                in: RoundedRectangle(cornerRadius: 8 * s, style: .continuous))
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(e)
                             .accessibilityAddTraits(emoji == e ? .isSelected : [])
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 4 * s)
+                } header: {
+                    Text("图标").uiDefaultFont(.headline)
                 }
             }
             .formStyle(.grouped)
@@ -147,7 +151,7 @@ private struct ListEditorSheet: View {
                 }
             }
         }
-        .frame(minWidth: 380, minHeight: 330)
+        .frame(minWidth: 380 * s, minHeight: 330 * s)
         .presentationDetents([.medium])
         .onAppear {
             if let list = request.list {

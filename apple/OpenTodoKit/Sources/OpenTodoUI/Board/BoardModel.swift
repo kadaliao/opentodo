@@ -114,9 +114,10 @@ public enum BoardLayout {
     public static let phoneWidth: CGFloat = 640
 
     /// How wide a column is on a board `width` wide: a phone shows one
-    /// column and a bit of the next. Zero (not measured yet) is wide.
-    public static func columnWidth(for width: CGFloat) -> CGFloat {
-        width > 0 && width < phoneWidth ? (width * 0.82).rounded(.down) : columnWidth
+    /// column and a bit of the next. Zero (not measured yet) is wide. A wide
+    /// column grows with 界面大小 (`scale`).
+    public static func columnWidth(for width: CGFloat, scale: CGFloat = 1) -> CGFloat {
+        width > 0 && width < phoneWidth ? (width * 0.82).rounded(.down) : columnWidth * scale
     }
 
     /// Every card's task, column by column, open ones then finished: the

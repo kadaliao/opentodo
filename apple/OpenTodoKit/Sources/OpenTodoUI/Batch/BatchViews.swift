@@ -103,6 +103,7 @@ private struct ListMenuItems: View {
 // MARK: - The panel
 
 public struct BatchPanel: View {
+    @Environment(\.uiScale) private var s
     private let context: BatchContext
     @State private var pickingDay = false
     @State private var editingTags = false
@@ -167,7 +168,7 @@ public struct BatchPanel: View {
                     editingTags = true
                 } label: {
                     LabeledContent {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 6 * s) {
                             if selection.tags.isEmpty {
                                 Text("添加").foregroundStyle(.secondary)
                             } else {
@@ -175,7 +176,7 @@ public struct BatchPanel: View {
                                 if selection.tags.count > 4 { Text("…").foregroundStyle(.secondary) }
                             }
                             Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
+                                .uiFont(.caption, weight: .semibold)
                                 .foregroundStyle(.tertiary)
                         }
                     } label: {
@@ -215,18 +216,18 @@ public struct BatchPanel: View {
     /// row of buttons in the section's box.
     private var actionTiles: some View {
         #if os(iOS)
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10 * s), GridItem(.flexible(), spacing: 10 * s)], spacing: 10 * s) {
             tiles
         }
         #else
-        HStack(spacing: 4) { tiles }
+        HStack(spacing: 4 * s) { tiles }
         #endif
     }
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("已选择 \(selection.count) 项")
-                .font(.title3.weight(.semibold))
+                .uiFont(.title3, weight: .semibold)
                 .foregroundStyle(.primary)
                 .contentTransition(.numericText())
             Spacer()
@@ -235,7 +236,7 @@ public struct BatchPanel: View {
                 .keyboardShortcut(.cancelAction)
         }
         .textCase(nil)
-        .padding(.bottom, 4)
+        .padding(.bottom, 4 * s)
     }
 
     /// 今天 / 多个日期 / 无日期: what the picked tasks' dates have in common.
@@ -298,6 +299,7 @@ private struct BatchRowLabel: View {
 
 /// A big button of the panel's grid: symbol over title.
 private struct ActionTile: View {
+    @Environment(\.uiScale) private var s
     let title: String
     let symbol: String
     let role: ButtonRole?
@@ -322,15 +324,15 @@ private struct ActionTile: View {
 
     var body: some View {
         Button(role: role, action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: symbol).font(.title2)
-                Text(title).font(.callout)
+            VStack(spacing: 6 * s) {
+                Image(systemName: symbol).uiFont(.title2)
+                Text(title).uiFont(.callout)
             }
             .foregroundStyle(role == .destructive ? Color.red : Color.accentColor)
             .opacity(enabled ? 1 : 0.4)
-            .frame(maxWidth: .infinity, minHeight: Self.height)
-            .background(background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: Self.height * s)
+            .background(background, in: RoundedRectangle(cornerRadius: 12 * s, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 12 * s, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -353,7 +355,7 @@ private struct BatchBarItems: View {
         Button("取消选择", systemImage: "xmark") { context.onAction(.clearSelection) }
             .help("取消选择")
         Text("\(selection.count) 项")
-            .font(.headline)
+            .uiFont(.headline)
             .monospacedDigit()
             .fixedSize()
         Spacer()
@@ -391,6 +393,7 @@ private struct BatchBarItems: View {
 #if os(macOS)
 /// macOS, a narrower window: the bar under the list.
 public struct BatchBar: View {
+    @Environment(\.uiScale) private var s
     private let context: BatchContext
     @State private var pickingDay = false
     @State private var editingTags = false
@@ -402,17 +405,17 @@ public struct BatchBar: View {
     }
 
     public var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 14 * s) {
             BatchBarItems(context: context, pickingDay: $pickingDay, editingTags: $editingTags)
         }
         .labelStyle(.iconOnly)
         .buttonStyle(.borderless)
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
-        .font(.title3)
+        .uiFont(.title3)
         .imageScale(.large)
-        .padding(.horizontal, 14)
-        .frame(height: 44)
+        .padding(.horizontal, 14 * s)
+        .frame(height: 44 * s)
         .background(.bar)
         .overlay(alignment: .top) { Divider() }
         .popover(isPresented: $pickingDay, arrowEdge: .top) {
@@ -506,6 +509,7 @@ struct BatchSheetStyle: ViewModifier {
 /// adds to all, unticking takes off all; a new tag can be typed in.
 /// `onDone` gets the `.setTags` action, nil when cancelled.
 struct BatchTagsView: View {
+    @Environment(\.uiScale) private var s
     @State private var editor: BatchTagsEditor
     @State private var newTag = ""
     let onDone: (BatchAction?) -> Void
@@ -531,9 +535,9 @@ struct BatchTagsView: View {
             Button {
                 editor.toggle(tag)
             } label: {
-                HStack(spacing: 10) {
+                HStack(spacing: 10 * s) {
                     Image(systemName: symbol(state))
-                        .font(.title3)
+                        .uiFont(.title3)
                         .foregroundStyle(state == false ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.tint))
                     Text(tag).foregroundStyle(.primary)
                     Spacer()
@@ -571,7 +575,10 @@ struct BatchTagsView: View {
                 Section {
                     rows
                 } footer: {
-                    Text("勾上就给全部任务加上，去掉就从全部任务拿掉；横线表示只有一部分有。")
+                    Group {
+                        Text("勾上就给全部任务加上，去掉就从全部任务拿掉；横线表示只有一部分有。")
+                    }
+                    .uiDefaultFont(.subheadline)
                 }
                 Section { newTagField }
             }
@@ -584,24 +591,24 @@ struct BatchTagsView: View {
         }
         #else
         VStack(alignment: .leading, spacing: 0) {
-            Text(title).font(.headline).padding([.horizontal, .top], 14).padding(.bottom, 8)
+            Text(title).uiFont(.headline).padding([.horizontal, .top], 14 * s).padding(.bottom, 8 * s)
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) { rows }
-                    .padding(.horizontal, 14)
+                VStack(alignment: .leading, spacing: 8 * s) { rows }
+                    .padding(.horizontal, 14 * s)
             }
-            .frame(maxHeight: 260)
+            .frame(maxHeight: 260 * s)
             .fixedSize(horizontal: false, vertical: true)
-            Divider().padding(.top, 8)
-            newTagField.textFieldStyle(.plain).padding(.horizontal, 14).frame(height: 36)
+            Divider().padding(.top, 8 * s)
+            newTagField.textFieldStyle(.plain).padding(.horizontal, 14 * s).frame(height: 36 * s)
             Divider()
             HStack {
                 Spacer()
                 Button("取消") { onDone(nil) }.keyboardShortcut(.cancelAction)
                 Button("确定") { onDone(editor.action) }.keyboardShortcut(.defaultAction)
             }
-            .padding(12)
+            .padding(12 * s)
         }
-        .frame(width: 280)
+        .frame(width: 280 * s)
         #endif
     }
 }

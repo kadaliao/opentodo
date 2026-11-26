@@ -80,10 +80,12 @@ struct ViewsList: View {
             header("过滤器", add: "添加过滤器") { model.editFilter() }
         }
         if !model.tags.isEmpty {
-            Section("标签") {
+            Section {
                 ForEach(model.tags, id: \.self) { tag in
                     row(.tag(tag), tag, icon: .tag(style: iconStyle))
                 }
+            } header: {
+                Text("标签").uiDefaultFont(Self.headerFont, weight: .semibold)
             }
         }
         Section {
@@ -105,7 +107,7 @@ struct ViewsList: View {
         switch mode {
         case .sidebar:
             label
-                .badge(count)
+                .modifier(SidebarBadge(count: count))
                 .listItemTint(icon.tint.map(ListItemTint.fixed) ?? .monochrome)
                 .tag(view)
         case .phone:
@@ -127,13 +129,32 @@ struct ViewsList: View {
                 .buttonStyle(.borderless)
                 .help(add)
         }
+        .uiDefaultFont(Self.headerFont, weight: .semibold)
     }
+
+    /// The sidebar draws its section titles this size at 标准.
+    private static let headerFont = Font.TextStyle.subheadline
 
     private func hint(_ text: String) -> some View {
         Text(text)
-            .font(.caption)
+            .uiFont(.caption)
             .foregroundStyle(.secondary)
             .selectionDisabled()
+    }
+}
+
+/// The count at the end of a sidebar row. The system draws it in a size of
+/// its own, so at the other 界面大小 it's given one that grows.
+private struct SidebarBadge: ViewModifier {
+    let count: Int
+    @Environment(\.uiScale) private var s
+
+    func body(content: Content) -> some View {
+        if s == 1 {
+            content.badge(count)
+        } else {
+            content.badge(count == 0 ? nil : Text("\(count)").font(.ui(.subheadline, scale: s)))
+        }
     }
 }
 

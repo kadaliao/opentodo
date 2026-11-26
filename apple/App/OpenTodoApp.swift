@@ -21,6 +21,8 @@ struct OpenTodoApp: App {
         // The global quick-add shortcut, and the model the menu bar window
         // and the quick-add panel share.
         SystemServices.shared.start(services: services, debug: debug)
+        // ⌘= for 显示 › 放大 (its menu item is ⌘+).
+        InterfaceSizeKeys.install()
         #endif
     }
 

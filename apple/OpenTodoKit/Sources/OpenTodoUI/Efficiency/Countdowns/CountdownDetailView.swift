@@ -6,6 +6,7 @@ import OpenTodoDomain
 import SwiftUI
 
 struct CountdownDetailView: View {
+    @Environment(\.uiScale) private var s
     var countdown: Countdown
     var today: Day
     var format: CountdownFormat
@@ -35,23 +36,23 @@ struct CountdownDetailView: View {
         let status = countdownStatus(c, today: today)
         List {
             Section {
-                VStack(spacing: 12) {
+                VStack(spacing: 12 * s) {
                     EmojiBadge(emoji: c.emoji, color: c.color, fallback: countdownSymbol(c.kind), size: 56)
-                    Text(c.title).font(.title2.bold()).multilineTextAlignment(.center)
+                    Text(c.title).uiFont(.title2) { $0.bold() }.multilineTextAlignment(.center)
                     Button {
                         shownFormat = nextFormat(shownFormat)
                     } label: {
-                        VStack(spacing: 4) {
-                            if let caption = t.caption { Text(caption).font(.subheadline).foregroundStyle(.secondary) }
+                        VStack(spacing: 4 * s) {
+                            if let caption = t.caption { Text(caption).uiFont(.subheadline).foregroundStyle(.secondary) }
                             BigNumberText(runs: t.runs, tint: tint, size: 64)
                         }
                     }
                     .buttonStyle(.borderless)
                     .accessibilityHint(Text("切换显示方式"))
-                    Text(t.date).font(.subheadline).foregroundStyle(.secondary)
+                    Text(t.date).uiFont(.subheadline).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
+                .padding(.vertical, 12 * s)
             }
 
             Section {
@@ -69,7 +70,7 @@ struct CountdownDetailView: View {
 
             let upcoming = c.repeats == .none ? [] : countdownOccurrences(c, from: today, limit: 4)
             if !upcoming.isEmpty {
-                Section("接下来") {
+                Section {
                     ForEach(upcoming, id: \.self) { d in
                         LabeledContent {
                             Text(d == today ? "今天" : "\(today.days(to: d))天后").monospacedDigit()
@@ -77,14 +78,18 @@ struct CountdownDetailView: View {
                             Text(countdownDateText(c, d, today: today))
                         }
                     }
+                } header: {
+                    Text("接下来").uiDefaultFont(.headline)
                 }
             }
 
             if !c.reminders.isEmpty {
-                Section("提醒") {
+                Section {
                     ForEach(c.reminders.sorted(by: >), id: \.self) { r in
                         Label(countdownReminderText(r), systemImage: "bell")
                     }
+                } header: {
+                    Text("提醒").uiDefaultFont(.headline)
                 }
             }
         }
@@ -112,6 +117,7 @@ struct CountdownDetailView: View {
 // MARK: - Editor
 
 struct CountdownEditorView: View {
+    @Environment(\.uiScale) private var s
     var countdown: Countdown?
     var today: Day
     var onSave: (CountdownDraft, Countdown?) -> Void
@@ -136,11 +142,11 @@ struct CountdownEditorView: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    HStack(spacing: 12) {
+                    HStack(spacing: 12 * s) {
                         EmojiPickerButton(emoji: $draft.emoji, color: draft.color, fallback: countdownSymbol(draft.kind))
                         TextField("标题", text: $draft.title, prompt: Text(placeholder))
                             .focused($titleFocused)
-                            .font(.title3)
+                            .uiFont(.title3)
                     }
                     ColorDotsPicker(color: $draft.color)
                 }
@@ -168,16 +174,21 @@ struct CountdownEditorView: View {
                     Toggle("显示在“今天”", isOn: $draft.showInToday)
                     Toggle("置顶", isOn: $draft.pinned)
                 } footer: {
-                    Text("到了那天，在“今天”里显示。")
+                    Group {
+                        Text("到了那天，在“今天”里显示。")
+                    }
+                    .uiDefaultFont(.subheadline)
                 }
 
-                Section("提醒") {
+                Section {
                     ForEach(draft.reminders.indices, id: \.self) { i in
                         reminderRow(i)
                     }
                     Button("添加提醒", systemImage: "bell.badge") {
                         draft.reminders.append(countdownReminder(daysBefore: draft.reminders.isEmpty ? 0 : 1, minute: 9 * 60))
                     }
+                } header: {
+                    Text("提醒").uiDefaultFont(.headline)
                 }
             }
             .formStyle(.grouped)
@@ -198,7 +209,7 @@ struct CountdownEditorView: View {
             .onAppear { if countdown == nil { titleFocused = true } }
         }
         #if os(macOS)
-        .frame(minWidth: 440, idealWidth: 480, minHeight: 560)
+        .frame(minWidth: 440 * s, idealWidth: 480 * s, minHeight: 560 * s)
         #endif
     }
 

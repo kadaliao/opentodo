@@ -37,12 +37,15 @@ struct FocusRecordsView: View {
                             }
                     }
                 } header: {
-                    HStack {
-                        Text(group.day == today ? "今天" : dayText(group.day, today: today))
-                        Spacer()
-                        Text(durationText(group.sessions.reduce(0) { $0 + $1.duration }))
-                            .monospacedDigit()
+                    Group {
+                        HStack {
+                            Text(group.day == today ? "今天" : dayText(group.day, today: today))
+                            Spacer()
+                            Text(durationText(group.sessions.reduce(0) { $0 + $1.duration }))
+                                .monospacedDigit()
+                        }
                     }
+                    .uiDefaultFont(.subheadline, weight: .semibold)
                 }
             }
         }
@@ -66,6 +69,7 @@ struct FocusRecordsView: View {
 
 /// 补记一条专注.
 struct FocusSessionEditor: View {
+    @Environment(\.uiScale) private var s
     var tasks: [TodoTask]
     var today: Day
     var onSave: (Day, Int, Int, FocusKind, String?, String) -> Void
@@ -127,7 +131,7 @@ struct FocusSessionEditor: View {
             }
         }
         #if os(macOS)
-        .frame(minWidth: 400, minHeight: 420)
+        .frame(minWidth: 400 * s, minHeight: 420 * s)
         #endif
     }
 }
@@ -148,7 +152,7 @@ struct FocusSettingsView: View {
 
     var body: some View {
         Form {
-            Section("时长") {
+            Section {
                 Stepper(value: $draft.pomodoroMinutes, in: 5...120, step: 5) {
                     LabeledContent("番茄", value: "\(draft.pomodoroMinutes)分钟")
                 }
@@ -161,12 +165,17 @@ struct FocusSettingsView: View {
                 Stepper(value: $draft.longBreakEvery, in: 2...8) {
                     LabeledContent("长休息间隔", value: "每\(draft.longBreakEvery)个番茄")
                 }
+            } header: {
+                Text("时长").uiDefaultFont(.headline)
             }
             Section {
                 Toggle("自动开始下一个", isOn: $draft.autoStartNext)
                 Toggle("结束提示音", isOn: $draft.endSound)
             } footer: {
-                Text("自动开始：番茄结束后直接开始休息，休息结束后直接开始下一个番茄。不足\(focusMinimumSeconds / 60)分钟的专注不会记录。")
+                Group {
+                    Text("自动开始：番茄结束后直接开始休息，休息结束后直接开始下一个番茄。不足\(focusMinimumSeconds / 60)分钟的专注不会记录。")
+                }
+                .uiDefaultFont(.subheadline)
             }
         }
         .formStyle(.grouped)

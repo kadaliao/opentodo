@@ -337,6 +337,7 @@ private struct ListAutoScroll: ViewModifier {
 /// The dragged copy of a card or row: lifted, and when `count` things go
 /// together, a card behind it and how many.
 public struct DragStackPreview<Content: View>: View {
+    @Environment(\.uiScale) private var s
     let count: Int
     let content: () -> Content
 
@@ -358,16 +359,16 @@ public struct DragStackPreview<Content: View>: View {
             .overlay(alignment: .topTrailing) {
                 if count > 1 {
                     Text(count, format: .number)
-                        .font(.caption.weight(.semibold))
+                        .uiFont(.caption, weight: .semibold)
                         .monospacedDigit()
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 7)
-                        .frame(minWidth: 22, minHeight: 22)
+                        .padding(.horizontal, 7 * s)
+                        .frame(minWidth: 22 * s, minHeight: 22 * s)
                         .background(Capsule().fill(Color.accentColor))
                         .offset(x: 8, y: -8)
                         .accessibilityLabel("\(count) 个任务")
                 }
             }
-            .padding(10)
+            .padding(10 * s)
     }
 }

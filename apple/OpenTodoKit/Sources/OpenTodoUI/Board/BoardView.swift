@@ -12,6 +12,7 @@ import OpenTodoDomain
 import SwiftUI
 
 public struct BoardView<TaskMenu: View>: View {
+    @Environment(\.uiScale) private var s
     let listId: String
     let columns: [BoardColumn]
     let sort: TaskSort
@@ -63,12 +64,12 @@ public struct BoardView<TaskMenu: View>: View {
     private var drag: DragController { sharedDrag ?? ownDrag }
 
     public var body: some View {
-        let columnWidth = BoardLayout.columnWidth(for: width)
+        let columnWidth = BoardLayout.columnWidth(for: width, scale: s)
         let phone = width > 0 && width < BoardLayout.phoneWidth
         let picked = BoardLayout.picked(columns, selection)
         let sections = BoardLayout.sections(columns)
         ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: 12 * s) {
                 ForEach(columns, id: \.group.section?.id) { column in
                     BoardColumnView(
                         listId: listId,
@@ -93,12 +94,12 @@ public struct BoardView<TaskMenu: View>: View {
                     Label("添加分组", systemImage: "plus")
                 }
                 .buttonStyle(.borderless)
-                .padding(.top, 10)
-                .padding(.trailing, 8)
+                .padding(.top, 10 * s)
+                .padding(.trailing, 8 * s)
             }
             .scrollTargetLayout()
-            .padding(.bottom, 12)
-            .padding(.top, 4)
+            .padding(.bottom, 12 * s)
+            .padding(.top, 4 * s)
         }
         .contentMargins(.horizontal, 16, for: .scrollContent)
         .scrollTargetBehavior(.viewAligned(limitBehavior: phone ? .alwaysByOne : .never))
@@ -150,6 +151,7 @@ extension BoardView where TaskMenu == EmptyView {
 }
 
 struct BoardColumnView<TaskMenu: View>: View {
+    @Environment(\.uiScale) private var s
     let listId: String
     let column: BoardColumn
     /// The list's sections in order.
@@ -181,13 +183,13 @@ struct BoardColumnView<TaskMenu: View>: View {
                 } close: {
                     adding = false
                 }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 8 * s)
+                .padding(.bottom, 8 * s)
             }
             ScrollView(.vertical) {
                 cards
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 8 * s)
+                    .padding(.bottom, 8 * s)
             }
             .scrollIndicators(.never)
             .dragAutoScroll("column-\(key)", axis: .vertical)
@@ -215,12 +217,12 @@ struct BoardColumnView<TaskMenu: View>: View {
     }
 
     private var header: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 6 * s) {
             Text(column.group.title)
-                .font(.headline)
+                .uiFont(.headline)
                 .lineLimit(1)
             Text(column.group.tasks.count, format: .number)
-                .font(.subheadline)
+                .uiFont(.subheadline)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
             Spacer(minLength: 4)
@@ -228,7 +230,7 @@ struct BoardColumnView<TaskMenu: View>: View {
                 adding.toggle()
             } label: {
                 Image(systemName: adding ? "xmark" : "plus")
-                    .frame(width: 22, height: 22)
+                    .frame(width: 22 * s, height: 22 * s)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
@@ -239,7 +241,7 @@ struct BoardColumnView<TaskMenu: View>: View {
                     SectionMenu(section: section, among: sections, horizontal: true, dialog: $dialog, perform: actions.section)
                 } label: {
                     Image(systemName: "ellipsis")
-                        .frame(width: 22, height: 22)
+                        .frame(width: 22 * s, height: 22 * s)
                         .contentShape(Rectangle())
                 }
                 .menuStyle(.button)
@@ -251,9 +253,9 @@ struct BoardColumnView<TaskMenu: View>: View {
             }
         }
         .foregroundStyle(.primary)
-        .padding(.leading, 14)
-        .padding(.trailing, 8)
-        .padding(.vertical, 10)
+        .padding(.leading, 14 * s)
+        .padding(.trailing, 8 * s)
+        .padding(.vertical, 10 * s)
         .contentShape(Rectangle())
         // Cards dropped on the top go first; the column moves by its top.
         .dropSlot("head-\(key)", .taskArea(group, index: 0))
@@ -261,11 +263,11 @@ struct BoardColumnView<TaskMenu: View>: View {
     }
 
     private var cards: some View {
-        LazyVStack(alignment: .leading, spacing: 8) {
+        LazyVStack(alignment: .leading, spacing: 8 * s) {
             ForEach(Array(column.group.tasks.enumerated()), id: \.element.id) { i, task in
                 card(task)
                     .taskDragSource(task, picked: picked) {
-                        cardFace(task, selected: false).frame(width: width - 16)
+                        cardFace(task, selected: false).frame(width: width - 16 * s)
                     }
                     .opacity(drag?.isDragged(task.id) == true ? 0.3 : 1)
                     .dropSlot("row-\(task.id)", .taskRow(group, index: i), outset: EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
@@ -281,15 +283,15 @@ struct BoardColumnView<TaskMenu: View>: View {
         Group {
             if column.group.tasks.isEmpty {
                 Text("拖任务到这里")
-                    .font(.subheadline)
+                    .uiFont(.subheadline)
                     .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, minHeight: 80)
+                    .frame(maxWidth: .infinity, minHeight: 80 * s)
                     .background {
                         RoundedRectangle(cornerRadius: BoardStyle.cardRadius, style: .continuous)
                             .strokeBorder(.quaternary, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                     }
             } else {
-                Color.clear.frame(height: 40)
+                Color.clear.frame(height: 40 * s)
             }
         }
         .frame(maxWidth: .infinity)
@@ -301,17 +303,17 @@ struct BoardColumnView<TaskMenu: View>: View {
             Button {
                 withAnimation(.snappy) { showDone.toggle() }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 6 * s) {
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
+                        .uiFont(.caption, weight: .semibold)
                         .rotationEffect(.degrees(showDone ? 90 : 0))
                     Text("已完成")
                     Text(column.done.count, format: .number).foregroundStyle(.tertiary).monospacedDigit()
                 }
-                .font(.subheadline)
+                .uiFont(.subheadline)
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 4 * s)
+                .padding(.vertical, 4 * s)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -358,6 +360,7 @@ private struct ColumnSectionDrop: ViewModifier {
 
 /// A section's column is dragged by its top.
 private struct ColumnDragSource: ViewModifier {
+    @Environment(\.uiScale) private var s
     let section: ListSection?
     let title: String
     let count: Int
@@ -366,13 +369,13 @@ private struct ColumnDragSource: ViewModifier {
     func body(content: Content) -> some View {
         if let section {
             content.sectionDragSource(section) {
-                HStack(spacing: 6) {
-                    Text(title).font(.headline)
-                    Text(count, format: .number).font(.subheadline).foregroundStyle(.secondary)
+                HStack(spacing: 6 * s) {
+                    Text(title).uiFont(.headline)
+                    Text(count, format: .number).uiFont(.subheadline).foregroundStyle(.secondary)
                     Spacer()
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 14 * s)
+                .padding(.vertical, 12 * s)
                 .frame(width: width)
                 .background(RoundedRectangle(cornerRadius: BoardStyle.columnRadius, style: .continuous).fill(BoardStyle.cardFill))
             }
@@ -385,6 +388,7 @@ private struct ColumnDragSource: ViewModifier {
 /// A column's own field for adding a task to it: Return adds and keeps the
 /// field for the next one; Esc closes it.
 struct BoardQuickAddField: View {
+    @Environment(\.uiScale) private var s
     let title: String
     let add: (String) -> Void
     let close: () -> Void
@@ -405,8 +409,8 @@ struct BoardQuickAddField: View {
                 close()
                 return .handled
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 12 * s)
+            .padding(.vertical, 9 * s)
             .background {
                 RoundedRectangle(cornerRadius: BoardStyle.cardRadius, style: .continuous)
                     .fill(BoardStyle.cardFill)

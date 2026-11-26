@@ -23,6 +23,13 @@ import Testing
     #expect(DebugLaunch(arguments: ["app", "-OTWindowSize", "wide"]).problems.count == 1)
 }
 
+@Test func readsTheHiddenWindowsOption() {
+    #expect(DebugLaunch(arguments: ["app", "-OTHiddenWindows", "yes"]).hiddenWindows)
+    #expect(!DebugLaunch(arguments: ["app", "-OTHiddenWindows", "no"]).hiddenWindows)
+    #expect(!DebugLaunch(arguments: ["app"]).hiddenWindows)
+    #expect(DebugLaunch(arguments: ["app", "-OTHiddenWindows", "1"]).problems.count == 1)
+}
+
 @Test func reportsWhatItCannotRead() {
     let l = DebugLaunch(arguments: ["app", "-OTSeed", "lots", "-OTOpen", "nowhere", "-OTFoo", "1", "-OTAppearance", "dark", "-OTSnapshot"])
     #expect(l.seed == nil)

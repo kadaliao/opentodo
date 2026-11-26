@@ -40,18 +40,19 @@ enum EfficiencyPalette {
 
 /// A row of colour dots; the chosen one has a ring.
 struct ColorDotsPicker: View {
+    @Environment(\.uiScale) private var s
     @Binding var color: Int?
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 28), spacing: 10)], spacing: 10) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 28 * s), spacing: 10 * s)], spacing: 10 * s) {
             ForEach(EfficiencyPalette.colors, id: \.self) { c in
                 Button {
                     color = c
                 } label: {
                     Circle()
                         .fill(Color(argb: c))
-                        .frame(width: 24, height: 24)
-                        .padding(3)
+                        .frame(width: 24 * s, height: 24 * s)
+                        .padding(3 * s)
                         .overlay {
                             if (color ?? EfficiencyPalette.colors[0]) == c {
                                 Circle().strokeBorder(Color.primary.opacity(0.6), lineWidth: 2)
@@ -63,7 +64,7 @@ struct ColorDotsPicker: View {
                 .accessibilityAddTraits((color ?? EfficiencyPalette.colors[0]) == c ? .isSelected : [])
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 4 * s)
     }
 }
 
@@ -72,10 +73,13 @@ struct EmojiBadge: View {
     var emoji: String?
     var color: Int?
     var fallback: String = "star.fill"
+    /// At 标准; it grows with 界面大小.
     var size: CGFloat = 36
+    @Environment(\.uiScale) private var s
 
     var body: some View {
-        ZStack {
+        let size = size * s
+        return ZStack {
             Circle().fill(EfficiencyPalette.color(color).opacity(0.18))
             if let emoji, !emoji.isEmpty {
                 Text(emoji).font(.system(size: size * 0.55))
@@ -92,6 +96,7 @@ struct EmojiBadge: View {
 
 /// Picks an emoji from a short list, or takes one typed in.
 struct EmojiPickerButton: View {
+    @Environment(\.uiScale) private var s
     @Binding var emoji: String?
     var color: Int?
     var fallback: String
@@ -112,14 +117,14 @@ struct EmojiPickerButton: View {
         .buttonStyle(.plain)
         .accessibilityLabel(Text("图标"))
         .popover(isPresented: $showing) {
-            VStack(alignment: .leading, spacing: 12) {
-                LazyVGrid(columns: Array(repeating: GridItem(.fixed(36), spacing: 6), count: 6), spacing: 6) {
+            VStack(alignment: .leading, spacing: 12 * s) {
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(36 * s), spacing: 6 * s), count: 6), spacing: 6 * s) {
                     ForEach(Self.choices, id: \.self) { e in
                         Button {
                             emoji = e
                             showing = false
                         } label: {
-                            Text(e).font(.title2).frame(width: 36, height: 36)
+                            Text(e).uiFont(.title2).frame(width: 36 * s, height: 36 * s)
                         }
                         .buttonStyle(.plain)
                     }
@@ -127,7 +132,7 @@ struct EmojiPickerButton: View {
                 HStack {
                     TextField("其他", text: $typed)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 120)
+                        .frame(width: 120 * s)
                         .onSubmit(takeTyped)
                     Button("用这个", action: takeTyped).disabled(typed.isEmpty)
                     Spacer()
@@ -136,7 +141,7 @@ struct EmojiPickerButton: View {
                         showing = false
                     }
                 }
-                .font(.callout)
+                .uiFont(.callout)
             }
             .padding()
             .presentationCompactAdaptation(.popover)
@@ -210,12 +215,14 @@ extension Binding where Value == Int {
 
 /// A rounded panel on the grouped background: the cards of these modules.
 struct PanelBackground: ViewModifier {
+    /// At 标准; it grows with 界面大小.
     var padding: CGFloat = 16
+    @Environment(\.uiScale) private var s
 
     func body(content: Content) -> some View {
         content
-            .padding(padding)
-            .background(Color.cardBackground, in: .rect(cornerRadius: 16))
+            .padding(padding * s)
+            .background(Color.cardBackground, in: .rect(cornerRadius: 16 * s))
     }
 }
 

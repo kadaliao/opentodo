@@ -62,7 +62,10 @@ struct TaskCheckbox: View {
     let done: Bool
     let priority: Priority
     let toggle: () -> Void
-    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 18
+    @ScaledMetric(relativeTo: .body) private var dynamicSize: CGFloat = 18
+    @Environment(\.uiScale) private var s
+    /// Dynamic Type on iOS, 界面大小 on macOS.
+    private var size: CGFloat { dynamicSize * s }
 
     var body: some View {
         Button(action: toggle) {
@@ -87,6 +90,7 @@ struct TaskCheckbox: View {
 }
 
 struct BoardCard: View {
+    @Environment(\.uiScale) private var s
     let task: TodoTask
     let selected: Bool
     let now: LocalDateTime
@@ -96,12 +100,13 @@ struct BoardCard: View {
     private var done: Bool { task.status != .open }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        let lift = 5 * s
+        HStack(alignment: .firstTextBaseline, spacing: 10 * s) {
             TaskCheckbox(done: done, priority: task.priority, toggle: toggle)
-                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 5 }
-            VStack(alignment: .leading, spacing: 6) {
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + lift }
+            VStack(alignment: .leading, spacing: 6 * s) {
                 Text(task.title.isEmpty ? "无标题" : task.title)
-                    .font(.body)
+                    .uiFont(.body)
                     .foregroundStyle(done || task.title.isEmpty ? .secondary : .primary)
                     .strikethrough(done, color: .secondary)
                     .lineLimit(3)
@@ -109,8 +114,8 @@ struct BoardCard: View {
                 if hasMeta { meta }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12 * s)
+        .padding(.vertical, 10 * s)
         .background {
             RoundedRectangle(cornerRadius: BoardStyle.cardRadius, style: .continuous)
                 .fill(selected ? AnyShapeStyle(Color.accentColor.opacity(0.16)) : AnyShapeStyle(BoardStyle.cardFill))
@@ -136,14 +141,14 @@ struct BoardCard: View {
     private var meta: some View {
         let overdue = isOverdue(task, now)
         let dueColor: Color = done ? .secondary : (overdue ? .red : .accentColor)
-        return FlowLayout(spacing: 6, lineSpacing: 4) {
+        return FlowLayout(spacing: 6 * s, lineSpacing: 4 * s) {
             if pinned {
                 Image(systemName: "pin.fill")
                     .foregroundStyle(.secondary)
                     .accessibilityLabel("已置顶")
             }
             if let due = task.dueDate {
-                HStack(spacing: 3) {
+                HStack(spacing: 3 * s) {
                     if !task.reminders.isEmpty && !done {
                         Image(systemName: "alarm").accessibilityLabel("有提醒")
                     }
@@ -156,7 +161,7 @@ struct BoardCard: View {
                 .foregroundStyle(dueColor)
             }
             if let progress, progress.total > 0 {
-                HStack(spacing: 3) {
+                HStack(spacing: 3 * s) {
                     Image(systemName: "checklist")
                     Text("\(progress.done)/\(progress.total)").monospacedDigit()
                 }
@@ -166,13 +171,13 @@ struct BoardCard: View {
             }
             ForEach(task.tags, id: \.self) { tag in
                 Text(tag)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
+                    .padding(.horizontal, 6 * s)
+                    .padding(.vertical, 1 * s)
                     .background(Capsule().fill(Color.accentColor.opacity(0.12)))
                     .foregroundStyle(Color.accentColor)
             }
         }
-        .font(.caption)
+        .uiFont(.caption)
     }
 }
 

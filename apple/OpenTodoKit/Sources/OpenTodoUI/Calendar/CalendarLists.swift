@@ -8,6 +8,7 @@ import SwiftUI
 /// A task in a calendar list: time, checkbox, title, list. A later date
 /// of a repeating task is faded with a repeat mark.
 struct EntryRow: View {
+    @Environment(\.uiScale) private var s
     let entry: CalendarEntry
     let ctx: CalendarContext
     let order: [String]
@@ -18,7 +19,7 @@ struct EntryRow: View {
         let tint = ctx.color(of: task)
         let overdue = !entry.projected && !entry.done && isOverdue(task, ctx.now)
         let faded = entry.done || entry.projected
-        HStack(spacing: 10) {
+        HStack(spacing: 10 * s) {
             if showsTimeColumn {
                 VStack(alignment: .leading, spacing: 0) {
                     if let t = entry.time {
@@ -28,17 +29,17 @@ struct EntryRow: View {
                         Text("全天")
                     }
                 }
-                .font(.caption)
+                .uiFont(.caption)
                 .monospacedDigit()
                 .foregroundStyle(overdue ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
-                .frame(width: 44, alignment: .leading)
+                .frame(width: 44 * s, alignment: .leading)
             }
-            RoundedRectangle(cornerRadius: 1.5).fill(tint.opacity(faded ? 0.4 : 1)).frame(width: 3, height: 22)
+            RoundedRectangle(cornerRadius: 1.5 * s).fill(tint.opacity(faded ? 0.4 : 1)).frame(width: 3 * s, height: 22 * s)
             if entry.projected {
                 Image(systemName: "repeat")
-                    .font(.system(size: 13))
+                    .uiFont(size: 13)
                     .foregroundStyle(.secondary)
-                    .frame(width: 22)
+                    .frame(width: 22 * s)
                     .accessibilityLabel("重复")
             } else {
                 PriorityCheckbox(checked: entry.done, priority: task.priority, size: 18) {
@@ -52,15 +53,15 @@ struct EntryRow: View {
             Spacer(minLength: 4)
             if !showsTimeColumn, let t = entry.time {
                 Text(timeLabel(t))
-                    .font(.caption)
+                    .uiFont(.caption)
                     .foregroundStyle(overdue ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
             }
             Text(ctx.listName(task.listId))
-                .font(.caption)
+                .uiFont(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 2 * s)
         .listRowBackground(ctx.isSelected(entry) ? tint.opacity(0.18) : nil)
         .modifier(ChipInteractions(entry: entry, ctx: ctx, order: order))
     }
@@ -69,6 +70,7 @@ struct EntryRow: View {
 /// The month's days that have something on, one under another. In the
 /// current month it starts at today: the agenda looks ahead.
 struct AgendaView: View {
+    @Environment(\.uiScale) private var s
     let ctx: CalendarContext
     let range: DayRange
 
@@ -93,14 +95,14 @@ struct AgendaView: View {
                         Button {
                             ctx.model.showDay(day)
                         } label: {
-                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            HStack(alignment: .firstTextBaseline, spacing: 6 * s) {
                                 Text(verbatim: "\(day.day)")
-                                    .font(.title3.weight(.semibold))
+                                    .uiFont(.title3, weight: .semibold)
                                     .monospacedDigit()
                                 Text(daySectionTitle(day, today: ctx.today))
-                                    .font(.subheadline)
+                                    .uiFont(.subheadline)
                                 if ctx.model.prefs.showLunar {
-                                    CalendarDayNote(date: day, font: .caption)
+                                    CalendarDayNote(date: day, style: .caption)
                                 }
                             }
                             .foregroundStyle(day == ctx.today ? AnyShapeStyle(Color.red) : AnyShapeStyle(.primary))
@@ -120,6 +122,7 @@ struct AgendaView: View {
 
 /// One day's tasks as list rows, under a heading.
 struct DayTaskList: View {
+    @Environment(\.uiScale) private var s
     let ctx: CalendarContext
     let day: Day
     let entries: [CalendarEntry]
@@ -136,10 +139,13 @@ struct DayTaskList: View {
                     EntryRow(entry: e, ctx: ctx, order: order, showsTimeColumn: false)
                 }
             } header: {
-                HStack(spacing: 6) {
-                    Text(daySectionTitle(day, today: ctx.today))
-                    if ctx.model.prefs.showLunar { CalendarDayNote(date: day, font: .caption) }
+                Group {
+                    HStack(spacing: 6 * s) {
+                        Text(daySectionTitle(day, today: ctx.today))
+                        if ctx.model.prefs.showLunar { CalendarDayNote(date: day, style: .caption) }
+                    }
                 }
+                .uiDefaultFont(.subheadline, weight: .semibold)
             }
         }
         #if os(iOS)

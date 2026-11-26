@@ -51,11 +51,14 @@ enum TimelineStyle {
 struct TimelineCheckbox: View {
     let done: Bool
     let priority: Priority
+    /// At 标准; it grows with 界面大小.
     var size: Double = 13
     let action: () -> Void
+    @Environment(\.uiScale) private var s
 
     var body: some View {
-        Button(action: action) {
+        let size = size * s
+        return Button(action: action) {
             ZStack {
                 Circle()
                     .strokeBorder(done ? Color.secondary : TimelineStyle.priorityColor(priority), lineWidth: 1.4)
@@ -68,18 +71,19 @@ struct TimelineCheckbox: View {
                 }
             }
             .frame(width: size, height: size)
-            .padding(4)
+            .padding(4 * s)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(done ? "标记为未完成" : "完成")
-        .padding(-4)
+        .padding(-4 * s)
     }
 }
 
 /// What a bar shows: a tinted strip over the days of the task, its
 /// checkbox, title and time when there's room.
 struct TimelineBarFace: View {
+    @Environment(\.uiScale) private var s
     let task: TodoTask
     let width: Double
     var selected = false
@@ -99,20 +103,20 @@ struct TimelineBarFace: View {
         let fill: Color = done
             ? Color.primary.opacity(dark ? 0.12 : 0.06)
             : Color.accentColor.opacity(selected ? (dark ? 0.55 : 0.34) : (dark ? 0.30 : 0.16))
-        HStack(spacing: 6) {
+        HStack(spacing: 6 * s) {
             if width >= TimelineMetrics.checkboxInside {
                 TimelineCheckbox(done: done, priority: task.priority, size: 12, action: onToggle)
             }
             if width >= TimelineMetrics.titleInside {
                 Text(TimelineStyle.title(task))
-                    .font(.system(size: 12, weight: .medium))
+                    .uiFont(size: 12, weight: .medium)
                     .strikethrough(done)
                     .foregroundStyle(done ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 if let time = task.dueTime, width >= 120 {
                     Text(timeLabel(time))
-                        .font(.system(size: 10).monospacedDigit())
+                        .uiFont(size: 10) { $0.monospacedDigit() }
                         .foregroundStyle(overdue ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
                         .lineLimit(1)
                 }
@@ -145,7 +149,7 @@ struct TimelinePill: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .semibold))
+            .uiFont(size: 11, weight: .semibold)
             .foregroundStyle(.white)
             .lineLimit(1)
             .fixedSize()

@@ -39,6 +39,7 @@ struct SystemDebugPresenter: ViewModifier {
 
 #if os(macOS)
 private struct SystemDebugCard: View {
+    @Environment(\.uiScale) private var s
     let state: SystemDebugState
 
     var body: some View {
@@ -47,22 +48,22 @@ private struct SystemDebugCard: View {
             switch state {
             case .menubar:
                 MenuBarContent()
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.separator))
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14 * s, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14 * s, style: .continuous).strokeBorder(.separator))
                     .shadow(color: .black.opacity(0.2), radius: 18, y: 8)
                     .padding(.top, 8)
                     .padding(.trailing, 60)
             case .quickpanel:
                 QuickAddPanelView(state: QuickAddPanelState()) {}
                     // -OTSnapshot can't draw the glass: a plain backing to see the layout.
-                    .background(.background, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .background(.background, in: RoundedRectangle(cornerRadius: 22 * s, style: .continuous))
                     .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
                     .padding(.top, 140)
             case .settings:
                 IntegrationSettingsPane()
                     .frame(width: 480, height: 380)
-                    .background(.background, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.separator))
+                    .background(.background, in: RoundedRectangle(cornerRadius: 14 * s, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14 * s, style: .continuous).strokeBorder(.separator))
                     .shadow(color: .black.opacity(0.2), radius: 18, y: 8)
                     .padding(.top, 100)
             }

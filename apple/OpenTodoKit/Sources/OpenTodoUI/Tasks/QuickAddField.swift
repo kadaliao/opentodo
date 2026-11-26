@@ -29,6 +29,7 @@ public struct QuickAddField: View {
     @State private var parsed: QuickAddResult?
     @State private var fieldWidth: CGFloat = 0
     @FocusState private var focused: Bool
+    @Environment(\.uiScale) private var s
 
     public init(target: QuickAddTarget? = nil, prompt: String? = nil, focusRequests: Int = 0,
                 onAdded: ((String) -> Void)? = nil) {
@@ -39,30 +40,31 @@ public struct QuickAddField: View {
     }
 
     public var body: some View {
-        HStack(spacing: TaskRow.Metrics.gap) {
+        HStack(spacing: TaskRow.Metrics.gap * s) {
             Image(systemName: "plus")
-                .font(.body.weight(.medium))
+                .uiFont(.body, weight: .medium)
                 .foregroundStyle(.tint)
-                .frame(width: PriorityCheckbox.defaultSize)
+                .frame(width: PriorityCheckbox.defaultSize * s)
                 .accessibilityHidden(true)
-            ZStack(alignment: .leading) {
-                highlight
-                TextField(placeholder, text: $text)
-                    .textFieldStyle(.plain)
-                    .font(Self.font)
-                    .focused($focused)
-                    .submitLabel(.done)
-                    .onSubmit(submit)
-                    .accessibilityLabel("添加任务")
-            }
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fieldWidth = $0 }
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .uiFont(Self.font)
+                .focused($focused)
+                .submitLabel(.done)
+                .onSubmit(submit)
+                .accessibilityLabel("添加任务")
+                // Behind the field and not part of its size: when the text
+                // is wider than the field (it hides then) it mustn't push
+                // the date beside it out of the row.
+                .background(alignment: .leading) { highlight }
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fieldWidth = $0 }
             if let preview {
                 Label(preview.text, systemImage: preview.repeats ? "repeat" : "calendar")
-                    .font(.caption)
+                    .uiFont(.caption)
                     .foregroundStyle(.tint)
                     .lineLimit(1)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, 8 * s)
+                    .padding(.vertical, 3 * s)
                     .background(.tint.opacity(0.12), in: Capsule())
                     .fixedSize()
                     .accessibilityLabel("识别为 \(preview.text)")
@@ -80,7 +82,8 @@ public struct QuickAddField: View {
         }
     }
 
-    static let font = Font.body
+    /// The field's and the highlight's: the same, so they line up.
+    static let font = Font.TextStyle.body
 
     private var placeholder: String {
         if let prompt { return prompt }
@@ -92,7 +95,7 @@ public struct QuickAddField: View {
     @ViewBuilder private var highlight: some View {
         if let parsed, !parsed.tokens.isEmpty {
             Text(highlighted(text, parsed.tokens))
-                .font(Self.font)
+                .uiFont(Self.font)
                 .lineLimit(1)
                 .fixedSize()
                 .accessibilityHidden(true)

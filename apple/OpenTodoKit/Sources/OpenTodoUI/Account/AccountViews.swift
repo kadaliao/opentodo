@@ -12,6 +12,7 @@ import SwiftUI
 /// The sign-in / register form's fields. The caller sends the request and
 /// passes back `busy` and `error`.
 struct SignInFields: View {
+    @Environment(\.uiScale) private var s
     @Binding var request: SignInRequest
     let busy: Bool
     let error: String?
@@ -57,18 +58,21 @@ struct SignInFields: View {
             .fixedSize()
             .frame(maxWidth: .infinity)
             .textCase(nil)
-            .padding(.bottom, 6)
+            .padding(.bottom, 6 * s)
         } footer: {
-            VStack(alignment: .leading, spacing: 6) {
-                if let error {
-                    Label(error, systemImage: "exclamationmark.circle.fill")
-                        .foregroundStyle(.red)
-                        .accessibilityLabel("出错了：\(error)")
-                }
-                if !request.register {
-                    Text("登录后，这台设备上已有的任务会合并进账号。")
+            Group {
+                VStack(alignment: .leading, spacing: 6 * s) {
+                    if let error {
+                        Label(error, systemImage: "exclamationmark.circle.fill")
+                            .foregroundStyle(.red)
+                            .accessibilityLabel("出错了：\(error)")
+                    }
+                    if !request.register {
+                        Text("登录后，这台设备上已有的任务会合并进账号。")
+                    }
                 }
             }
+            .uiDefaultFont(.subheadline)
         }
         .disabled(busy)
         Section {
@@ -83,7 +87,10 @@ struct SignInFields: View {
                     .focused($focus, equals: .server)
             }
         } footer: {
-            Text("默认是官方的同步服务；自己部署的服务器填它的地址。")
+            Group {
+                Text("默认是官方的同步服务；自己部署的服务器填它的地址。")
+            }
+            .uiDefaultFont(.subheadline)
         }
         .disabled(busy)
     }
@@ -114,6 +121,7 @@ struct SignInButton: View {
 /// 立即同步 / 重新登录 / 退出登录 (with the confirmation that says what will be
 /// lost).
 struct AccountSummary: View {
+    @Environment(\.uiScale) private var s
     let account: Account
     let status: SyncStatus
     let progress: SyncReport?
@@ -138,21 +146,21 @@ struct AccountSummary: View {
     @ViewBuilder private var sections: some View {
         let line = SyncLine(status, progress: progress, now: now)
         Section {
-            HStack(spacing: 12) {
+            HStack(spacing: 12 * s) {
                 Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 40))
+                    .uiFont(size: 40)
                     .foregroundStyle(.white, Palette.accent)
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(account.email).font(.headline).lineLimit(1).truncationMode(.middle)
-                    Text(serverName(account.serverUrl)).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                VStack(alignment: .leading, spacing: 2 * s) {
+                    Text(account.email).uiFont(.headline).lineLimit(1).truncationMode(.middle)
+                    Text(serverName(account.serverUrl)).uiFont(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, 2 * s)
         }
         Section {
             LabeledContent {
-                HStack(spacing: 6) {
+                HStack(spacing: 6 * s) {
                     if status.phase == .syncing {
                         ProgressView().controlSize(.small)
                     } else {
@@ -175,7 +183,7 @@ struct AccountSummary: View {
                 }
             } label: {
                 Text("改动会在两秒后自动同步，之后每分钟、回到应用时也会同步。")
-                    .font(.callout)
+                    .uiFont(.callout)
                     .foregroundStyle(.secondary)
             }
             #else
@@ -186,15 +194,18 @@ struct AccountSummary: View {
                 .disabled(status.phase == .syncing)
             #endif
         } footer: {
-            #if os(macOS)
-            HStack {
-                Spacer()
-                Button("退出登录…") { confirming = true }
+            Group {
+                #if os(macOS)
+                HStack {
+                    Spacer()
+                    Button("退出登录…") { confirming = true }
+                }
+                .padding(.top, 8 * s)
+                #else
+                Text("改动会在两秒后自动同步，之后每分钟、回到应用时也会同步。")
+                #endif
             }
-            .padding(.top, 8)
-            #else
-            Text("改动会在两秒后自动同步，之后每分钟、回到应用时也会同步。")
-            #endif
+            .uiDefaultFont(.subheadline)
         }
         #if os(iOS)
         Section {
@@ -213,6 +224,7 @@ struct AccountSummary: View {
 /// The bottom of the Mac sidebar: 登录以同步, or the account and its sync
 /// state. A click signs in or syncs; the menu has the rest.
 struct AccountSidebarRow: View {
+    @Environment(\.uiScale) private var s
     let account: Account?
     let status: SyncStatus
     let progress: SyncReport?
@@ -228,17 +240,17 @@ struct AccountSidebarRow: View {
 
     var body: some View {
         let line = SyncLine(status, progress: progress, now: now)
-        HStack(spacing: 8) {
+        HStack(spacing: 8 * s) {
             Button(action: account == nil ? onSignIn : onSyncNow) {
-                HStack(spacing: 8) {
+                HStack(spacing: 8 * s) {
                     icon(line)
-                        .frame(width: 22)
-                    VStack(alignment: .leading, spacing: 1) {
+                        .frame(width: 22 * s)
+                    VStack(alignment: .leading, spacing: 1 * s) {
                         Text(account?.email ?? "登录以同步")
                             .lineLimit(1)
                             .truncationMode(.middle)
                         Text(account == nil ? "在手机和电脑之间同步任务" : line.text)
-                            .font(.caption)
+                            .uiFont(.caption)
                             .foregroundStyle(line.error ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                             .lineLimit(2)
                     }
@@ -267,8 +279,8 @@ struct AccountSidebarRow: View {
                 .help("账号")
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 10 * s)
+        .padding(.vertical, 8 * s)
         .accessibilityElement(children: .contain)
         .confirmationDialog(SignOutConfirmation.title, isPresented: $confirming, titleVisibility: .visible) {
             Button(SignOutConfirmation.action, role: .destructive, action: onSignOut)
@@ -292,6 +304,7 @@ struct AccountSidebarRow: View {
 /// The row at the top of the iOS settings: the account, like the Apple
 /// Account row of the system Settings.
 struct AccountSettingsRow: View {
+    @Environment(\.uiScale) private var s
     let account: Account?
     let status: SyncStatus
     let progress: SyncReport?
@@ -299,20 +312,20 @@ struct AccountSettingsRow: View {
 
     var body: some View {
         let line = SyncLine(status, progress: progress, now: now)
-        HStack(spacing: 14) {
+        HStack(spacing: 14 * s) {
             Image(systemName: account == nil ? "person.crop.circle" : "person.crop.circle.fill")
-                .font(.system(size: 44))
+                .uiFont(size: 44)
                 .foregroundStyle(account == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(Palette.accent))
                 .symbolRenderingMode(.hierarchical)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(account?.email ?? "登录以同步").font(.title3.weight(.semibold)).lineLimit(1).truncationMode(.middle)
+            VStack(alignment: .leading, spacing: 2 * s) {
+                Text(account?.email ?? "登录以同步").uiFont(.title3, weight: .semibold).lineLimit(1).truncationMode(.middle)
                 Text(account == nil ? "在手机和电脑之间同步任务" : line.text)
-                    .font(.subheadline)
+                    .uiFont(.subheadline)
                     .foregroundStyle(line.error ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                     .lineLimit(2)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 4 * s)
     }
 }

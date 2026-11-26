@@ -129,6 +129,7 @@ private struct TaskListDragHeader: ViewModifier {
 /// A list section's header drags the section and takes another of the
 /// list's above (top half) or below (bottom half) it.
 private struct SectionHeaderDrag: ViewModifier {
+    @Environment(\.uiScale) private var s
     let section: ListSection?
     let among: [ListSection]
 
@@ -139,11 +140,11 @@ private struct SectionHeaderDrag: ViewModifier {
                 .dropSlot("section-\(section.id)", .section(section, among: ordered, axis: .vertical))
                 .sectionDragSource(section) {
                     Text(section.name)
-                        .font(.headline)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .frame(width: 240, alignment: .leading)
-                        .background(BoardStyle.cardFill, in: .rect(cornerRadius: 10))
+                        .uiFont(.headline)
+                        .padding(.horizontal, 14 * s)
+                        .padding(.vertical, 10 * s)
+                        .frame(width: 240 * s, alignment: .leading)
+                        .background(BoardStyle.cardFill, in: .rect(cornerRadius: 10 * s))
                 }
         } else {
             content
@@ -162,6 +163,7 @@ private struct OptionalDropSlot: ViewModifier {
 
 /// The dragged copy of a list row.
 private struct DragRowPreview: View {
+    @Environment(\.uiScale) private var s
     let task: TodoTask
     let now: LocalDateTime
     let list: TaskList?
@@ -169,9 +171,9 @@ private struct DragRowPreview: View {
 
     var body: some View {
         TaskRow(task, now: now, list: list, showList: false, checklist: checklist) {}
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .frame(width: 320, alignment: .leading)
-            .background(BoardStyle.cardFill, in: .rect(cornerRadius: 10))
+            .padding(.horizontal, 12 * s)
+            .padding(.vertical, 6 * s)
+            .frame(width: 320 * s, alignment: .leading)
+            .background(BoardStyle.cardFill, in: .rect(cornerRadius: 10 * s))
     }
 }

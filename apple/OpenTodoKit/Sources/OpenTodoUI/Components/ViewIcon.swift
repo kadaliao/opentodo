@@ -10,6 +10,7 @@ import OpenTodoDomain
 import SwiftUI
 
 public struct ViewIcon: View {
+    @Environment(\.uiScale) private var s
     public enum Content: Hashable {
         case symbol(String, Color)
         case emoji(String)
@@ -58,14 +59,14 @@ public struct ViewIcon: View {
         case (.symbol(let name, let color), .badge):
             Image(systemName: name)
                 .symbolVariant(.fill)
-                .font(.system(size: 14, weight: .semibold))
+                .uiFont(size: 14, weight: .semibold)
                 .foregroundStyle(.white)
-                .frame(width: 30, height: 30)
+                .frame(width: 30 * s, height: 30 * s)
                 .background(color.gradient, in: Circle())
         case (.emoji(let e), .badge):
             Text(e)
-                .font(.system(size: 17))
-                .frame(width: 30, height: 30)
+                .uiFont(size: 17)
+                .frame(width: 30 * s, height: 30 * s)
                 .background(Color.secondary.opacity(0.14), in: Circle())
         }
     }

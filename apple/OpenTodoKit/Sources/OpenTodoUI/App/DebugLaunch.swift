@@ -10,6 +10,13 @@
 //                              in the 新建任务 sheet), to see its highlighting
 //     -OTWindowSize 760x460    macOS: the main window's content size (not the
 //                              size the window had last time)
+//     -OTInterfaceSize large   macOS: 界面大小 for this run (small, standard,
+//                              large, extraLarge), whatever is stored
+//     -OTHiddenWindows yes     macOS: every window the app opens (the main
+//                              one, Settings, popovers, sheets, panels) goes
+//                              behind the desktop picture, where nobody sees
+//                              it but screencapture -l and ScreenCaptureKit
+//                              still capture it (scripts/shot.sh does this)
 //     -OTSnapshot <file.png>   macOS: once the window is up, draw it into a
 //                              PNG and quit (screenshots without the screen
 //                              recording permission; see scripts/shot.sh)
@@ -72,6 +79,8 @@ public struct DebugLaunch: Sendable, Hashable {
     public var appearance: DebugAppearance?
     public var quickAddText: String?
     public var windowSize: DebugWindowSize?
+    public var interfaceSize: InterfaceSize?
+    public var hiddenWindows = false
     /// Arguments that were given but not understood, for a log line.
     public var problems: [String] = []
 
@@ -102,6 +111,10 @@ public struct DebugLaunch: Sendable, Hashable {
             case "-OTQuickAdd": quickAddText = value
             case "-OTWindowSize":
                 if let s = DebugWindowSize(value) { windowSize = s } else { problems.append("bad window size: \(value)") }
+            case "-OTInterfaceSize":
+                if let s = InterfaceSize(rawValue: value) { interfaceSize = s } else { problems.append("unknown interface size: \(value)") }
+            case "-OTHiddenWindows":
+                if value == "yes" { hiddenWindows = true } else if value != "no" { problems.append("-OTHiddenWindows takes yes or no") }
             case "-OTAppearance":
                 if let a = DebugAppearance(rawValue: value) { appearance = a } else { problems.append("unknown appearance: \(value)") }
             default: problems.append("unknown option: \(name)")

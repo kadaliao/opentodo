@@ -9,6 +9,7 @@ import OpenTodoDomain
 import SwiftUI
 
 struct MonthBoard: View {
+    @Environment(\.uiScale) private var s
     let ctx: CalendarContext
     let range: DayRange
     /// The month on show, whose days are drawn brighter; nil for the
@@ -25,12 +26,12 @@ struct MonthBoard: View {
             HStack(spacing: 0) {
                 ForEach(weekdayNames, id: \.self) { name in
                     Text(name)
-                        .font(.system(size: 11, weight: .medium))
+                        .uiFont(size: 11, weight: .medium)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
                 }
             }
-            .frame(height: 24)
+            .frame(height: 24 * s)
             Divider()
             GeometryReader { geo in
                 let rowHeight = geo.size.height / CGFloat(max(rows.count, 1))
@@ -64,11 +65,12 @@ private struct WeekRow: View {
     let month: (year: Int, month: Int)?
     let columnWidth: CGFloat
     let height: CGFloat
+    @Environment(\.uiScale) private var s
 
     var body: some View {
         let items = weekLayout(entries, week: week)
-        let fit = CalendarLogic.monthRowFit(items, room: CalendarLogic.cellLines(height: height))
-        let line = CalendarMetrics.chipHeight + CalendarMetrics.chipGap
+        let fit = CalendarLogic.monthRowFit(items, room: CalendarLogic.cellLines(height: height, scale: s))
+        let line = (CalendarMetrics.chipHeight + CalendarMetrics.chipGap) * s
         ZStack(alignment: .topLeading) {
             HStack(spacing: 0) {
                 ForEach(week.days, id: \.self) { day in
@@ -79,19 +81,19 @@ private struct WeekRow: View {
             ForEach(items.filter { $0.line < fit.lines }, id: \.entry.key) { item in
                 EntryBar(
                     entry: item.entry, ctx: ctx, order: order,
-                    showTime: !item.isBar && columnWidth >= 120,
+                    showTime: !item.isBar && columnWidth >= 120 * s,
                     openStart: item.continuesBefore, openEnd: item.continuesAfter
                 )
                 .frame(width: CGFloat(item.columns) * columnWidth - (item.continuesBefore ? 0 : 3) - (item.continuesAfter ? 0 : 3))
                 .offset(
                     x: CGFloat(item.column) * columnWidth + (item.continuesBefore ? 0 : 3),
-                    y: CalendarMetrics.cellHeader + CGFloat(item.line) * line
+                    y: CalendarMetrics.cellHeader * s + CGFloat(item.line) * line
                 )
             }
             ForEach(Array(fit.hidden.enumerated()).filter { $0.element > 0 }, id: \.offset) { column, count in
                 CalendarMoreButton(count: count) { ctx.model.showDay(week.start + column) }
                     .frame(width: columnWidth - 6)
-                    .offset(x: CGFloat(column) * columnWidth + 3, y: CalendarMetrics.cellHeader + CGFloat(fit.lines) * line)
+                    .offset(x: CGFloat(column) * columnWidth + 3, y: CalendarMetrics.cellHeader * s + CGFloat(fit.lines) * line)
             }
         }
         .frame(height: height, alignment: .topLeading)
@@ -105,22 +107,48 @@ private struct DayCell: View {
     let ctx: CalendarContext
     let day: Day
     let inMonth: Bool
+    @Environment(\.uiScale) private var s
+
+    @ViewBuilder private func headerRow(isToday: Bool, lunar: Bool) -> some View {
+        if s > 1 {
+            // Bigger than 标准 a narrow cell can't hold 11月1日 and the lunar
+            // day: the plain number, and no lunar day rather than half of one.
+            ViewThatFits(in: .horizontal) {
+                header(label: CalendarLogic.cellDayLabel(day), lunar: lunar, isToday: isToday)
+                header(label: "\(day.day)", lunar: lunar, isToday: isToday)
+                header(label: "\(day.day)", lunar: false, isToday: isToday)
+            }
+        } else {
+            HStack(spacing: 4 * s) {
+                CalendarDayNumber(text: CalendarLogic.cellDayLabel(day), isToday: isToday, dim: !inMonth)
+                if lunar {
+                    CalendarDayNote(date: day, dim: !inMonth)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    /// The number and the lunar day, whole (for `ViewThatFits`).
+    private func header(label: String, lunar: Bool, isToday: Bool) -> some View {
+        HStack(spacing: 4 * s) {
+            CalendarDayNumber(text: label, isToday: isToday, dim: !inMonth)
+            if lunar {
+                CalendarDayNote(date: day, dim: !inMonth).fixedSize()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
     var body: some View {
         let model = ctx.model
         let isToday = day == ctx.today
         let hovered = model.hover?.target == .cell(day)
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 4) {
-                CalendarDayNumber(text: CalendarLogic.cellDayLabel(day), isToday: isToday, dim: !inMonth)
-                if model.prefs.showLunar {
-                    CalendarDayNote(date: day, dim: !inMonth)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.leading, 2)
-            .padding(.top, 2)
-            .frame(height: CalendarMetrics.cellHeader, alignment: .top)
+            headerRow(isToday: isToday, lunar: model.prefs.showLunar)
+            .padding(.leading, 2 * s)
+            .padding(.top, 2 * s)
+            .frame(height: CalendarMetrics.cellHeader * s, alignment: .top)
             Spacer(minLength: 0)
         }
         .background {

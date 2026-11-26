@@ -7,20 +7,21 @@ import OpenTodoDomain
 import SwiftUI
 
 struct QuickAddSheet: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 12 * s) {
                 QuickAddField(focusRequests: 1) { _ in dismiss() }
                 Text("可以直接写“明天下午3点”“每周一”“#标签”“!高”")
-                    .font(.footnote)
+                    .uiFont(.footnote)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
+            .padding(.horizontal, 20 * s)
+            .padding(.top, 8 * s)
             .navigationTitle("新建任务")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -32,7 +33,7 @@ struct QuickAddSheet: View {
             }
         }
         #if os(macOS)
-        .frame(width: 440, height: 150)
+        .frame(width: 440 * s, height: 150 * s)
         #else
         .presentationDetents([.height(190)])
         #endif

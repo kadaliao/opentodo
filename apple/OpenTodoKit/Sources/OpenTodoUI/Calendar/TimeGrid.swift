@@ -13,10 +13,13 @@ import OpenTodoDomain
 import SwiftUI
 
 struct TimeGrid: View {
+    @Environment(\.uiScale) private var s
     let ctx: CalendarContext
     let range: DayRange
 
 
+    /// The hours' column, at 标准 (it grows with 界面大小; the hour's height
+    /// doesn't).
     static let gutter: CGFloat = 52
     private static let gridSpace = "calendar-grid"
     private static let allDaySpace = "calendar-all-day"
@@ -34,7 +37,7 @@ struct TimeGrid: View {
             ScrollView(.vertical) {
                 HStack(alignment: .top, spacing: 0) {
                     HourGutter(nowMinute: days.contains(ctx.today) ? ctx.now.minuteOfDay : nil)
-                        .frame(width: Self.gutter)
+                        .frame(width: Self.gutter * s)
                     GeometryReader { geo in
                         let width = geo.size.width / CGFloat(days.count)
                         HStack(spacing: 0) {
@@ -71,7 +74,7 @@ struct TimeGrid: View {
                             Color.clear.frame(height: CalendarMetrics.hourHeight).id(h)
                         }
                     }
-                    .padding(.top, -10)
+                    .padding(.top, -10 * s)
                 }
             }
             .onAppear {
@@ -91,7 +94,7 @@ struct TimeGrid: View {
 
     private func headings(_ days: [Day]) -> some View {
         HStack(spacing: 0) {
-            Color.clear.frame(width: Self.gutter)
+            Color.clear.frame(width: Self.gutter * s)
             ForEach(days, id: \.self) { day in
                 let isToday = day == ctx.today
                 Button {
@@ -101,7 +104,7 @@ struct TimeGrid: View {
                     // the number, without the lunar note, which ran into
                     // the next day's heading.
                     ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 5) {
+                        HStack(spacing: 5 * s) {
                             weekday(day, isToday: isToday)
                             CalendarDayNumber(text: "\(day.day)", isToday: isToday, size: 14)
                             if ctx.model.prefs.showLunar {
@@ -109,7 +112,7 @@ struct TimeGrid: View {
                             }
                         }
                         .fixedSize()
-                        VStack(spacing: 1) {
+                        VStack(spacing: 1 * s) {
                             weekday(day, isToday: isToday)
                             CalendarDayNumber(text: "\(day.day)", isToday: isToday, size: 14)
                         }
@@ -122,12 +125,12 @@ struct TimeGrid: View {
                 .accessibilityLabel(daySectionTitle(day, today: ctx.today))
             }
         }
-        .frame(height: 40)
+        .frame(height: 40 * s)
     }
 
     private func weekday(_ day: Day, isToday: Bool) -> some View {
         Text(weekdayName(day))
-            .font(.system(size: 12))
+            .uiFont(size: 12)
             .foregroundStyle(isToday ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
             .lineLimit(1)
     }
@@ -137,16 +140,16 @@ struct TimeGrid: View {
         let needed = (items.map(\.line).max() ?? -1) + 1
         let room = CalendarLogic.allDayLines(busiest: needed, days: days.count)
         let fit = CalendarLogic.monthRowFit(items, room: room, days: days.count)
-        let line = CalendarMetrics.chipHeight + CalendarMetrics.chipGap
-        let height = CGFloat(max(room, 1)) * line + 6
+        let line = (CalendarMetrics.chipHeight + CalendarMetrics.chipGap) * s
+        let height = CGFloat(max(room, 1)) * line + 6 * s
         return HStack(spacing: 0) {
             Text("全天")
-                .font(.system(size: 11))
+                .uiFont(size: 11)
                 .foregroundStyle(.secondary)
-                .frame(width: Self.gutter - 8, alignment: .trailing)
-                .padding(.trailing, 8)
+                .frame(width: (Self.gutter - 8) * s, alignment: .trailing)
+                .padding(.trailing, 8 * s)
                 .frame(maxHeight: .infinity, alignment: .top)
-                .padding(.top, 5)
+                .padding(.top, 5 * s)
             GeometryReader { geo in
                 let width = geo.size.width / CGFloat(days.count)
                 ZStack(alignment: .topLeading) {
@@ -166,12 +169,12 @@ struct TimeGrid: View {
                         EntryBar(entry: item.entry, ctx: ctx, order: order, showTime: false,
                                  openStart: item.continuesBefore, openEnd: item.continuesAfter)
                             .frame(width: CGFloat(item.columns) * width - 4)
-                            .offset(x: CGFloat(item.column) * width + 2, y: 3 + CGFloat(item.line) * line)
+                            .offset(x: CGFloat(item.column) * width + 2, y: 3 * s + CGFloat(item.line) * line)
                     }
                     ForEach(Array(fit.hidden.enumerated()).filter { $0.element > 0 }, id: \.offset) { column, count in
                         CalendarMoreButton(count: count) { ctx.model.showDay(days[column]) }
                             .frame(width: width - 4)
-                            .offset(x: CGFloat(column) * width + 2, y: 3 + CGFloat(fit.lines) * line)
+                            .offset(x: CGFloat(column) * width + 2, y: 3 * s + CGFloat(fit.lines) * line)
                     }
                 }
                 .coordinateSpace(name: Self.allDaySpace)
@@ -187,29 +190,30 @@ struct TimeGrid: View {
 
 /// The hours down the left; now in red beside today's line.
 private struct HourGutter: View {
+    @Environment(\.uiScale) private var s
     let nowMinute: Int?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             ForEach(1..<24, id: \.self) { h in
                 // Left out where the red time of now would sit over it.
-                if nowMinute.map({ abs($0 - h * 60) >= 12 }) ?? true {
+                if nowMinute.map({ CGFloat(abs($0 - h * 60)) >= 12 * s }) ?? true {
                     Text(clockLabel(h * 60))
-                        .font(.system(size: 10))
+                        .uiFont(size: 10)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
-                        .offset(y: CalendarLogic.gridY(h * 60) - 7)
+                        .offset(y: CalendarLogic.gridY(h * 60) - 7 * s)
                 }
             }
             if let nowMinute {
                 Text(clockLabel(nowMinute))
-                    .font(.system(size: 10, weight: .semibold))
+                    .uiFont(size: 10, weight: .semibold)
                     .monospacedDigit()
                     .foregroundStyle(.red)
-                    .offset(y: CalendarLogic.gridY(nowMinute) - 7)
+                    .offset(y: CalendarLogic.gridY(nowMinute) - 7 * s)
             }
         }
-        .padding(.trailing, 8)
+        .padding(.trailing, 8 * s)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         .frame(height: CalendarLogic.gridY(minutesPerDay))
     }
@@ -217,6 +221,7 @@ private struct HourGutter: View {
 
 /// One day over the hours.
 private struct DayColumn: View {
+    @Environment(\.uiScale) private var s
     let ctx: CalendarContext
     let day: Day
     let placements: [TimedPlacement]
@@ -259,10 +264,10 @@ private struct DayColumn: View {
                     .strokeBorder(Palette.accent, lineWidth: 1)
                     .overlay(alignment: .topLeading) {
                         Text(CalendarLogic.hoverLabel(minute: minute, count: model.hover?.count ?? 1))
-                            .font(.system(size: 10, weight: .semibold))
+                            .uiFont(size: 10, weight: .semibold)
                             .foregroundStyle(Palette.accent)
-                            .padding(.leading, 4)
-                            .padding(.top, 2)
+                            .padding(.leading, 4 * s)
+                            .padding(.top, 2 * s)
                     }
                     .frame(width: width - 3, height: CalendarLogic.gridY(min(length, minutesPerDay - minute)))
                     .offset(x: 1, y: top)
@@ -286,7 +291,7 @@ private struct DayColumn: View {
     @ViewBuilder private func block(_ p: TimedPlacement, fullHeight: CGFloat) -> some View {
         let resizing = ctx.model.resize.flatMap { $0.key == p.entry.key ? $0.end : nil }
         let end = resizing ?? p.end
-        let height = max(CalendarLogic.gridY(end - p.start), CalendarMetrics.chipHeight) - 1
+        let height = max(CalendarLogic.gridY(end - p.start), CalendarMetrics.chipHeight * s) - 1
         let w = width / CGFloat(p.columns) - 3
         // A task late at night stays inside the day.
         let top = min(CalendarLogic.gridY(p.start), fullHeight - height - 1)

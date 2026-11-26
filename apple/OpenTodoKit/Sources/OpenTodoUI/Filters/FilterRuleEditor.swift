@@ -71,6 +71,7 @@ public struct FilterRuleEditor: View {
 /// One row (筛选条件 and a summary of the rule) that opens `FilterRuleEditor`
 /// in a sheet with 完成.
 public struct FilterRuleRow: View {
+    @Environment(\.uiScale) private var s
     @Binding var rule: FilterRule
     let lists: [TaskList]
     let tags: [String]
@@ -92,11 +93,11 @@ public struct FilterRuleRow: View {
             editing = true
         } label: {
             LabeledContent(title) {
-                HStack(spacing: 4) {
+                HStack(spacing: 4 * s) {
                     Text(filterRuleSummary(rule, lists: lists, today: today))
                         .lineLimit(1)
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
+                        .uiFont(.caption, weight: .semibold)
                         .foregroundStyle(.tertiary)
                 }
             }
@@ -120,7 +121,7 @@ public struct FilterRuleRow: View {
                 }
             }
             #if os(macOS)
-            .frame(width: 540, height: 480)
+            .frame(width: 540 * s, height: 480 * s)
             #endif
         }
     }
@@ -157,6 +158,7 @@ struct FilterModePicker: View {
 
 /// The 普通 or 高级 rows of a rule, as Form sections.
 struct FilterRuleSections: View {
+    @Environment(\.uiScale) private var s
     @Binding var model: FilterEditorModel
     let context: FilterPickerContext
     let footer: String?
@@ -189,13 +191,16 @@ struct FilterRuleSections: View {
             keyword
             #endif
         } footer: {
-            countFooter
+            Group {
+                countFooter
+            }
+            .uiDefaultFont(.subheadline)
         }
     }
 
     private var priorityChips: some View {
         let chosen = model.simpleValues(.priority)
-        return HStack(spacing: 6) {
+        return HStack(spacing: 6 * s) {
             PriorityChip(label: "所有", on: chosen.isEmpty) { model.setSimpleValues(.priority, []) }
             ForEach(priorityChoices, id: \.key) { p in
                 let on = chosen.contains(p.key)
@@ -233,7 +238,10 @@ struct FilterRuleSections: View {
             .buttonStyle(.borderless)
             #endif
         } footer: {
-            countFooter
+            Group {
+                countFooter
+            }
+            .uiDefaultFont(.subheadline)
         }
     }
 
@@ -271,7 +279,7 @@ struct FilterRuleSections: View {
             .tint(.accentColor)
             #endif
             #if os(macOS)
-            HStack(spacing: 10) {
+            HStack(spacing: 10 * s) {
                 fieldPicker
                 opPicker
                 valueControl(i, c, field)
@@ -279,7 +287,7 @@ struct FilterRuleSections: View {
                 remove
             }
             #else
-            HStack(spacing: 4) {
+            HStack(spacing: 4 * s) {
                 fieldPicker
                 opPicker
                 Spacer()

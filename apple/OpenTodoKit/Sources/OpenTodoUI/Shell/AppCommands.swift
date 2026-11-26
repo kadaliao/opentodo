@@ -7,7 +7,8 @@
 //                               are the list's own)
 //     显示   one per module ⌘1–⌘6 · tasks: 列表 / 看板 / 时间线 ⌃⌘1–3,
 //            显示已完成 ⇧⌘H · calendar: 日 / 3天 / 周 / 月 / 日程 ⌃⌘1–5, 年,
-//            多周 · the sidebar commands
+//            多周 · 放大 ⌘+ (and ⌘=) · 缩小 ⌘- · 实际大小 ⌘0 (界面大小, every
+//            window, with or without one in front) · the sidebar commands
 //     前往   今天 ⇧⌘1 · 明天 ⇧⌘2 · 最近7天 ⇧⌘3 · 收集箱 ⇧⌘4 · each list ·
 //            已完成 · 垃圾桶 · calendar: 回到今天 ⌃⌘T, 上一页 ⌃⌘←, 下一页 ⌃⌘→
 //
@@ -35,6 +36,7 @@ extension FocusedValues {
 
 public struct AppCommands: Commands {
     @FocusedValue(\.appModel) private var model
+    @AppStorage(InterfacePrefs.sizeKey) private var interfaceSize: String?
 
     public init() {}
 
@@ -65,6 +67,10 @@ public struct AppCommands: Commands {
             layoutCommands
             calendarModeCommands
             Divider()
+            #if os(macOS)
+            sizeCommands
+            Divider()
+            #endif
         }
         CommandMenu("前往") { goCommands }
         CommandMenu("任务") { taskCommands }
@@ -100,6 +106,23 @@ public struct AppCommands: Commands {
                 .disabled(!inCalendar)
         }
     }
+
+    // MARK: 界面大小
+
+    #if os(macOS)
+    @ViewBuilder private var sizeCommands: some View {
+        let size = InterfaceSize(storage: interfaceSize)
+        Button("放大") { InterfacePrefs.zoomIn() }
+            .keyboardShortcut("+")
+            .disabled(size.larger == nil)
+        Button("缩小") { InterfacePrefs.zoomOut() }
+            .keyboardShortcut("-")
+            .disabled(size.smaller == nil)
+        Button("实际大小") { InterfacePrefs.resetSize() }
+            .keyboardShortcut("0")
+            .disabled(size == .standard)
+    }
+    #endif
 
     // MARK: 前往
 

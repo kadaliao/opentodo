@@ -7,6 +7,7 @@ import OpenTodoDomain
 import SwiftUI
 
 struct FocusStatsView: View {
+    @Environment(\.uiScale) private var s
     var sessions: [FocusSession]
     var tasks: [TodoTask]
     var lists: [TaskList]
@@ -28,14 +29,14 @@ struct FocusStatsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: 16 * s) {
                 overview
                 bars
                 distribution
                 timeline
             }
             .padding()
-            .frame(maxWidth: 640)
+            .frame(maxWidth: 640 * s)
             .frame(maxWidth: .infinity)
         }
         .background(Color.groupedBackground)
@@ -68,9 +69,9 @@ struct FocusStatsView: View {
         let range = focusChartRange(bucket, today: today)
         let data = focusSeries(sessions, from: range.from, through: range.through, by: bucket, in: timeZone)
         let total = data.reduce(0) { $0 + $1.seconds }
-        return VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 12 * s) {
             HStack {
-                Text("专注时长").font(.headline)
+                Text("专注时长").uiFont(.headline)
                 Spacer()
                 Picker("按", selection: $bucket) {
                     Text("日").tag(FocusBucket.day)
@@ -79,10 +80,10 @@ struct FocusStatsView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 150)
+                .frame(width: 150 * s)
             }
             Text("共\(durationText(total))，平均每\(bucket == .day ? "天" : bucket == .week ? "周" : "月")\(durationText(data.isEmpty ? 0 : total / data.count))")
-                .font(.subheadline)
+                .uiFont(.subheadline)
                 .foregroundStyle(.secondary)
             Chart(data, id: \.start) { bar in
                 BarMark(
@@ -98,7 +99,7 @@ struct FocusStatsView: View {
                     AxisValueLabel { if let m = v.as(Int.self) { Text(m >= 60 && m % 60 == 0 ? "\(m / 60)时" : "\(m)分") } }
                 }
             }
-            .frame(height: 200)
+            .frame(height: 200 * s)
             .accessibilityLabel(Text("每\(bucket == .day ? "天" : bucket == .week ? "周" : "月")的专注时长"))
         }
         .panel()
@@ -117,9 +118,9 @@ struct FocusStatsView: View {
                 id.map { tid in tasks.first { $0.id == tid }?.title ?? "已删除的任务" } ?? "未关联任务"
             }
         let total = max(slices.reduce(0) { $0 + $1.seconds }, 1)
-        return VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 12 * s) {
             HStack {
-                Text("专注分布").font(.headline)
+                Text("专注分布").uiFont(.headline)
                 Spacer()
                 Picker("按", selection: $byList) {
                     Text("任务").tag(false)
@@ -127,31 +128,31 @@ struct FocusStatsView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 120)
+                .frame(width: 120 * s)
             }
             if slices.isEmpty {
-                Text("这段时间还没有专注记录").font(.subheadline).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 80)
+                Text("这段时间还没有专注记录").uiFont(.subheadline).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 80 * s)
             } else {
-                HStack(alignment: .center, spacing: 20) {
+                HStack(alignment: .center, spacing: 20 * s) {
                     Chart(slices) { s in
                         SectorMark(angle: .value("时长", s.seconds), innerRadius: .ratio(0.62), angularInset: 1.5)
                             .foregroundStyle(by: .value("名称", s.name))
                             .cornerRadius(3)
                     }
                     .chartLegend(.hidden)
-                    .frame(width: 120, height: 120)
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(slices.enumerated()), id: \.element.id) { i, s in
-                            HStack(spacing: 8) {
-                                Circle().fill(sliceColor(i)).frame(width: 8, height: 8)
-                                Text(s.name).lineLimit(1)
+                    .frame(width: 120 * s, height: 120 * s)
+                    VStack(alignment: .leading, spacing: 8 * s) {
+                        ForEach(Array(slices.enumerated()), id: \.element.id) { i, slice in
+                            HStack(spacing: 8 * s) {
+                                Circle().fill(sliceColor(i)).frame(width: 8 * s, height: 8 * s)
+                                Text(slice.name).lineLimit(1)
                                 Spacer(minLength: 4)
-                                Text("\(durationText(s.seconds)) · \(s.seconds * 100 / total)%")
+                                Text("\(durationText(slice.seconds)) · \(slice.seconds * 100 / total)%")
                                     .foregroundStyle(.secondary)
                                     .monospacedDigit()
                             }
-                            .font(.subheadline)
+                            .uiFont(.subheadline)
                         }
                     }
                 }
@@ -170,13 +171,13 @@ struct FocusStatsView: View {
 
     private var timeline: some View {
         let items = focusTimeline(sessions, on: day, in: timeZone)
-        return VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 12 * s) {
             HStack {
-                Text("专注时间轴").font(.headline)
+                Text("专注时间轴").uiFont(.headline)
                 Spacer()
                 Button("前一天", systemImage: "chevron.left") { day -= 1 }
                 Text(day == today ? "今天" : dayText(day, today: today))
-                    .font(.subheadline)
+                    .uiFont(.subheadline)
                     .monospacedDigit()
                 Button("后一天", systemImage: "chevron.right") { day += 1 }
                     .disabled(day >= today)
@@ -185,12 +186,12 @@ struct FocusStatsView: View {
             .buttonStyle(.borderless)
             FocusDayBar(items: items)
             if items.isEmpty {
-                Text("这天没有专注").font(.subheadline).foregroundStyle(.secondary)
+                Text("这天没有专注").uiFont(.subheadline).foregroundStyle(.secondary)
             } else {
                 VStack(spacing: 0) {
                     ForEach(items, id: \.session.id) { item in
                         FocusSessionRow(session: item.session, taskTitle: tasks.first { $0.id == item.session.taskId }?.title, timeZone: timeZone)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 6 * s)
                     }
                 }
             }
@@ -201,10 +202,11 @@ struct FocusStatsView: View {
 
 /// The 24 hours of a day as a bar, each session a block on it.
 struct FocusDayBar: View {
+    @Environment(\.uiScale) private var s
     var items: [FocusTimelineItem]
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 4 * s) {
             GeometryReader { geo in
                 let w = geo.size.width
                 ZStack(alignment: .leading) {
@@ -217,10 +219,10 @@ struct FocusDayBar: View {
                     }
                 }
             }
-            .frame(height: 24)
+            .frame(height: 24 * s)
             HStack {
                 ForEach([0, 6, 12, 18, 24], id: \.self) { h in
-                    Text("\(h)").font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+                    Text("\(h)").uiFont(.caption2).foregroundStyle(.secondary).monospacedDigit()
                     if h < 24 { Spacer() }
                 }
             }

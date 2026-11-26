@@ -20,9 +20,15 @@ public struct IntegrationSettingsPane: View {
             Section {
                 Toggle("在菜单栏显示", isOn: $menuBar)
             } header: {
-                Text("菜单栏")
+                Group {
+                    Text("菜单栏")
+                }
+                .uiDefaultFont(.headline)
             } footer: {
-                Text("菜单栏里有今天的任务、快速添加和今天的专注时长。")
+                Group {
+                    Text("菜单栏里有今天的任务、快速添加和今天的专注时长。")
+                }
+                .uiDefaultFont(.subheadline)
             }
             Section {
                 Toggle("用快捷键快速添加", isOn: $hotKeyOn)
@@ -35,9 +41,15 @@ public struct IntegrationSettingsPane: View {
                         .foregroundStyle(.orange)
                 }
             } header: {
-                Text("快速添加")
+                Group {
+                    Text("快速添加")
+                }
+                .uiDefaultFont(.headline)
             } footer: {
-                Text("在任何应用里按下快捷键，屏幕上方会出现一行输入框，回车添加到收集箱（写了日期就按日期），Esc 取消。")
+                Group {
+                    Text("在任何应用里按下快捷键，屏幕上方会出现一行输入框，回车添加到收集箱（写了日期就按日期），Esc 取消。")
+                }
+                .uiDefaultFont(.subheadline)
             }
         }
         .formStyle(.grouped)
@@ -46,6 +58,7 @@ public struct IntegrationSettingsPane: View {
 
 /// Shows the shortcut; click, then press a new one.
 struct HotKeyRecorder: View {
+    @Environment(\.uiScale) private var s
     @Binding var storage: String
     @State private var recording = false
     @State private var hint: String?
@@ -54,22 +67,22 @@ struct HotKeyRecorder: View {
     private var current: HotKey { HotKey(storage: storage) ?? .quickAddDefault }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8 * s) {
             if let hint {
-                Text(hint).font(.caption).foregroundStyle(.secondary)
+                Text(hint).uiFont(.caption).foregroundStyle(.secondary)
             }
             Button {
                 recording ? stop() : start()
             } label: {
                 Text(recording ? "按下新的快捷键…" : current.display)
-                    .frame(minWidth: 110)
+                    .frame(minWidth: 110 * s)
             }
             .buttonStyle(.bordered)
             .tint(recording ? .accentColor : nil)
             if storage != HotKey.quickAddDefault.storage && !recording {
                 Button("恢复默认") { storage = HotKey.quickAddDefault.storage }
                     .buttonStyle(.borderless)
-                    .font(.caption)
+                    .uiFont(.caption)
             }
         }
         .onDisappear(perform: stop)

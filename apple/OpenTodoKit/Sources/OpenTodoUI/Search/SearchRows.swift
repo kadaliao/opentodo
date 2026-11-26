@@ -45,14 +45,15 @@ struct SearchMark {
 
 /// A list, filter or tag found by name.
 struct SearchViewRow: View {
+    @Environment(\.uiScale) private var s
     let entry: SearchEntry
     let terms: [String]
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10 * s) {
             icon
-                .frame(width: 22)
+                .frame(width: 22 * s)
             Text(highlighted(label, findRanges(label, terms), mark: SearchMark.color(scheme)))
                 .lineLimit(1)
             Spacer(minLength: 0)
@@ -90,6 +91,7 @@ struct SearchViewRow: View {
 /// A task found: tick box, title with the words marked, the line that
 /// shows why it was found, and where it lives and when it's due.
 struct SearchTaskRow: View {
+    @Environment(\.uiScale) private var s
     let hit: TaskHit
     let lists: [String: TaskList]
     let now: LocalDateTime
@@ -100,9 +102,9 @@ struct SearchTaskRow: View {
         let task = hit.task
         let done = task.status != .open
         let mark = SearchMark.color(scheme)
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 10 * s) {
             PriorityCheckbox(checked: done, priority: task.priority) { onToggleDone(task, !done) }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 2 * s) {
                 Text(task.title.isEmpty
                     ? AttributedString("无标题")
                     : highlighted(task.title, hit.titleRanges, mark: mark))
@@ -111,20 +113,20 @@ struct SearchTaskRow: View {
                     .lineLimit(2)
                 if let snippet = hit.snippet {
                     Text(highlighted(snippet, hit.snippetRanges, mark: mark))
-                        .font(.callout)
+                        .uiFont(.callout)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
             }
             Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: 2 * s) {
                 Text(listLabel)
                 if let due = task.dueDate {
                     Text(dueLabel(due, task.dueTime, today: now.day, duration: task.duration))
                         .foregroundStyle(isOverdue(task, now) ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                 }
             }
-            .font(.caption)
+            .uiFont(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(1)
         }
@@ -139,20 +141,21 @@ struct SearchTaskRow: View {
 
 /// A recent search, shown before anything is typed.
 struct SearchRecentRow: View {
+    @Environment(\.uiScale) private var s
     let query: String
     let onRemove: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10 * s) {
             Image(systemName: "clock.arrow.circlepath")
                 .foregroundStyle(.secondary)
-                .frame(width: 22)
+                .frame(width: 22 * s)
             Text(query).lineLimit(1)
             Spacer(minLength: 0)
             #if os(macOS)
             Button(action: onRemove) {
                 Image(systemName: "xmark")
-                    .font(.caption)
+                    .uiFont(.caption)
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)

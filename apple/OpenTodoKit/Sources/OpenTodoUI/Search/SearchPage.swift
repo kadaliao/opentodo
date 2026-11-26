@@ -101,7 +101,7 @@ public struct SearchPage: View {
                                 Text(section.title)
                                 Spacer()
                                 Button("清除") { onRecentSearchesChange([]) }
-                                    .font(.subheadline)
+                                    .uiFont(.subheadline)
                                     .textCase(nil)
                             }
                         } else {

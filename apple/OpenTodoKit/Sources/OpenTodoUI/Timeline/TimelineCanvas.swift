@@ -48,17 +48,19 @@ struct TimelineDayHeader: View {
     let today: Day
     /// The days a dragged task would land on.
     let drop: TimelineDropDays?
+    @Environment(\.uiScale) private var s
 
     var body: some View {
         let g = geometry
         let minX = minX
         let today = today
         let drop = drop
+        let s = s
         Canvas { context, size in
             let first = g.day(atContentX: minX)
             let last = g.day(atContentX: minX + size.width)
             if let drop {
-                let r = CGRect(x: g.contentX(drop.start) - minX + 1, y: 3, width: Double(drop.days) * g.dayWidth - 2, height: size.height - 6)
+                let r = CGRect(x: g.contentX(drop.start) - minX + 1, y: 3 * s, width: Double(drop.days) * g.dayWidth - 2, height: size.height - 6 * s)
                 context.fill(Path(roundedRect: r, cornerRadius: 7, style: .continuous), with: .color(.accentColor.opacity(0.16)))
             }
             if g.scale == .month {
@@ -73,10 +75,10 @@ struct TimelineDayHeader: View {
                     let room = g.contentX(next) - minX - left
                     if room > 24 {
                         let name = month.month == 1 ? "\(month.year)年1月" : "\(month.month)月"
-                        let text = Text(name).font(.system(size: 12, weight: .semibold)).foregroundStyle(.primary)
+                        let text = Text(name).font(.ui(size: 12, weight: .semibold, scale: s)).foregroundStyle(.primary)
                         var c = context
                         c.clip(to: Path(CGRect(x: left, y: 0, width: room - 2, height: size.height)))
-                        c.draw(text, at: CGPoint(x: left + 6, y: 6), anchor: .topLeading)
+                        c.draw(text, at: CGPoint(x: left + 6, y: 6 * s), anchor: .topLeading)
                     }
                     month = next
                 }
@@ -84,14 +86,14 @@ struct TimelineDayHeader: View {
                 while d <= last {
                     let x = g.contentX(d) - minX
                     context.draw(
-                        Text("\(d.day)").font(.system(size: 10).monospacedDigit()).foregroundStyle(.secondary),
-                        at: CGPoint(x: x + 2, y: 24), anchor: .topLeading
+                        Text("\(d.day)").font(Font.ui(size: 10, scale: s).monospacedDigit()).foregroundStyle(.secondary),
+                        at: CGPoint(x: x + 2, y: 24 * s), anchor: .topLeading
                     )
                     d += 7
                 }
                 if today >= first && today <= last {
                     let x = g.contentX(today) - minX + g.dayWidth / 2
-                    context.fill(Path(ellipseIn: CGRect(x: x - 3, y: 37, width: 6, height: 6)), with: .color(.red))
+                    context.fill(Path(ellipseIn: CGRect(x: x - 3, y: 37 * s, width: 6, height: 6)), with: .color(.red))
                 }
             } else {
                 let wide = g.scale == .day
@@ -103,25 +105,25 @@ struct TimelineDayHeader: View {
                     let off = isDayOff(d)
                     let weekday = wide ? weekdayName(d) : String(weekdayName(d).dropFirst())
                     context.draw(
-                        Text(weekday).font(.system(size: 10, weight: .medium))
+                        Text(weekday).font(.ui(size: 10, weight: .medium, scale: s))
                             .foregroundStyle(isToday ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary)),
-                        at: CGPoint(x: mid, y: 13)
+                        at: CGPoint(x: mid, y: 13 * s)
                     )
                     let label = d.day == 1 ? "\(d.month)月" : "\(d.day)"
                     let weight: Font.Weight = isToday || d.day == 1 ? .semibold : .regular
                     if isToday {
-                        let w = max(22, Double(label.count) * 8 + 10)
+                        let w = max(22, Double(label.count) * 8 + 10) * s
                         context.fill(
-                            Path(roundedRect: CGRect(x: mid - w / 2, y: 20, width: w, height: 20), cornerRadius: 10),
+                            Path(roundedRect: CGRect(x: mid - w / 2, y: 20 * s, width: w, height: 20 * s), cornerRadius: 10 * s),
                             with: .color(.red)
                         )
-                        context.draw(Text(label).font(.system(size: 13, weight: .semibold).monospacedDigit()).foregroundStyle(.white),
-                                     at: CGPoint(x: mid, y: 30))
+                        context.draw(Text(label).font(Font.ui(size: 13, weight: .semibold, scale: s).monospacedDigit()).foregroundStyle(.white),
+                                     at: CGPoint(x: mid, y: 30 * s))
                     } else {
                         let style: AnyShapeStyle = d.day == 1 ? AnyShapeStyle(Color.accentColor)
                             : off ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
-                        context.draw(Text(label).font(.system(size: 13, weight: weight).monospacedDigit()).foregroundStyle(style),
-                                     at: CGPoint(x: mid, y: 30))
+                        context.draw(Text(label).font(Font.ui(size: 13, weight: weight, scale: s).monospacedDigit()).foregroundStyle(style),
+                                     at: CGPoint(x: mid, y: 30 * s))
                     }
                     d += 1
                 }
@@ -137,6 +139,7 @@ struct TimelineDayHeader: View {
 /// one onto a day to give it that date, or a task from the timeline here to
 /// take its date away.
 struct TimelineTray<TaskMenu: View>: View {
+    @Environment(\.uiScale) private var s
     let groups: [UndatedGroup]
     /// The lanes have headers: show which group each task is in.
     let titled: Bool
@@ -156,42 +159,42 @@ struct TimelineTray<TaskMenu: View>: View {
     var body: some View {
         let count = groups.reduce(0) { $0 + $1.tasks.count }
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("无日期").font(.headline)
-                Text("\(count)").font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 6 * s) {
+                Text("无日期").uiFont(.headline)
+                Text("\(count)").uiFont(.subheadline) { $0.monospacedDigit() }.foregroundStyle(.secondary)
                 Spacer()
                 if count > 0 {
-                    Text("拖到日期上").font(.caption).foregroundStyle(.tertiary)
+                    Text("拖到日期上").uiFont(.caption).foregroundStyle(.tertiary)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
+            .padding(.horizontal, 14 * s)
+            .padding(.top, 10 * s)
+            .padding(.bottom, 6 * s)
             if count == 0 {
                 Text("没有无日期的任务\n把时间线上的任务拖到这里，可以去掉日期")
-                    .font(.caption)
+                    .uiFont(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(16)
+                    .padding(16 * s)
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 4) {
+                    LazyVStack(alignment: .leading, spacing: 4 * s) {
                         ForEach(Array(groups.enumerated()), id: \.offset) { _, g in
                             if titled, let title = g.title {
                                 Text(title)
-                                    .font(.caption.weight(.medium))
+                                    .uiFont(.caption, weight: .medium)
                                     .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.top, 8)
-                                    .padding(.bottom, 2)
+                                    .padding(.horizontal, 6 * s)
+                                    .padding(.top, 8 * s)
+                                    .padding(.bottom, 2 * s)
                             }
                             ForEach(g.tasks) { t in row(t) }
                         }
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 8 * s)
+                    .padding(.bottom, 8 * s)
                 }
             }
         }
@@ -202,7 +205,7 @@ struct TimelineTray<TaskMenu: View>: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.accentColor.opacity(0.10))
                     .strokeBorder(Color.accentColor, lineWidth: 1)
-                    .padding(4)
+                    .padding(4 * s)
                     .allowsHitTesting(false)
             }
         }
@@ -210,16 +213,16 @@ struct TimelineTray<TaskMenu: View>: View {
 
     private func row(_ t: TodoTask) -> some View {
         let selected = isSelected(t.id)
-        return HStack(spacing: 8) {
+        return HStack(spacing: 8 * s) {
             TimelineCheckbox(done: false, priority: t.priority, size: 15) { onSetDone(t, true) }
             Text(TimelineStyle.title(t))
-                .font(.system(size: 13))
+                .uiFont(size: 13)
                 .foregroundStyle(t.title.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 9 * s)
+        .padding(.vertical, 7 * s)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(selected ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.045))

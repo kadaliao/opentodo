@@ -22,6 +22,7 @@ import OpenTodoDomain
 import SwiftUI
 
 public struct MatrixRootView: View {
+    @Environment(\.uiScale) private var s
     public var tasks: [TodoTask]
     public var prefs: MatrixPrefs
     public var now: LocalDateTime
@@ -95,7 +96,7 @@ public struct MatrixRootView: View {
                     block(cells[3])
                 }
             }
-            .padding(compact ? 12 : 16)
+            .padding((compact ? 12 : 16) * s)
             .background(Color.groupedBackground)
             .navigationTitle("四象限")
             .efficiencyTitleMenu()
@@ -156,6 +157,7 @@ struct MatrixRowActions {
 // MARK: - Block
 
 struct MatrixBlock: View {
+    @Environment(\.uiScale) private var s
     var cell: MatrixCell
     var prefs: MatrixPrefs
     var now: LocalDateTime
@@ -172,19 +174,19 @@ struct MatrixBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onExpand) {
-                HStack(spacing: 6) {
+                HStack(spacing: 6 * s) {
                     Image(systemName: MatrixStyle.symbol(cell.index)).foregroundStyle(tint)
-                    Text(cell.name).font(compact ? .subheadline.weight(.semibold) : .headline).lineLimit(1)
+                    Text(cell.name).font(compact ? Font.ui(.subheadline, weight: .semibold, scale: s) : Font.ui(.headline, scale: s)).lineLimit(1)
                     Spacer(minLength: 4)
-                    Text("\(cell.tasks.count)").font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
-                    Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                    Text("\(cell.tasks.count)").uiFont(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                    Image(systemName: "chevron.right").uiFont(.caption, weight: .semibold).foregroundStyle(.tertiary)
                 }
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, compact ? 10 : 14)
-            .padding(.top, compact ? 10 : 12)
-            .padding(.bottom, 6)
+            .padding(.horizontal, (compact ? 10 : 14) * s)
+            .padding(.top, (compact ? 10 : 12) * s)
+            .padding(.bottom, 6 * s)
             .accessibilityLabel(Text("\(cell.name)，\(cell.tasks.count)个任务"))
 
             ScrollView {
@@ -192,35 +194,35 @@ struct MatrixBlock: View {
                     ForEach(cell.tasks) { t in
                         MatrixTaskRow(task: t, now: now, lists: lists, compact: compact, tint: tint,
                                       onToggle: compact ? nil : { actions.toggleDone(t) })
-                            .padding(.horizontal, compact ? 10 : 14)
+                            .padding(.horizontal, (compact ? 10 : 14) * s)
                             .contentShape(.rect)
                             .onTapGesture { compact ? onExpand() : actions.open(t) }
                             .draggable(t.id) {
-                                Text(t.title).padding(8).background(.regularMaterial, in: .rect(cornerRadius: 8))
+                                Text(t.title).padding(8 * s).background(.regularMaterial, in: .rect(cornerRadius: 8 * s))
                             }
                             .contextMenu { MatrixTaskMenu(task: t, index: cell.index, prefs: prefs, actions: actions) }
                     }
                     if cell.tasks.isEmpty {
                         Text(compact ? "没有任务" : "没有任务，可以把任务拖到这里")
-                            .font(.footnote)
+                            .uiFont(.footnote)
                             .foregroundStyle(.tertiary)
-                            .padding(.horizontal, compact ? 10 : 14)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, (compact ? 10 : 14) * s)
+                            .padding(.vertical, 8 * s)
                     }
                 }
             }
             .scrollDisabled(compact)
 
             if !compact {
-                HStack(spacing: 6) {
+                HStack(spacing: 6 * s) {
                     Image(systemName: "plus").foregroundStyle(tint)
                     TextField("添加任务", text: $newTitle)
                         .textFieldStyle(.plain)
                         .onSubmit(add)
                 }
-                .font(.subheadline)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .uiFont(.subheadline)
+                .padding(.horizontal, 14 * s)
+                .padding(.vertical, 10 * s)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -246,6 +248,7 @@ struct MatrixBlock: View {
 }
 
 struct MatrixTaskRow: View {
+    @Environment(\.uiScale) private var s
     var task: TodoTask
     var now: LocalDateTime
     var lists: [TaskList]
@@ -254,38 +257,38 @@ struct MatrixTaskRow: View {
     var onToggle: (() -> Void)? = nil
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 8 * s) {
             Group {
                 if let onToggle {
                     Button(action: onToggle) {
                         Image(systemName: "circle")
-                            .font(.body)
+                            .uiFont(.body)
                             .foregroundStyle(priorityTint(task.priority))
                     }
                     .buttonStyle(.borderless)
                     .accessibilityLabel(Text("完成"))
                 } else {
                     Image(systemName: "circle")
-                        .font(compact ? .caption : .body)
+                        .font(compact ? Font.ui(.caption, scale: s) : Font.ui(.body, scale: s))
                         .foregroundStyle(priorityTint(task.priority))
                 }
             }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 2 * s) {
                 Text(task.title.isEmpty ? "无标题" : task.title)
-                    .font(compact ? .footnote : .body)
+                    .font(compact ? Font.ui(.footnote, scale: s) : Font.ui(.body, scale: s))
                     .lineLimit(compact ? 1 : 2)
                 if !compact, let line = detailLine {
                     Text(line.text)
-                        .font(.caption)
+                        .uiFont(.caption)
                         .foregroundStyle(line.overdue ? Color.red : .secondary)
                 }
             }
             Spacer(minLength: 0)
             if task.pinnedAt != nil {
-                Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.secondary)
+                Image(systemName: "pin.fill").uiFont(.caption2).foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, compact ? 3 : 6)
+        .padding(.vertical, (compact ? 3 : 6) * s)
     }
 
     private var detailLine: (text: String, overdue: Bool)? {
@@ -320,6 +323,7 @@ struct MatrixTaskMenu: View {
 
 /// One quadrant as a whole page (a phone, or "show all").
 struct MatrixQuadrantPage: View {
+    @Environment(\.uiScale) private var s
     var cell: MatrixCell
     var prefs: MatrixPrefs
     var now: LocalDateTime
@@ -332,7 +336,7 @@ struct MatrixQuadrantPage: View {
         let tint = MatrixStyle.tint(cell.index)
         List {
             Section {
-                HStack(spacing: 8) {
+                HStack(spacing: 8 * s) {
                     Image(systemName: "plus.circle.fill").foregroundStyle(tint)
                     TextField("添加任务到“\(cell.name)”", text: $newTitle)
                         .onSubmit {
@@ -368,6 +372,7 @@ struct MatrixQuadrantPage: View {
 // MARK: - Editing the quadrants
 
 struct MatrixEditView: View {
+    @Environment(\.uiScale) private var s
     var prefs: MatrixPrefs
     var onSave: (MatrixPrefs) -> Void
     var ruleEditor: MatrixRuleEditor?
@@ -403,9 +408,15 @@ struct MatrixEditView: View {
                             PriorityRuleEditor(rule: $rules[i])
                         }
                     } header: {
-                        Label("象限\(i + 1)", systemImage: MatrixStyle.symbol(i)).foregroundStyle(MatrixStyle.tint(i))
+                        Group {
+                            Label("象限\(i + 1)", systemImage: MatrixStyle.symbol(i)).foregroundStyle(MatrixStyle.tint(i))
+                        }
+                        .uiDefaultFont(.headline)
                     } footer: {
-                        Text(ruleSummary(rules[i]))
+                        Group {
+                            Text(ruleSummary(rules[i]))
+                        }
+                        .uiDefaultFont(.subheadline)
                     }
                 }
                 Section {
@@ -414,7 +425,10 @@ struct MatrixEditView: View {
                         rules = MatrixPrefs.defaultQuadrants.map(\.filterRule)
                     }
                 } footer: {
-                    Text("一个任务符合几个象限时，放在排在前面的那个。")
+                    Group {
+                        Text("一个任务符合几个象限时，放在排在前面的那个。")
+                    }
+                    .uiDefaultFont(.subheadline)
                 }
             }
             .formStyle(.grouped)
@@ -445,7 +459,7 @@ struct MatrixEditView: View {
             }
         }
         #if os(macOS)
-        .frame(minWidth: 420, minHeight: 520)
+        .frame(minWidth: 420 * s, minHeight: 520 * s)
         #endif
     }
 }
@@ -456,6 +470,7 @@ private struct RuleIndex: Identifiable {
 
 /// The stand-in rule editor: which priorities the quadrant gathers.
 struct PriorityRuleEditor: View {
+    @Environment(\.uiScale) private var s
     @Binding var rule: FilterRule
 
     var body: some View {
@@ -471,8 +486,8 @@ struct PriorityRuleEditor: View {
                     rule = ruleWithPriorities(rule, s)
                 } label: {
                     Text(c.label)
-                        .font(.subheadline.weight(.medium))
-                        .frame(width: 32, height: 28)
+                        .uiFont(.subheadline, weight: .medium)
+                        .frame(width: 32 * s, height: 28 * s)
                         .background(on ? priorityTint(c.priority).opacity(0.9) : Color.secondary.opacity(0.12), in: .capsule)
                         .foregroundStyle(on ? Color.white : .primary)
                 }

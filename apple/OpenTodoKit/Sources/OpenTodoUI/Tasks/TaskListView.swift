@@ -13,6 +13,7 @@ import OpenTodoDomain
 import SwiftUI
 
 struct TaskListView: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
     var view: ViewRef
 
@@ -23,7 +24,7 @@ struct TaskListView: View {
         List(selection: compact && !model.selection.isPicking ? nil : model.listSelection(in: view)) {
             if !compact && canQuickAdd(view) {
                 QuickAddField(focusRequests: model.taskList.quickAddRequests)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 6 * s)
                     .selectionDisabled()
             }
             if view == .smart(.today) { TodayCountdownsRow() }
@@ -41,7 +42,7 @@ struct TaskListView: View {
             }
             if trash && !sections.isEmpty {
                 Text("垃圾桶里的任务可以恢复；清空后无法找回。")
-                    .font(.caption)
+                    .uiFont(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .listRowSeparator(.hidden)
@@ -64,7 +65,7 @@ struct TaskListView: View {
     }
 
     private func header(_ section: TaskSection, title: String, folded: Bool) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 4 * s) {
             GroupHeader(title,
                         // An empty day (there to drop onto) shows no 0.
                         count: section.day != nil && section.tasks.isEmpty ? nil : section.tasks.count,
@@ -98,6 +99,7 @@ struct TaskListView: View {
 
 /// A list section's ⋯: 重命名, 上移, 下移, 删除分组 (section_actions.dart).
 private struct GroupSectionMenu: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
     var section: ListSection
 
@@ -116,9 +118,9 @@ private struct GroupSectionMenu: View {
             Button("删除分组", systemImage: "trash", role: .destructive) { model.askDeleteSection(section) }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.subheadline)
+                .uiFont(.subheadline)
                 .foregroundStyle(.secondary)
-                .frame(width: 24, height: 20)
+                .frame(width: 24 * s, height: 20 * s)
                 .contentShape(Rectangle())
         }
         .menuStyle(.button)

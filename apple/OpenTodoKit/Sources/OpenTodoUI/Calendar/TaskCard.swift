@@ -7,25 +7,27 @@ import OpenTodoDomain
 import SwiftUI
 
 struct TaskCard: View {
+    @Environment(\.uiScale) private var s
     let task: TodoTask
     let ctx: CalendarContext
 
     var body: some View {
         let done = task.status != .open
         let tint = ctx.color(of: task)
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+        let lift = 6 * s
+        VStack(alignment: .leading, spacing: 12 * s) {
+            HStack(alignment: .firstTextBaseline, spacing: 8 * s) {
                 PriorityCheckbox(checked: done, priority: task.priority, size: 18) {
                     ctx.actions.setDone(task.id, !done)
                 }
-                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 6 }
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + lift }
                 Text(task.title.isEmpty ? "无标题" : task.title)
-                    .font(.title3.weight(.semibold))
+                    .uiFont(.title3, weight: .semibold)
                     .strikethrough(done)
                     .foregroundStyle(done ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 6 * s) {
                 if let due = task.dueDate {
                     Label(fullDueLabel(due, task.dueTime, today: ctx.today, duration: task.duration), systemImage: "calendar")
                         .foregroundStyle(isOverdue(task, ctx.now) && !done ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
@@ -45,11 +47,11 @@ struct TaskCard: View {
                         .foregroundStyle(Palette.priority(task.priority))
                 }
             }
-            .font(.subheadline)
+            .uiFont(.subheadline)
             let note = notePreview(task.content)
             if !note.isEmpty {
                 Text(note)
-                    .font(.callout)
+                    .uiFont(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(4)
                     .fixedSize(horizontal: false, vertical: true)
@@ -73,8 +75,8 @@ struct TaskCard: View {
             .controlSize(.large)
             .buttonStyle(.bordered)
         }
-        .padding(18)
-        .frame(maxWidth: ctx.compact ? .infinity : 340, alignment: .leading)
+        .padding(18 * s)
+        .frame(maxWidth: ctx.compact ? .infinity : 340 * s, alignment: .leading)
         // In a phone's sheet: at the top, not centred under a gap.
         .frame(maxHeight: ctx.compact ? .infinity : nil, alignment: .top)
         .fixedSize(horizontal: !ctx.compact, vertical: false)

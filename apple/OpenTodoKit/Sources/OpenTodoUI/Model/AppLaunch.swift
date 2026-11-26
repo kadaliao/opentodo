@@ -17,6 +17,10 @@ import OpenTodoDomain
 
 extension AppModel {
     public static func launchServices(_ debug: DebugLaunch?) -> AppServices {
+        if let size = debug?.interfaceSize { InterfacePrefs.overrideForThisRun(size) }
+        #if os(macOS)
+        if debug?.hiddenWindows == true { DebugHiddenWindows.install() }
+        #endif
         do {
             if let url = debug?.databaseURL {
                 let db = try AppDatabase.open(at: url)

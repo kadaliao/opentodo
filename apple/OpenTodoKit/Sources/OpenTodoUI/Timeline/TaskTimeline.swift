@@ -10,6 +10,7 @@ import OpenTodoDomain
 import SwiftUI
 
 struct TaskTimeline: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
     var view: ViewRef
 
@@ -22,8 +23,8 @@ struct TaskTimeline: View {
             // on wide layouts too (⌘N / 新建任务 focus it).
             if model.width == .regular && canQuickAdd(view) {
                 QuickAddField(focusRequests: model.taskList.quickAddRequests)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16 * s)
+                    .padding(.vertical, 8 * s)
                 Divider()
             }
             timeline
@@ -69,6 +70,7 @@ struct TimelineNewTaskRequest: Identifiable {
 /// 新建任务 on a day of the timeline: the quick-add field (dates and the
 /// rest still understood), the task going into the lane it was asked from.
 struct TimelineNewTaskSheet: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     var request: TimelineNewTaskRequest
@@ -87,14 +89,14 @@ struct TimelineNewTaskSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 12 * s) {
                 QuickAddField(target: target, prompt: "在\(dateLabel(request.day, today: model.today))添加任务",
                               focusRequests: 1) { id in
                     if model.width == .regular { model.selectedTaskId = id }
                     dismiss()
                 }
                 Text(summary)
-                    .font(.footnote)
+                    .uiFont(.footnote)
                     .foregroundStyle(.secondary)
                 Picker(selection: Binding(get: { target.listId }, set: { pickedList = $0 })) {
                     Label("收集箱", systemImage: "tray").tag(inboxListId)
@@ -107,8 +109,8 @@ struct TimelineNewTaskSheet: View {
                 .fixedSize()
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
+            .padding(.horizontal, 20 * s)
+            .padding(.top, 8 * s)
             .navigationTitle("新建任务")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -120,7 +122,7 @@ struct TimelineNewTaskSheet: View {
             }
         }
         #if os(macOS)
-        .frame(width: 440, height: 180)
+        .frame(width: 440 * s, height: 180 * s)
         #else
         .presentationDetents([.height(230)])
         #endif

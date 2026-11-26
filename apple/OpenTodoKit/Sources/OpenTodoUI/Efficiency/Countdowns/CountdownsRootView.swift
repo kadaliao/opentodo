@@ -14,6 +14,7 @@ import OpenTodoDomain
 import SwiftUI
 
 public struct CountdownsRootView: View {
+    @Environment(\.uiScale) private var s
     public var countdowns: [Countdown]
     public var today: Day
     public var onSave: (Countdown) -> Void
@@ -76,9 +77,9 @@ public struct CountdownsRootView: View {
                     } actions: {
                         addMenu.menuStyle(.button).buttonStyle(.borderedProminent)
                     }
-                    .padding(.top, 60)
+                    .padding(.top, 60 * s)
                 }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160, maximum: 280), spacing: 14)], spacing: 14) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160 * s, maximum: 280 * s), spacing: 14 * s)], spacing: 14 * s) {
                     ForEach(sorted) { c in
                         NavigationLink(value: c.id) {
                             CountdownCard(countdown: c, today: today, format: format(c.id)) {
@@ -166,6 +167,7 @@ struct CountdownEditorTarget: Identifiable, Hashable {
 // MARK: - Card
 
 struct CountdownCard: View {
+    @Environment(\.uiScale) private var s
     var countdown: Countdown
     var today: Day
     var format: CountdownFormat
@@ -176,20 +178,20 @@ struct CountdownCard: View {
 
     var body: some View {
         let t = countdownCardText(countdown, today: today, format: format)
-        VStack(spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(spacing: 10 * s) {
+            HStack(spacing: 6 * s) {
                 EmojiBadge(emoji: countdown.emoji, color: countdown.color, fallback: countdownSymbol(countdown.kind), size: 24)
-                Text(countdown.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                Text(countdown.title).uiFont(.subheadline, weight: .semibold).lineLimit(1)
                 if countdown.pinnedAt != nil {
-                    Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.secondary).accessibilityLabel("已置顶")
+                    Image(systemName: "pin.fill").uiFont(.caption2).foregroundStyle(.secondary).accessibilityLabel("已置顶")
                 }
             }
             Button(action: onSwitchFormat) {
-                VStack(spacing: 2) {
+                VStack(spacing: 2 * s) {
                     if let caption = t.caption {
-                        Text(caption).font(.caption).foregroundStyle(.secondary)
+                        Text(caption).uiFont(.caption).foregroundStyle(.secondary)
                     } else {
-                        Text(" ").font(.caption)
+                        Text(" ").uiFont(.caption)
                     }
                     BigNumberText(runs: t.runs, tint: tint)
                 }
@@ -199,15 +201,15 @@ struct CountdownCard: View {
             .buttonStyle(.borderless)
             .accessibilityHint(Text("切换显示方式"))
             Text(t.date)
-                .font(.caption)
+                .uiFont(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .padding(.vertical, 18)
-        .padding(.horizontal, 12)
+        .padding(.vertical, 18 * s)
+        .padding(.horizontal, 12 * s)
         .frame(maxWidth: .infinity)
-        .background(Color.cardBackground, in: .rect(cornerRadius: 18))
+        .background(Color.cardBackground, in: .rect(cornerRadius: 18 * s))
         .accessibilityElement(children: .combine)
     }
 }
@@ -216,10 +218,13 @@ struct CountdownCard: View {
 struct BigNumberText: View {
     var runs: [CountdownCardText.TextRun]
     var tint: Color
+    /// At 标准; it grows with 界面大小.
     var size: CGFloat = 40
+    @Environment(\.uiScale) private var s
 
     var body: some View {
-        runs.reduce(Text("")) { acc, r in
+        let size = size * s
+        return runs.reduce(Text("")) { acc, r in
             let part = Text(r.text)
                 .font(r.isNumber ? .system(size: size, weight: .semibold, design: .rounded) : .system(size: size * 0.4, weight: .medium))
                 .foregroundStyle(r.isNumber ? tint : .secondary)

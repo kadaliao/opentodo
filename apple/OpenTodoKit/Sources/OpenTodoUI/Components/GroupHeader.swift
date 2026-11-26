@@ -12,6 +12,7 @@ public struct GroupHeader: View {
     /// Greyed: a group with nothing in it yet (an empty day).
     public var dimmed: Bool
     public var collapsed: Binding<Bool>?
+    @Environment(\.uiScale) private var s
 
     public init(_ title: String, count: Int? = nil, alert: Bool = false, dimmed: Bool = false,
                 collapsed: Binding<Bool>? = nil) {
@@ -23,7 +24,7 @@ public struct GroupHeader: View {
     }
 
     public var body: some View {
-        let label = HStack(spacing: 6) {
+        let label = HStack(spacing: 6 * s) {
             Text(title)
                 .foregroundStyle(alert ? Palette.overdue : (dimmed ? Color.secondary : Color.primary))
             if let count, count > 0 {
@@ -32,15 +33,15 @@ public struct GroupHeader: View {
             Spacer(minLength: 0)
             if let collapsed {
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
+                    .uiFont(.caption, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(collapsed.wrappedValue ? 0 : 90))
             }
         }
         #if os(macOS)
-        .font(.subheadline.weight(.semibold))
+        .uiFont(.subheadline, weight: .semibold)
         #else
-        .font(.headline)
+        .uiFont(.headline)
         .textCase(nil)
         #endif
         .contentShape(Rectangle())

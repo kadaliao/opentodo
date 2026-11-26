@@ -20,6 +20,7 @@ struct TasksScreen: View {
 
 struct TasksSplitView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.uiScale) private var s
     @State private var columns: NavigationSplitViewVisibility = .all
 
     var body: some View {
@@ -31,7 +32,7 @@ struct TasksSplitView: View {
                     sidebar
                 } detail: {
                     content.inspector(isPresented: inspecting) {
-                        detail.inspectorColumnWidth(min: 300, ideal: 380, max: 480)
+                        detail.inspectorColumnWidth(min: 300, ideal: 380, max: 480 * s)
                             // Flutter's 关闭详情 beside a board.
                             .toolbar {
                                 // The inspector's toolbar items stay in the
@@ -55,7 +56,9 @@ struct TasksSplitView: View {
                     // The three minimums fit the window's smallest width
                     // (760, RootView): wider ones overlapped there, the
                     // sidebar's rows cut off on the left and the detail's
-                    // on the right.
+                    // on the right. So of the three only the sidebar's
+                    // ideal width grows with 界面大小 (its rows have no room
+                    // to spare); the list and the detail share what's left.
                     content.navigationSplitViewColumnWidth(min: 280, ideal: 400)
                 } detail: {
                     detail.navigationSplitViewColumnWidth(min: 280, ideal: 380)
@@ -96,7 +99,7 @@ struct TasksSplitView: View {
         ViewsList(mode: .sidebar)
             .moduleBar()
             .modifier(AccountFooter())
-            .navigationSplitViewColumnWidth(min: 180, ideal: 230, max: 320)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 230 * s, max: 320 * s)
             #if os(iOS)
             .navigationTitle("任务")
             // iPad: 设置 (macOS has the Settings window and the account row).

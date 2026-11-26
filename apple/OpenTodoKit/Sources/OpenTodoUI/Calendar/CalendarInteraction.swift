@@ -107,6 +107,7 @@ extension CalendarLogic {
 
 // MARK: - Hour grid geometry
 
+/// The sizes at 标准: all but the hour's height grow with 界面大小.
 public enum CalendarMetrics {
     /// The hour grid's height of an hour, as the Flutter version.
     public static let hourHeight: CGFloat = 48
@@ -185,9 +186,12 @@ extension CalendarLogic {
 // MARK: - Month rows
 
 extension CalendarLogic {
-    /// How many task lines a month cell `height` points tall has room for.
-    public static func cellLines(height: CGFloat) -> Int {
-        max(0, Int(((height - CalendarMetrics.cellHeader - 4) / (CalendarMetrics.chipHeight + CalendarMetrics.chipGap)).rounded(.down)))
+    /// How many task lines a month cell `height` points tall has room for,
+    /// its header and lines `scale` times their size (界面大小).
+    public static func cellLines(height: CGFloat, scale: CGFloat = 1) -> Int {
+        let header = (CalendarMetrics.cellHeader + 4) * scale
+        let line = (CalendarMetrics.chipHeight + CalendarMetrics.chipGap) * scale
+        return max(0, Int(((height - header) / line).rounded(.down)))
     }
 
     /// What a week row of the month shows with room for `room` lines: the
@@ -238,13 +242,16 @@ extension CalendarLogic {
 extension CalendarLogic {
     /// The panel beside the calendar: the open task's detail (the batch
     /// panel is a little narrower).
-    public static let sidePanelWidth: CGFloat = 360
+    nonisolated public static let sidePanelWidth: CGFloat = 360
     /// The least room the calendar itself needs next to that panel.
-    public static let minCalendarWidth: CGFloat = 560
+    nonisolated public static let minCalendarWidth: CGFloat = 560
 
     /// Whether the calendar's column (`width` points) has room for a panel
     /// beside it: the wide layout of `calendar_screen.dart`. Narrower (its
     /// medium layout) the batch actions go along the bottom and a task's
-    /// detail opens over the calendar.
-    public static func panelsBeside(width: CGFloat) -> Bool { width >= minCalendarWidth + sidePanelWidth }
+    /// detail opens over the calendar. Both widths grow with 界面大小
+    /// (`scale`).
+    nonisolated public static func panelsBeside(width: CGFloat, scale: CGFloat = 1) -> Bool {
+        width >= (minCalendarWidth + sidePanelWidth) * scale
+    }
 }

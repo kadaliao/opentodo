@@ -24,11 +24,17 @@
 #                         and forms come out empty). Default: window if the
 #                         permission is there, else self.
 #   OT_WINDOW_SIZE=WxH    macOS: the window's content size (default 1180x760)
+#   OT_INTERFACE_SIZE=…   macOS: 界面大小 for the run (-OTInterfaceSize): small,
+#                         standard, large, extraLarge (default: what's stored)
 #   OT_SHOT_WINDOW=settings  macOS, method app: capture the Settings window
 #                         (the settings[:<tab>] routes) instead of the main one
+#   OT_VISIBLE=1          macOS: leave the windows where they can be seen (by
+#                         default they go behind the desktop, -OTHiddenWindows)
 #
 # macOS: the app is started in the background (`open -g`), so it doesn't
-# take the front from whatever is being used, and quit after the shot.
+# take the front from whatever is being used, its windows go behind the
+# desktop picture (-OTHiddenWindows: nobody sees them come and go; both
+# capture methods still get them), and it quits after the shot.
 #
 # The simulator is created if no device has that name, and left booted.
 # Paths are worked out from this script's own place, so it runs unchanged in
@@ -139,6 +145,8 @@ shot_macos() {
   [ -n "$seed" ] && args+=(-OTSeed "$seed")
   [ -n "${OT_APPEARANCE:-}" ] && args+=(-OTAppearance "$OT_APPEARANCE")
   [ -n "${OT_QUICKADD:-}" ] && args+=(-OTQuickAdd "$OT_QUICKADD")
+  [ -n "${OT_INTERFACE_SIZE:-}" ] && args+=(-OTInterfaceSize "$OT_INTERFACE_SIZE")
+  [ -z "${OT_VISIBLE:-}" ] && args+=(-OTHiddenWindows yes)
   args+=(-OTWindowSize "${OT_WINDOW_SIZE:-1180x760}" -ApplePersistenceIgnoreState YES)
 
   # An unsigned build (OT_UNSIGNED=1 ./scripts/build.sh macos) isn't

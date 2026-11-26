@@ -27,9 +27,12 @@ struct ReminderPickerView: View {
                     CheckRow(choices.label(o), on: choices.isOn(o)) { choices.toggle(o) }
                 }
             } footer: {
-                Text(choices.allDay ? "全天任务的提醒按当天 0 点算。可以选多个。" : "可以选多个。")
+                Group {
+                    Text(choices.allDay ? "全天任务的提醒按当天 0 点算。可以选多个。" : "可以选多个。")
+                }
+                .uiDefaultFont(.subheadline)
             }
-            Section("自定义") {
+            Section {
                 CustomReminderRows(custom: $custom)
                 Button {
                     if let o = custom.offset { withAnimation { choices.add(o) } }
@@ -37,6 +40,8 @@ struct ReminderPickerView: View {
                     Label("添加“\(custom.label ?? "…")”", systemImage: "plus.circle.fill")
                 }
                 .disabled(custom.offset == nil)
+            } header: {
+                Text("自定义").uiDefaultFont(.headline)
             }
         }
         .formStyle(.grouped)
@@ -52,6 +57,7 @@ struct ReminderPickerView: View {
 }
 
 private struct CustomReminderRows: View {
+    @Environment(\.uiScale) private var s
     @Binding var custom: CustomReminder
 
     private var minuteOfDay: Binding<Date> {
@@ -63,16 +69,16 @@ private struct CustomReminderRows: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8 * s) {
             Text("提前")
             TextField("数量", value: $custom.amount, format: .number)
                 .labelsHidden()
                 .multilineTextAlignment(.center)
-                .frame(width: 56)
+                .frame(width: 56 * s)
                 #if os(iOS)
                 .keyboardType(.numberPad)
-                .padding(.vertical, 4)
-                .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .padding(.vertical, 4 * s)
+                .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 8 * s, style: .continuous))
                 #else
                 .textFieldStyle(.roundedBorder)
                 #endif
@@ -99,6 +105,7 @@ private struct CustomReminderRows: View {
 
 #if os(iOS)
 struct RepeatPickerView: View {
+    @Environment(\.uiScale) private var s
     @Binding var editor: ScheduleEditor
     let done: () -> Void
 
@@ -115,10 +122,10 @@ struct RepeatPickerView: View {
             Section {
                 NavigationLink(value: SchedulePage.customRepeat) {
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 2 * s) {
                             Text("自定义")
                             if editor.isCustomRepeat, let text = editor.repeatText {
-                                Text(text).font(.footnote).foregroundStyle(.secondary)
+                                Text(text).uiFont(.footnote).foregroundStyle(.secondary)
                             }
                         }
                         Spacer()
@@ -138,6 +145,7 @@ struct RepeatPickerView: View {
 // MARK: - Custom repeat
 
 struct CustomRepeatView: View {
+    @Environment(\.uiScale) private var s
     @State private var editor: CustomRepeatEditor
     private let onChange: (RepeatRule, RepeatFrom) -> Void
 
@@ -194,16 +202,16 @@ struct CustomRepeatView: View {
                     Text("每年").tag(Freq.yearly)
                 }
                 LabeledContent("间隔") {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 8 * s) {
                         Text("每")
                         TextField("间隔", value: $editor.interval, format: .number)
                 .labelsHidden()
                             .multilineTextAlignment(.center)
-                            .frame(width: 48)
+                            .frame(width: 48 * s)
                             #if os(iOS)
                             .keyboardType(.numberPad)
-                            .padding(.vertical, 4)
-                            .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .padding(.vertical, 4 * s)
+                            .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 8 * s, style: .continuous))
                             #else
                             .textFieldStyle(.roundedBorder)
                             #endif
@@ -237,7 +245,7 @@ struct CustomRepeatView: View {
                     .labelsHidden()
                     if editor.byWeekday {
                         LabeledContent("每月") {
-                            HStack(spacing: 2) {
+                            HStack(spacing: 2 * s) {
                                 Picker("第几个", selection: nth) {
                                     ForEach(CustomRepeatEditor.nths, id: \.0) { Text($0.1).tag($0.0) }
                                 }
@@ -265,15 +273,15 @@ struct CustomRepeatView: View {
                 }
                 if editor.end == .count {
                     LabeledContent("次数") {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 8 * s) {
                             TextField("次数", value: $editor.count, format: .number)
                 .labelsHidden()
                                 .multilineTextAlignment(.center)
-                                .frame(width: 48)
+                                .frame(width: 48 * s)
                                 #if os(iOS)
                                 .keyboardType(.numberPad)
-                                .padding(.vertical, 4)
-                                .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .padding(.vertical, 4 * s)
+                                .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 8 * s, style: .continuous))
                                 #else
                                 .textFieldStyle(.roundedBorder)
                                 #endif
@@ -284,7 +292,7 @@ struct CustomRepeatView: View {
                 }
             } footer: {
                 Text(editor.summary)
-                    .font(.callout)
+                    .uiFont(.callout)
                     .foregroundStyle(editor.rule == nil ? Color.red : Color.accentColor)
                     .contentTransition(.opacity)
             }
@@ -309,6 +317,7 @@ struct CustomRepeatView: View {
 
 /// 一 … 日 as round toggles, at least one on.
 private struct WeekdayToggles: View {
+    @Environment(\.uiScale) private var s
     @Binding var editor: CustomRepeatEditor
 
     var body: some View {
@@ -319,9 +328,9 @@ private struct WeekdayToggles: View {
                     editor.toggleWeekday(wd)
                 } label: {
                     Text(CustomRepeatEditor.weekdayShort[wd - 1])
-                        .font(.subheadline.weight(on ? .semibold : .regular))
+                        .uiFont(.subheadline, weight: on ? .semibold : .regular)
                         .foregroundStyle(on ? Color.white : Color.primary)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 34 * s, height: 34 * s)
                         .background(on ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.fill.tertiary), in: Circle())
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
@@ -331,7 +340,7 @@ private struct WeekdayToggles: View {
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 2 * s)
     }
 }
 

@@ -1,7 +1,8 @@
 // The round checkbox at the start of a task row: its ring is the task's
 // priority colour (grey for none, with a faint fill of the colour for the
 // others); a finished task shows a filled grey check. Hit area is at least
-// 28pt on iOS (20pt on macOS) even though the circle is smaller.
+// 28pt on iOS (20pt on macOS) even though the circle is smaller. Both grow
+// with 界面大小 (`size` is the size at 标准).
 
 import OpenTodoDomain
 import SwiftUI
@@ -11,6 +12,7 @@ public struct PriorityCheckbox: View {
     public var priority: Priority
     public var size: CGFloat
     public var action: (() -> Void)?
+    @Environment(\.uiScale) private var scale
 
     public init(checked: Bool, priority: Priority, size: CGFloat = PriorityCheckbox.defaultSize, action: (() -> Void)? = nil) {
         self.checked = checked
@@ -19,6 +21,7 @@ public struct PriorityCheckbox: View {
         self.action = action
     }
 
+    /// At 标准; `size` and the hit area grow with 界面大小.
     #if os(macOS)
     public static let defaultSize: CGFloat = 16
     static let minHit: CGFloat = 20
@@ -31,8 +34,9 @@ public struct PriorityCheckbox: View {
         Button {
             action?()
         } label: {
+            let hit = max(size, Self.minHit) * scale
             mark
-                .frame(width: max(size, Self.minHit), height: max(size, Self.minHit))
+                .frame(width: hit, height: hit)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -43,6 +47,7 @@ public struct PriorityCheckbox: View {
     }
 
     private var mark: some View {
+        let size = size * scale
         let color = Palette.priority(priority)
         let line = max(1.2, size / 12)
         return ZStack {

@@ -23,16 +23,17 @@ public struct TagLabel: View {
 /// Tags in a row, with a capsule behind each: the detail's tag field.
 public struct TagChips: View {
     public var tags: [String]
+    @Environment(\.uiScale) private var s
 
     public init(_ tags: [String]) { self.tags = tags }
 
     public var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 6 * s) {
             ForEach(tags, id: \.self) { tag in
                 Text(tag)
-                    .font(.callout)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
+                    .uiFont(.callout)
+                    .padding(.horizontal, 8 * s)
+                    .padding(.vertical, 2 * s)
                     .background(.tint.opacity(0.14), in: Capsule())
                     .foregroundStyle(.tint)
                     .accessibilityLabel("标签 \(tag)")

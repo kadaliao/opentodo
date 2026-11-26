@@ -34,7 +34,7 @@ public struct EmptyState: View {
     public var body: some View {
         if symbol.isEmpty {
             Text(title)
-                .font(.title3)
+                .uiFont(.title3)
                 .foregroundStyle(.tertiary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {

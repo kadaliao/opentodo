@@ -18,6 +18,7 @@ public enum SettingsTab: String, CaseIterable, Hashable, Sendable {
 }
 
 public struct OpenTodoSettingsView: View {
+    @Environment(\.uiScale) private var s
     let settings: LocalSettings
     let sync: SyncController?
     let reminders: ReminderController?
@@ -70,13 +71,13 @@ public struct OpenTodoSettingsView: View {
 
     @ViewBuilder private func pane(for tab: SettingsTab) -> some View {
         switch tab {
-        case .general: pane { calendar }
+        case .general: pane { InterfaceSizeSection(); calendar }
         case .tasks: pane { defaultsSection }
         case .notifications: pane { notifications }
         case .focus: pane { focus }
-        case .quickAdd: IntegrationSettingsPane().frame(width: 520)
+        case .quickAdd: IntegrationSettingsPane().frame(width: 520 * s)
         case .account:
-            if let sync { AccountPane(sync: sync).frame(width: 520, height: 420) }
+            if let sync { AccountPane(sync: sync).frame(width: 520 * s, height: 420 * s) }
         case .about:
             pane {
                 Section { AppBadge(version: version) }
@@ -90,7 +91,7 @@ public struct OpenTodoSettingsView: View {
             .formStyle(.grouped)
             .scrollDisabled(true)
             .fixedSize(horizontal: false, vertical: true)
-            .frame(width: 520)
+            .frame(width: 520 * s)
     }
     #else
     private var content: some View {

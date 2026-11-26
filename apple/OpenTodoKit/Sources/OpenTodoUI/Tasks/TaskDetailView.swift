@@ -35,6 +35,7 @@ private struct TaskDetailForm: View {
     @State private var saveTask: Task<Void, Never>?
     @State private var editingSchedule = false
     @FocusState private var focus: Field?
+    @Environment(\.uiScale) private var s
 
     private enum Field: Hashable { case title, notes }
 
@@ -45,16 +46,16 @@ private struct TaskDetailForm: View {
         Form {
             if trashed { trashSection }
             Section {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(verbatim: "我").font(Self.titleFont).hidden()
-                        .frame(width: PriorityCheckbox.defaultSize)
+                HStack(alignment: .firstTextBaseline, spacing: 10 * s) {
+                    Text(verbatim: "我").uiFont(.title3, weight: .semibold).hidden()
+                        .frame(width: PriorityCheckbox.defaultSize * s)
                         .overlay {
                             PriorityCheckbox(checked: finished, priority: task.priority, action: trashed ? nil : {
                                 model.run { await model.setDone(task, !finished) }
                             })
                         }
                     TextField("标题", text: $title, prompt: Text("准备做什么？"), axis: .vertical)
-                        .font(Self.titleFont)
+                        .uiFont(.title3, weight: .semibold)
                         .focused($focus, equals: .title)
                         .onSubmit(save)
                         .foregroundStyle(finished ? .secondary : .primary)
@@ -115,7 +116,7 @@ private struct TaskDetailForm: View {
             Section {
             } footer: {
                 Text("创建于 \(stamp(task.createdAt))" + (finished ? " · 完成于 \(stamp(task.completedAt ?? task.updatedAt))" : ""))
-                    .font(.caption)
+                    .uiFont(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -147,8 +148,6 @@ private struct TaskDetailForm: View {
         }
     }
 
-    static let titleFont = Font.title3.weight(.semibold)
-
     // MARK: Parts
 
     private var trashSection: some View {
@@ -165,18 +164,18 @@ private struct TaskDetailForm: View {
     }
 
     private var tagsRow: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 6 * s) {
             ForEach(task.tags, id: \.self) { tag in
                 Button {
                     model.run { await model.toggleTag(task, tag) }
                 } label: {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 3 * s) {
                         Text(tag)
-                        if !trashed { Image(systemName: "xmark").font(.caption2.weight(.bold)) }
+                        if !trashed { Image(systemName: "xmark").uiFont(.caption2, weight: .bold) }
                     }
-                    .font(.callout)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
+                    .uiFont(.callout)
+                    .padding(.horizontal, 8 * s)
+                    .padding(.vertical, 2 * s)
                     .background(.tint.opacity(0.14), in: Capsule())
                     .foregroundStyle(.tint)
                 }
@@ -190,7 +189,7 @@ private struct TaskDetailForm: View {
                     model.askNewTag(task)
                 } label: {
                     Label(task.tags.isEmpty ? "添加标签" : "添加", systemImage: "number")
-                        .font(.callout)
+                        .uiFont(.callout)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -206,7 +205,7 @@ private struct TaskDetailForm: View {
         } label: {
             LabeledContent {
                 if let due = task.dueDate {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 4 * s) {
                         Text(fullDueLabel(due, task.dueTime, today: model.today, duration: task.duration))
                         if !task.reminders.isEmpty { Image(systemName: "bell").accessibilityLabel("有提醒") }
                         if task.repeatRule != nil { Image(systemName: "repeat").accessibilityLabel("重复") }
@@ -285,6 +284,7 @@ private struct ChecklistSection: View {
 
     @State private var newItem = ""
     @FocusState private var adding: Bool
+    @Environment(\.uiScale) private var s
 
     var body: some View {
         let items = model.checklist(of: taskId)
@@ -304,10 +304,10 @@ private struct ChecklistSection: View {
                 }
             })
             if !readOnly {
-                HStack(spacing: 8) {
+                HStack(spacing: 8 * s) {
                     Image(systemName: "plus")
                         .foregroundStyle(.tint)
-                        .frame(width: PriorityCheckbox.defaultSize)
+                        .frame(width: PriorityCheckbox.defaultSize * s)
                     TextField("添加子任务", text: $newItem)
                         .focused($adding)
                         .labelsHidden()
@@ -315,11 +315,14 @@ private struct ChecklistSection: View {
                 }
             }
         } header: {
-            if !items.isEmpty {
-                Text("子任务 \(items.count(where: \.done))/\(items.count)")
-            } else {
-                Text("子任务")
+            Group {
+                if !items.isEmpty {
+                    Text("子任务 \(items.count(where: \.done))/\(items.count)")
+                } else {
+                    Text("子任务")
+                }
             }
+            .uiDefaultFont(.headline)
         }
     }
 
@@ -341,14 +344,15 @@ private struct ChecklistRow: View {
     @State private var text = ""
     @FocusState private var focused: Bool
     @State private var hovering = false
+    @Environment(\.uiScale) private var s
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8 * s) {
             PriorityCheckbox(checked: item.done, priority: .none, size: PriorityCheckbox.defaultSize - 2,
                              action: readOnly ? nil : {
                                  model.run { try await model.repo.updateChecklistItem(item.id, done: !item.done) }
                              })
-                .frame(width: PriorityCheckbox.defaultSize)
+                .frame(width: PriorityCheckbox.defaultSize * s)
             TextField("子任务", text: $text)
                 .labelsHidden()
                 .focused($focused)
