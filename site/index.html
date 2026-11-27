@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenTodo：为 Mac 原生打造的开源待办清单</title>
 <meta name="description" content="OpenTodo 是为 Mac 原生打造的开源待办清单。快速添加能听懂中文日期，日历、看板、时间线、番茄专注、习惯打卡一应俱全；离线可用，同步服务可以自己部署。">
-<meta name="theme-color" content="#ffffff">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/png" sizes="64x64" href="img/icon-64.png">
 <link rel="apple-touch-icon" href="img/icon-180.png">
 <meta property="og:type" content="website">
@@ -55,7 +57,7 @@
     <p class="fine">免费。版本 <span data-version>0.1.0</span>，需要 macOS 26 或更新版本。</p>
   </div>
   <div class="hero-stage">
-    <figure class="window-shot hero-shot" data-appearance="light">
+    <figure class="window-shot hero-shot">
       <img class="look-light" src="img/detail-light-1280.webp" srcset="img/detail-light-1280.webp 1280w, img/detail-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="OpenTodo 的主窗口：左边是清单，中间是今天的任务，右边是选中任务的详情和子任务">
       <img class="look-dark" src="img/detail-dark-1280.webp" srcset="img/detail-dark-1280.webp 1280w, img/detail-dark.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="深色外观下的主窗口" loading="lazy">
     </figure>
@@ -117,15 +119,24 @@
     </div>
     <div class="switcher-stage">
       <figure class="window-shot" role="tabpanel" id="view-list" aria-labelledby="tab-list">
-        <img src="img/work-light-1280.webp" srcset="img/work-light-1280.webp 1280w, img/work-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="“工作”清单分成“进行中”和“待安排”两组" loading="lazy">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="img/work-dark-1280.webp 1280w, img/work-dark.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw">
+          <img src="img/work-light-1280.webp" srcset="img/work-light-1280.webp 1280w, img/work-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="“工作”清单分成“进行中”和“待安排”两组" loading="lazy">
+        </picture>
         <figcaption>分组、置顶，按时间、标题拼音或优先级排序。</figcaption>
       </figure>
       <figure class="window-shot" role="tabpanel" id="view-board" aria-labelledby="tab-board" hidden>
-        <img src="img/board-light-1280.webp" srcset="img/board-light-1280.webp 1280w, img/board-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="看板：每个分组是一列，任务卡片可以在列之间拖动" loading="lazy">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="img/board-dark-1280.webp 1280w, img/board-dark.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw">
+          <img src="img/board-light-1280.webp" srcset="img/board-light-1280.webp 1280w, img/board-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="看板：每个分组是一列，任务卡片可以在列之间拖动" loading="lazy">
+        </picture>
         <figcaption>每个分组一列，把卡片拖到下一列就是换了分组。</figcaption>
       </figure>
       <figure class="window-shot" role="tabpanel" id="view-timeline" aria-labelledby="tab-timeline" hidden>
-        <img src="img/timeline-light-1280.webp" srcset="img/timeline-light-1280.webp 1280w, img/timeline-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="时间线：任务按开始和结束日期画成横条" loading="lazy">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="img/timeline-dark-1280.webp 1280w, img/timeline-dark.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw">
+          <img src="img/timeline-light-1280.webp" srcset="img/timeline-light-1280.webp 1280w, img/timeline-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="时间线：任务按开始和结束日期画成横条" loading="lazy">
+        </picture>
         <figcaption>跨好几天的任务画成横条，前后能看好几个月。</figcaption>
       </figure>
     </div>
@@ -198,19 +209,31 @@
     </div>
     <div class="switcher-stage">
       <figure class="window-shot" role="tabpanel" id="mod-focus" aria-labelledby="tab-focus">
-        <img src="img/focus-light-1280.webp" srcset="img/focus-light-1280.webp 1280w, img/focus-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="番茄专注的计时器，正在为一个任务计时" loading="lazy">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="img/focus-dark-1280.webp 1280w, img/focus-dark.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw">
+          <img src="img/focus-light-1280.webp" srcset="img/focus-light-1280.webp 1280w, img/focus-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="番茄专注的计时器，正在为一个任务计时" loading="lazy">
+        </picture>
         <figcaption>给任务计时，每一段专注都记下来，按天、周、月看统计。</figcaption>
       </figure>
       <figure class="window-shot" role="tabpanel" id="mod-habits" aria-labelledby="tab-habits" hidden>
-        <img src="img/habits-light-1280.webp" srcset="img/habits-light-1280.webp 1280w, img/habits-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="习惯打卡：今天要打卡的习惯和连续天数" loading="lazy">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="img/habits-dark-1280.webp 1280w, img/habits-dark.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw">
+          <img src="img/habits-light-1280.webp" srcset="img/habits-light-1280.webp 1280w, img/habits-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="习惯打卡：今天要打卡的习惯和连续天数" loading="lazy">
+        </picture>
         <figcaption>每天打个勾，看连续了多少天，整个月的记录排成月历。</figcaption>
       </figure>
       <figure class="window-shot" role="tabpanel" id="mod-countdowns" aria-labelledby="tab-countdowns" hidden>
-        <img src="img/countdowns-light-1280.webp" srcset="img/countdowns-light-1280.webp 1280w, img/countdowns-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="倒数纪念日的卡片：离生日和纪念日还有几天" loading="lazy">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="img/countdowns-dark-1280.webp 1280w, img/countdowns-dark.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw">
+          <img src="img/countdowns-light-1280.webp" srcset="img/countdowns-light-1280.webp 1280w, img/countdowns-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="倒数纪念日的卡片：离生日和纪念日还有几天" loading="lazy">
+        </picture>
         <figcaption>生日、纪念日、还有几天。支持农历，生日会算上岁数。</figcaption>
       </figure>
       <figure class="window-shot" role="tabpanel" id="mod-matrix" aria-labelledby="tab-matrix" hidden>
-        <img src="img/matrix-light-1280.webp" srcset="img/matrix-light-1280.webp 1280w, img/matrix-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="四象限：任务按重要和紧急分在四格里" loading="lazy">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="img/matrix-dark-1280.webp 1280w, img/matrix-dark.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw">
+          <img src="img/matrix-light-1280.webp" srcset="img/matrix-light-1280.webp 1280w, img/matrix-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="四象限：任务按重要和紧急分在四格里" loading="lazy">
+        </picture>
         <figcaption>按重要和紧急把任务分进四格，先做该先做的。</figcaption>
       </figure>
     </div>
@@ -242,9 +265,9 @@
     <p class="lede">登录同一个账号，Mac 和 iPhone 自动同步。iPhone 和 iPad 版还没有上架，现在可以从源代码自己编译。</p>
   </div>
   <div class="phones">
-    <figure class="phone"><img src="img/iphone-today.webp" width="1260" height="2736" alt="iPhone 上的“今天”清单" loading="lazy"></figure>
-    <figure class="phone"><img src="img/iphone-cal.webp" width="1260" height="2736" alt="iPhone 上的月历" loading="lazy"></figure>
-    <figure class="phone"><img src="img/iphone-habits.webp" width="1260" height="2736" alt="iPhone 上的习惯打卡" loading="lazy"></figure>
+    <figure class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/iphone-today-dark.webp"><img src="img/iphone-today.webp" width="1260" height="2736" alt="iPhone 上的“今天”清单" loading="lazy"></picture></figure>
+    <figure class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/iphone-cal-dark.webp"><img src="img/iphone-cal.webp" width="1260" height="2736" alt="iPhone 上的月历" loading="lazy"></picture></figure>
+    <figure class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/iphone-habits-dark.webp"><img src="img/iphone-habits.webp" width="1260" height="2736" alt="iPhone 上的习惯打卡" loading="lazy"></picture></figure>
   </div>
 </section>
 

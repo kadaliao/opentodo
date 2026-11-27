@@ -6,6 +6,9 @@
 #   site/scripts/images.sh mac          # 只截 Mac 的
 #   site/scripts/images.sh ios          # 只截 iPhone 的
 #   site/scripts/images.sh convert      # 不截图，只把 apple/.shots/site/ 里已有的 PNG 转一遍
+#   site/scripts/images.sh mac work-dark board-dark   # 只截列出的几张（名字见下面的表）
+#
+# 网页跟着系统的深色模式换图：浅色截图都配一张同名 -dark 的，页面里用 <picture> 按外观挑。
 #
 # 分享预览图 og.jpg 由 site/scripts/og.html 用无头 Chrome 截出来，最后一步生成。
 #
@@ -31,13 +34,30 @@ MAC_SHOTS=(
   "habits-light|habits"
   "countdowns-light|countdowns"
   "matrix-light|matrix"
+  "work-dark|list:work|OT_APPEARANCE=dark"
+  "board-dark|board:manual|OT_APPEARANCE=dark"
+  "timeline-dark|timeline:week|OT_APPEARANCE=dark"
+  "focus-dark|focus|OT_APPEARANCE=dark"
+  "habits-dark|habits|OT_APPEARANCE=dark"
+  "countdowns-dark|countdowns|OT_APPEARANCE=dark"
+  "matrix-dark|matrix|OT_APPEARANCE=dark"
   "quick-dark|system:quickpanel|OT_APPEARANCE=dark|OT_QUICKADD=明天下午3点开会 #工作 !高"
 )
 IOS_SHOTS=(
   "iphone-today|smart:today"
   "iphone-cal|calendar-demo:month"
   "iphone-habits|habits"
+  "iphone-today-dark|smart:today|OT_APPEARANCE=dark"
+  "iphone-cal-dark|calendar-demo:month|OT_APPEARANCE=dark"
+  "iphone-habits-dark|habits|OT_APPEARANCE=dark"
 )
+ONLY=("${@:2}")  # 命令行上第一个参数之后的名字：只截这几张
+
+wanted() { # name
+  [ ${#ONLY[@]} -eq 0 ] && return 0
+  local n; for n in "${ONLY[@]}"; do [ "$n" = "$1" ] && return 0; done
+  return 1
+}
 
 shoot() { # platform entry…
   local platform=$1; shift
@@ -45,6 +65,7 @@ shoot() { # platform entry…
   for entry in "$@"; do
     IFS='|' read -r -a f <<<"$entry"
     local name=${f[0]} route=${f[1]} envs=("${f[@]:2}")
+    wanted "$name" || continue
     echo "截图 $name ($route)"
     if [ "$platform" = macos ]; then
       env OT_WINDOW_SIZE=1280x800 OT_MAC_METHOD=window ${built:+OT_NO_BUILD=1} ${envs[@]+"${envs[@]}"} \

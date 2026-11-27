@@ -25,12 +25,21 @@
     .catch(() => {});
 
   // ---------- 主截图的浅色 / 深色 ----------
+  // 没点过按钮时跟着系统外观（CSS 按 prefers-color-scheme 显示），这里只让按钮的按下状态对上；
+  // 点过以后用 data-appearance 定住，系统再切换也不变。
   const heroShot = document.querySelector(".hero-shot");
   const lookButtons = document.querySelectorAll("[data-look]");
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+  const pressLook = (look) => lookButtons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.look === look)));
+  const followSystem = () => {
+    if (!heroShot.dataset.appearance) pressLook(systemDark.matches ? "dark" : "light");
+  };
+  followSystem();
+  systemDark.addEventListener("change", followSystem);
   lookButtons.forEach((button) => {
     button.addEventListener("click", () => {
       heroShot.dataset.appearance = button.dataset.look;
-      lookButtons.forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+      pressLook(button.dataset.look);
     });
   });
 
