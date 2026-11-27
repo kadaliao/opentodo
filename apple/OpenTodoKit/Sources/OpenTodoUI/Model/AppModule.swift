@@ -1,10 +1,12 @@
-// The app's modules (任务, 日历, and later 专注, 习惯 …): the top level of
-// the app. On macOS they are the icon bar at the top of the sidebar and the
-// 显示 menu (⌘1, ⌘2 …); on iOS and iPadOS they are the tabs.
+// The app's modules (任务, 日历, 四象限, 专注, 习惯, 倒数日): the top level of
+// the app. On macOS the window has one sidebar for all of them
+// (Shell/MacShell.swift): the tasks module is its views (今天, the lists …)
+// and every other module is a row among them, under the smart lists; the
+// 显示 menu has them too (⌘1, ⌘2 …). On iOS and iPadOS they are the tabs.
 //
 // To add a module: add a case here (its order is the order everywhere),
-// give it a title, a symbol and a shortcut, and return its screen from
-// `ModuleScreen` (Shell/ModuleScreen.swift). Nothing else needs to know.
+// give it a title, a symbol and a tint, and return its screen from
+// `ModuleScreen` (Shell/ModuleScreen.swift, iOS) and `MacShell`'s detail.
 
 import OpenTodoDomain
 import SwiftUI
@@ -44,9 +46,33 @@ public enum AppModule: String, Sendable, Hashable, CaseIterable, Identifiable {
         }
     }
 
+    /// The colour of its icon in the Mac sidebar, beside the smart lists'
+    /// (orange, pink, purple, blue).
+    public var tint: Color {
+        switch self {
+        case .tasks: .accentColor
+        case .calendar: .red
+        case .matrix: .indigo
+        case .focus: .orange
+        case .habits: .green
+        case .countdowns: .teal
+        }
+    }
+
+    /// The modules that are rows of the Mac sidebar: all but 任务, which is
+    /// the sidebar's views themselves.
+    public static var sidebarModules: [AppModule] { allCases.filter { $0 != .tasks } }
+
     /// ⌘1, ⌘2 … in the order of the cases.
     public var shortcut: KeyEquivalent {
         let n = AppModule.allCases.firstIndex(of: self)! + 1
         return KeyEquivalent(Character(String(n)))
     }
+}
+
+/// A row of the Mac sidebar that can be selected: a view of the tasks
+/// module, or another module.
+public enum SidebarItem: Sendable, Hashable {
+    case view(ViewRef)
+    case module(AppModule)
 }

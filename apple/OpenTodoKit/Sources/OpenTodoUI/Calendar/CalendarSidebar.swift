@@ -10,14 +10,10 @@ import SwiftUI
 /// The calendar's sidebar: put it in the sidebar column next to a
 /// `CalendarView` on the same model.
 public struct CalendarSidebar: View {
-    @Environment(\.uiScale) private var s
     let model: CalendarModel
     let tasks: [TodoTask]
     let lists: [TaskList]
     let now: LocalDateTime
-
-    /// Months the small month is paged away from the calendar's.
-    @State private var monthOffset = 0
 
     public init(model: CalendarModel, tasks: [TodoTask], lists: [TaskList], now: LocalDateTime) {
         self.model = model
@@ -27,33 +23,9 @@ public struct CalendarSidebar: View {
     }
 
     public var body: some View {
-        let shown = model.anchor.startOfMonth.addingMonths(monthOffset)
-        let marked = Set(entriesByDay(
-            calendarEntries(tasks, monthGrid(shown.year, shown.month), today: now.day, filter: model.prefs.filter)
-        ).keys)
         List {
             Section {
-                VStack(spacing: 4 * s) {
-                    HStack {
-                        Text(verbatim: "\(shown.year)年\(shown.month)月").uiFont(.headline)
-                        Spacer()
-                        Button { monthOffset -= 1 } label: { Image(systemName: "chevron.left") }
-                            .accessibilityLabel("上个月")
-                        Button { monthOffset = 0; model.anchor = now.day } label: { Image(systemName: "circle") }
-                            .accessibilityLabel("今天")
-                            .help("今天")
-                        Button { monthOffset += 1 } label: { Image(systemName: "chevron.right") }
-                            .accessibilityLabel("下个月")
-                    }
-                    .buttonStyle(.borderless)
-                    .imageScale(.small)
-                    MiniMonth(year: shown.year, month: shown.month, selected: model.anchor, today: now.day,
-                              marks: .dots(marked), rowHeight: 30, fontSize: 12) { day in
-                        monthOffset = 0
-                        model.anchor = day
-                    }
-                }
-                .padding(.vertical, 4 * s)
+                CalendarMonthJumper(model: model, tasks: tasks, now: now)
             }
             Section {
                 CalendarListToggles(model: model, lists: lists)
@@ -67,6 +39,59 @@ public struct CalendarSidebar: View {
             }
         }
         .listStyle(.sidebar)
+    }
+}
+
+/// A small month to jump to a day: the month's name with ‹ ○ › to page it
+/// (○ is today), a dot under the days with something on. In the calendar's
+/// sidebar, and on macOS at the foot of the window's sidebar while the
+/// calendar is on screen.
+public struct CalendarMonthJumper: View {
+    @Environment(\.uiScale) private var s
+    let model: CalendarModel
+    /// The tasks the calendar shows (`CalendarModel.shownTasks`).
+    let tasks: [TodoTask]
+    let now: LocalDateTime
+    var rowHeight: CGFloat = 30
+
+    /// Months the small month is paged away from the calendar's.
+    @State private var monthOffset = 0
+
+    public init(model: CalendarModel, tasks: [TodoTask], now: LocalDateTime, rowHeight: CGFloat = 30) {
+        self.model = model
+        self.tasks = tasks
+        self.now = now
+        self.rowHeight = rowHeight
+    }
+
+    public var body: some View {
+        let shown = model.anchor.startOfMonth.addingMonths(monthOffset)
+        let marked = Set(entriesByDay(
+            calendarEntries(tasks, monthGrid(shown.year, shown.month), today: now.day, filter: model.prefs.filter)
+        ).keys)
+        VStack(spacing: 4 * s) {
+            HStack {
+                Text(verbatim: "\(shown.year)年\(shown.month)月").uiFont(.headline)
+                Spacer()
+                Button { monthOffset -= 1 } label: { Image(systemName: "chevron.left") }
+                    .accessibilityLabel("上个月")
+                    .help("上个月")
+                Button { monthOffset = 0; model.anchor = now.day } label: { Image(systemName: "circle") }
+                    .accessibilityLabel("今天")
+                    .help("今天")
+                Button { monthOffset += 1 } label: { Image(systemName: "chevron.right") }
+                    .accessibilityLabel("下个月")
+                    .help("下个月")
+            }
+            .buttonStyle(.borderless)
+            .imageScale(.small)
+            MiniMonth(year: shown.year, month: shown.month, selected: model.anchor, today: now.day,
+                      marks: .dots(marked), rowHeight: rowHeight, fontSize: 12) { day in
+                monthOffset = 0
+                model.anchor = day
+            }
+        }
+        .padding(.vertical, 4 * s)
         .onChange(of: model.anchor) { monthOffset = 0 }
     }
 }

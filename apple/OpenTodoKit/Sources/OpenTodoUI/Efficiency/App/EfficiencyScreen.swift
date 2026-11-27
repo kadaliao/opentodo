@@ -1,16 +1,16 @@
 // The four efficiency modules in the app (四象限, 专注, 习惯, 倒数日): their
 // screens over the real data (`model.efficiency`, `model.data`), how they
 // sit in the window, and the bits they put elsewhere (开始专注 in a task's
-// menu, the countdowns at the top of 今天).
+// menu, the countdowns at the top of 今天, a word of news in the Mac
+// sidebar).
 //
-// Layout. Wide (macOS, iPad): like every module a `NavigationSplitView`;
-// its sidebar (with the module bar on macOS) lists the four with a line of
-// news each — today's check-ins, today's focus, the next countdown, the
-// urgent tasks — and the detail is the module's own screen. Compact
-// (iPhone): the four share one tab, 效率, beside 任务 / 日历 / 搜索 (seven
-// tabs don't fit); the tab shows the module last used and the navigation
-// title is a menu to switch, the way Photos and Files switch what they
-// show.
+// Layout. Each module's screen is a `NavigationStack` of its own and fills
+// what it is given: on macOS the window's detail column, beside the one
+// sidebar where the four are rows (Shell/MacShell.swift); on iPad a tab
+// each. Compact (iPhone): the four share one tab, 效率, beside 任务 / 日历 /
+// 搜索 (seven tabs don't fit); the tab shows the module last used and the
+// navigation title is a menu to switch, the way Photos and Files switch
+// what they show.
 
 import OpenTodoData
 import OpenTodoDomain
@@ -48,34 +48,21 @@ extension AppModule {
 
 /// What `ModuleScreen` shows for an efficiency module.
 struct EfficiencyScreen: View {
-    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
     var module: AppModule
 
     var body: some View {
-        Group {
-            if model.width == .compact {
-                content
-                    .environment(\.efficiencySwitcher, EfficiencySwitcher { model.switchTo($0) })
-            } else {
-                NavigationSplitView {
-                    EfficiencySidebar()
-                        .moduleBar()
-                        .navigationSplitViewColumnWidth(min: 200, ideal: 230 * s, max: 320 * s)
-                        #if os(iOS)
-                        .navigationTitle("效率")
-                        #endif
-                } detail: {
-                    content
-                }
+        content
+            // A phone's title menu switches between the four.
+            .environment(\.efficiencySwitcher, model.width == .compact ? EfficiencySwitcher { model.switchTo($0) } : nil)
+            // Also when the Mac sidebar goes from one of the four to another
+            // (the same view, another `module`).
+            .onChange(of: module, initial: true) {
+                model.efficiency.lastModule = module
+                // A start (debug route, a tap on 今天) is used once.
+                model.efficiency.pendingStart[module] = nil
             }
-        }
-        .onAppear {
-            model.efficiency.lastModule = module
-            // A start (debug route, a tap on 今天) is used once.
-            model.efficiency.pendingStart[module] = nil
-        }
-        .onChange(of: model.efficiency.openToken) { model.efficiency.pendingStart[module] = nil }
+            .onChange(of: model.efficiency.openToken) { model.efficiency.pendingStart[module] = nil }
     }
 
     @ViewBuilder private var content: some View {
@@ -238,41 +225,10 @@ extension View {
     func efficiencyTitleMenu() -> some View { modifier(EfficiencyTitleMenu()) }
 }
 
-// MARK: - Sidebar
+// MARK: - News
 
-/// The wide layout's sidebar: the four modules, each with a line of news.
-struct EfficiencySidebar: View {
-    @Environment(\.uiScale) private var s
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        List(selection: Binding(get: { Optional(model.module) }, set: { if let m = $0 { model.switchTo(m) } })) {
-            Section {
-                ForEach(AppModule.efficiencyModules) { m in
-                    Label {
-                        VStack(alignment: .leading, spacing: 2 * s) {
-                            Text(m.title)
-                            Text(efficiencySummary(m, model: model))
-                                .uiFont(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    } icon: {
-                        Image(systemName: m.symbol)
-                    }
-                    .tag(m)
-                }
-            } header: {
-                Text("效率").uiDefaultFont(.subheadline, weight: .semibold)
-            }
-        }
-        #if os(macOS)
-        .listStyle(.sidebar)
-        #endif
-    }
-}
-
-/// The sidebar's line under a module: 今天 3/5, 专注中, 春节 还有 72 天 ….
+/// A line about a module (the tooltip of its row in the Mac sidebar):
+/// 今天 3/5, 专注中, 春节 还有 72 天 ….
 @MainActor
 func efficiencySummary(_ m: AppModule, model: AppModel) -> String {
     let eff = model.efficiency
@@ -295,6 +251,26 @@ func efficiencySummary(_ m: AppModule, model: AppModel) -> String {
         return "\(cell.name) \(cell.tasks.count)"
     default:
         return ""
+    }
+}
+
+/// The word at the end of a module's row in the Mac sidebar: today's
+/// check-ins (2/5), the timer when it isn't idle (专注中), 今天 when a
+/// countdown's day has come. Nil: nothing worth a glance.
+@MainActor
+func moduleBadge(_ m: AppModule, model: AppModel) -> String? {
+    let eff = model.efficiency
+    switch m {
+    case .habits:
+        let (done, due) = dayCompletion(eff.habits, checkins: eff.checkins, on: model.today)
+        return due == 0 ? nil : "\(done)/\(due)"
+    case .focus:
+        return eff.timer.phase == .idle ? nil : focusPhaseTitle(eff.timer)
+    case .countdowns:
+        let today = model.today
+        return eff.countdowns.contains { countdownStatus($0, today: today).map { !$0.past && $0.days == 0 } ?? false } ? "今天" : nil
+    default:
+        return nil
     }
 }
 

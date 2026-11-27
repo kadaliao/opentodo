@@ -11,8 +11,16 @@ import OpenTodoData
 import OpenTodoDomain
 import SwiftUI
 
+extension EnvironmentValues {
+    /// macOS: how much of the window's toolbar, at its end, is over
+    /// something else than the list (the detail pane beside it). The
+    /// list's buttons keep clear of it, so they sit over the list.
+    @Entry var toolbarTrailingInset: CGFloat = 0
+}
+
 struct TaskListArea: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.toolbarTrailingInset) private var trailingInset
     var view: ViewRef
 
     var body: some View {
@@ -56,6 +64,17 @@ struct TaskListArea: View {
                     .help("新建任务 (⌘N)")
             }
         }
+        #if os(macOS)
+        if trailingInset > 0 {
+            // Nothing, as wide as the pane beside the list (less the
+            // toolbar's own margin).
+            ToolbarItem {
+                Color.clear.frame(width: max(0, trailingInset - 14), height: 1)
+                    .accessibilityHidden(true)
+            }
+            .sharedBackgroundVisibility(.hidden)
+        }
+        #endif
     }
 }
 

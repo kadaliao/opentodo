@@ -4,6 +4,11 @@
 // rows selected in place) and as the first screen of the tasks tab on
 // iPhone (`.phone`: rows push the view).
 //
+// On macOS the same sidebar is the whole window's: the other modules
+// (`modules`: 日历, 四象限, 专注, 习惯, 倒数日) are rows under the smart
+// lists, each with a word of news at its end (`ModuleRow`), and the
+// selection is a `SidebarItem` — a view, or one of those modules.
+//
 // Lists: 添加清单 (the + by the header), right-click / long-press for
 // 编辑清单 and 删除清单, drag to reorder. Filters: 添加过滤器 and 编辑 open
 // the filter editor (the search engineer's), 删除 asks first.
@@ -17,12 +22,14 @@ struct ViewsList: View {
 
     @Environment(AppModel.self) private var model
     var mode: Mode
+    /// The modules listed under the smart lists (the Mac sidebar).
+    var modules: [AppModule] = []
 
     var body: some View {
         Group {
             switch mode {
             case .sidebar:
-                List(selection: Binding(get: { model.view }, set: { if let v = $0 { model.select(v) } })) {
+                List(selection: Binding(get: { Optional(model.sidebarSelection) }, set: { if let i = $0 { model.choose(i) } })) {
                     content
                 }
                 .listStyle(.sidebar)
@@ -39,6 +46,13 @@ struct ViewsList: View {
         Section {
             ForEach([SmartKind.today, .tomorrow, .next7, .inbox], id: \.self) { kind in
                 row(.smart(kind), kind.title, icon: .smart(kind, style: iconStyle))
+            }
+        }
+        if !modules.isEmpty {
+            Section {
+                ForEach(modules) { m in
+                    ModuleRow(module: m).tag(SidebarItem.module(m))
+                }
             }
         }
         Section {
@@ -109,7 +123,7 @@ struct ViewsList: View {
             label
                 .modifier(SidebarBadge(count: count))
                 .listItemTint(icon.tint.map(ListItemTint.fixed) ?? .monochrome)
-                .tag(view)
+                .tag(SidebarItem.view(view))
         case .phone:
             NavigationLink(value: PhoneRoute.view(view)) {
                 label
@@ -140,6 +154,27 @@ struct ViewsList: View {
             .uiFont(.caption)
             .foregroundStyle(.secondary)
             .selectionDisabled()
+    }
+}
+
+/// A module in the Mac sidebar: its icon and name like a view's, and where
+/// a view has its count, a word of what's going on there (习惯 2/5, 专注中).
+/// The longer line (今天 1小时15分, 春节 还有72天) is the row's tooltip.
+private struct ModuleRow: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.uiScale) private var s
+    var module: AppModule
+
+    var body: some View {
+        let summary = efficiencySummary(module, model: model)
+        Label {
+            Text(module.title).lineLimit(1)
+        } icon: {
+            Image(systemName: module.symbol)
+        }
+        .badge(moduleBadge(module, model: model).map { Text($0).font(.ui(.subheadline, scale: s)) })
+        .listItemTint(.fixed(module.tint))
+        .help("\(module.title)（⌘\(String(module.shortcut.character))）" + (summary.isEmpty ? "" : "\n\(summary)"))
     }
 }
 

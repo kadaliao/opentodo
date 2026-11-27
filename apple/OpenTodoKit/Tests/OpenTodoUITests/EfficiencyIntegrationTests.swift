@@ -283,6 +283,29 @@ private func ms(_ minutes: Int) -> Int { Int(start.date(in: tz).timeIntervalSinc
         #expect(efficiencySummary(.countdowns, model: h.model).contains("还有") || efficiencySummary(.countdowns, model: h.model).contains("就是今天"))
     }
 
+    @Test func theSidebarSaysAWordAboutEachModule() async throws {
+        let h = try await makeHarness()
+        // Nothing yet: nothing to say.
+        for m in AppModule.allCases { #expect(moduleBadge(m, model: h.model) == nil) }
+
+        let repo = EfficiencyRepo(h.model.database, clock: { h.clock.date }, timeZone: tz)
+        try await EfficiencyDemo.seed(repo, today: today)
+        try await waitUntil("seeded") { h.eff.habits.count == 6 && h.eff.countdowns.count == 7 }
+        // 习惯: today's done / due, the same numbers as the longer line.
+        let (done, due) = dayCompletion(h.eff.habits, checkins: h.eff.checkins, on: today)
+        #expect(due > 0 && moduleBadge(.habits, model: h.model) == "\(done)/\(due)")
+        #expect(efficiencySummary(.habits, model: h.model) == "今天 \(done)/\(due)")
+        // 倒数日: 今天 only when one's day has come.
+        let aDayIsToday = h.eff.countdowns.contains { countdownDays($0, today: today) == 0 }
+        #expect(moduleBadge(.countdowns, model: h.model) == (aDayIsToday ? "今天" : nil))
+        // 专注: only while the timer isn't idle.
+        #expect(moduleBadge(.focus, model: h.model) == nil)
+        applyEfficiencyRoute("focus:running", h.model)
+        #expect(moduleBadge(.focus, model: h.model) == "专注中")
+        // 任务, 日历 and 四象限 have their counts elsewhere.
+        #expect(moduleBadge(.calendar, model: h.model) == nil && moduleBadge(.matrix, model: h.model) == nil)
+    }
+
     @Test func routesOpenTheModules() async throws {
         let h = try await makeHarness()
         applyEfficiencyRoute("focus:running", h.model)

@@ -1,7 +1,8 @@
-// What each module shows. Every module owns its whole window area: on
-// macOS and iPad its own `NavigationSplitView` (whose sidebar carries the
-// module bar on macOS via `.moduleBar()`), on iPhone its own
-// `NavigationStack`. A new module adds a case here.
+// What each module's tab shows (iOS, iPadOS). Every module owns its whole
+// tab: on iPad its own `NavigationSplitView` or `NavigationStack`, on
+// iPhone its own `NavigationStack`. The Mac window lays the same modules
+// out beside one sidebar (Shell/MacShell.swift). A new module adds a case
+// in both.
 
 import OpenTodoDomain
 import SwiftUI

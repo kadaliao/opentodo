@@ -14,6 +14,7 @@ import OpenTodoDomain
 import SwiftUI
 
 public struct HabitsRootView: View {
+    @Environment(\.uiScale) private var s
     public var habits: [Habit]
     public var checkins: [HabitCheckin]
     public var today: Day
@@ -115,6 +116,11 @@ public struct HabitsRootView: View {
             .listStyle(.insetGrouped)
             #else
             .listStyle(.inset(alternatesRowBackgrounds: false))
+            // A column down the middle of a wide window, as the habit's
+            // own page: across the whole width a habit's name and its
+            // tick were a window apart.
+            .frame(maxWidth: 640 * s)
+            .frame(maxWidth: .infinity)
             #endif
             .navigationTitle(selected == today ? "习惯" : dayText(selected, today: today))
             .efficiencyTitleMenu()

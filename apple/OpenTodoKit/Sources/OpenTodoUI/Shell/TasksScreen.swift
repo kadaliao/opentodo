@@ -1,4 +1,5 @@
-// The tasks module. Wide (macOS, iPad): sidebar / list / detail in a
+// The tasks module as a tab (iOS, iPadOS; the Mac window is
+// Shell/MacShell.swift). Wide (iPad): sidebar / list / detail in a
 // `NavigationSplitView`. Compact (iPhone, narrow iPad windows): a
 // `NavigationStack` from the views to a list to a task, its path kept in
 // `AppModel.phonePath`.
@@ -46,9 +47,6 @@ struct TasksSplitView: View {
                             }
                     }
                 }
-                #if os(macOS)
-                .toolbar { searchButton }
-                #endif
             } else {
                 NavigationSplitView(columnVisibility: $columns) {
                     sidebar
@@ -62,28 +60,10 @@ struct TasksSplitView: View {
                     content.navigationSplitViewColumnWidth(min: 280, ideal: 400)
                 } detail: {
                     detail.navigationSplitViewColumnWidth(min: 280, ideal: 380)
-                        #if os(macOS)
-                        // Search at the far end of the toolbar, as in Mail
-                        // and Notes; the spacer also keeps the list's items
-                        // over the list column when the detail has none.
-                        .toolbar {
-                            ToolbarSpacer(.flexible)
-                            searchButton
-                        }
-                        #endif
                 }
             }
         }
     }
-
-    #if os(macOS)
-    private var searchButton: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            Button("搜索", systemImage: "magnifyingglass") { model.requestSearch() }
-                .help("搜索（⌘F）")
-        }
-    }
-    #endif
 
     /// The view on screen is laid out as a board or a timeline.
     private var wantsWidth: Bool {
@@ -97,12 +77,10 @@ struct TasksSplitView: View {
 
     private var sidebar: some View {
         ViewsList(mode: .sidebar)
-            .moduleBar()
-            .modifier(AccountFooter())
             .navigationSplitViewColumnWidth(min: 180, ideal: 230 * s, max: 320 * s)
             #if os(iOS)
             .navigationTitle("任务")
-            // iPad: 设置 (macOS has the Settings window and the account row).
+            // 设置 (the Mac has the Settings window and the account row).
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("设置", systemImage: "gearshape") { model.present.settings = true }
@@ -152,26 +130,5 @@ struct PhoneTasks: View {
         .task {
             if model.taskList.prefill != nil { model.present.quickAdd = true }
         }
-    }
-}
-
-/// macOS: the account at the bottom of the sidebar (data's
-/// `AccountSidebarItem`); a click opens 设置.
-struct AccountFooter: ViewModifier {
-    @Environment(AppModel.self) private var model
-
-    func body(content: Content) -> some View {
-        #if os(macOS)
-        // Hard edge: with the soft one the rows under the bar show through
-        // as blurred ghosts right behind the account's icon and name.
-        content.safeAreaBar(edge: .bottom, spacing: 0) {
-            if let sync = model.services?.sync {
-                AccountSidebarItem(sync: sync) { model.present.settings = true }
-            }
-        }
-        .scrollEdgeEffectStyle(.hard, for: .bottom)
-        #else
-        content
-        #endif
     }
 }

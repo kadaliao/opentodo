@@ -115,7 +115,7 @@ App/         RootView（窗口的根）、DebugLaunch、Snapshot
 Model/       AppModel（核心）和它的子模型：SelectionModel、Notices、Presentation、SearchState、TaskListState；
              AppModel+Actions（带提示 / 撤销 / 确认的写操作）、AppModel+Batch（多选和批量）、
              AppLaunch（AppServices 和窗口的模型）、AppModule、DemoData
-Shell/       外壳：ModuleScreen、ModuleBar、TasksScreen、CalendarScreen、DialogHost（应用的对话框）、
+Shell/       外壳：MacShell（Mac 的窗口：一个侧栏加右边的内容）、ModuleScreen / TasksScreen（iOS 的标签）、CalendarScreen、DialogHost（应用的对话框）、
              NoticeBanner（撤销提示）、QuickAddSheet、SettingsView（包一层 Settings/ 的设置界面）、AppCommands（菜单栏）、
              WindowRestoration
 Components/  共用组件（下面的表）
@@ -131,13 +131,18 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 
 ### 窗口的结构
 
-- **模块**：任务、日历、四象限、专注、习惯、倒数日（`AppModule`，这个顺序）。每个模块自己占满窗口：宽屏是自己的 `NavigationSplitView`，窄屏是自己的 `NavigationStack`（`Shell/ModuleScreen.swift` 按模块分）。
-- **macOS**：一个窗口一次显示一个模块；侧栏顶上是模块栏（`ModuleBar`，每个模块的侧栏都加了 `.moduleBar()`），“显示”菜单里每个模块一项 ⌘1–⌘6。任务模块三栏：侧栏、中间 `TaskListArea`、右边详情；看板和时间线要宽度时变两栏，详情改成右边的检查器。窗口最小 760×460，默认 1180×760。搜索是任务模块工具栏的放大镜和 ⌘F（任何模块都能按），浮在窗口上（`SearchHost`）。
-- **iOS / iPadOS**：`TabView`，宽屏每个模块一个标签，iPhone 上四个效率模块合成一个“效率”标签（导航标题是切换菜单）；最后是“搜索”标签。宽度由 `horizontalSizeClass` 决定（`AppModel.width`）：iPad 全屏和 Mac 同一份分栏代码，iPhone 和窄窗口是导航栈。两种布局之间切换时打开的视图和任务保留。设置：iPhone 在任务首页右上角，iPad 在任务侧栏的工具栏。
+- **模块**：任务、日历、四象限、专注、习惯、倒数日（`AppModule`，这个顺序）。
+- **macOS**（`Shell/MacShell.swift`）：整个窗口**只有一个侧栏**，不管右边显示什么它都不变：最上面是“搜索”（样子像搜索框，点了打开浮在窗口上的搜索，⌘F，任何模块都能用）；智能清单；日历、四象限、专注、习惯、倒数日各占一行，带图标和名字，行尾一个词说近况（习惯 `2/5`、`专注中`、有倒数日到了写“今天”；`moduleBadge`，鼠标停一下显示完整的一句和 ⌘ 数字）；然后是清单、过滤器、标签、已完成 / 垃圾桶；最底下是账号行。选中的是 `SidebarItem`（一个视图，或者一个模块）：`model.sidebarSelection` / `model.choose(_:)`。点视图就是任务模块，点模块行就是那个模块；“显示”菜单里每个模块一项 ⌘1–⌘6（⌘1 回到上次的视图）。唯一会出现和消失的是账号行上面的小月历：日历在屏幕上、窗口又够高（侧栏 620 点以上）时才有。
+  - 整个窗口是**一个** `NavigationSplitView`（侧栏 + 右边），换模块只换右边，所以侧栏的宽度、滚动位置、选中都留着。不要再给哪个模块单独套一层分栏。
+  - 任务模块在右边自己分两半（`MacTasksSplit`）：`TaskListArea`，右边是详情（多选时是批量面板）。列表布局时详情一直在；看板和时间线要宽度，有任务打开（或多选）时才出现，标题行里有关闭按钮。中间的分隔线能拖（自己占 9 点宽，见第 10 节；详情 280–560，存在 `ot.taskDetailWidth`，双击回到 380，VoiceOver 里是一个可调的“详情宽度”），窗口窄时详情先让（`TaskSplitLogic.detailWidth`：列表至少 280，详情最少 220）。详情作为旁边的一栏时，“更多”菜单和关闭按钮在它自己的标题行里（环境值 `taskDetailChrome`，日历旁边的详情也是），窗口的工具栏只归列表：列表的按钮后面垫了一个和详情一样宽的空白项（`toolbarTrailingInset`），所以它们停在列表上方。
+  - 日历在右边是 `CalendarPane`：日历，旁边是打开的任务或批量面板（放不下时改成 sheet / 底部操作栏）。要显示哪些清单、显示已完成 / 农历这些开关在工具栏的“更多”里。
+  - 效率的四个模块各自占满右边（自己的 `NavigationStack`）。
+  - 窗口最小 760×460，默认 1180×760。
+- **iOS / iPadOS**：`TabView`，宽屏每个模块一个标签（`Shell/ModuleScreen.swift`），iPhone 上四个效率模块合成一个“效率”标签（导航标题是切换菜单）；最后是“搜索”标签。每个标签自己占满：iPad 上任务是三栏 `NavigationSplitView`（`TasksSplitView`；看板和时间线时两栏加 `.inspector`），日历是两栏（`CalendarSidebar`：小月历、要显示的清单、显示开关），效率模块没有侧栏（标签已经是它们了）；iPhone 和窄窗口是导航栈。宽度由 `horizontalSizeClass` 决定（`AppModel.width`）。两种布局之间切换时打开的视图和任务保留。设置：iPhone 在任务首页右上角，iPad 在任务侧栏的工具栏。
 - **衔接的规矩**：
   - 换视图、换模块时清空多选（`model.selection`）；换模块在宽屏上还关掉打开的任务（Flutter 版如此），手机上各标签的页面栈保留。日历打开的任务在 `model.calendar.openTaskId`，和任务模块的 `selectedTaskId` 分开。
   - 应用层面的对话框（确认、单行输入、清单编辑、从菜单打开的日期对话框、过滤器编辑器、设置、快速添加）都经 `model.present` 由 `DialogHost` 显示；组件内部指着自己控件的弹出框（日期对话框的 popover、批量面板的标签、看板分组的改名等）留在组件里。
-  - 工具栏：每个模块只在自己的视图上加按钮，外壳不加通用按钮（任务模块的搜索放大镜除外）。
+  - 工具栏：每个模块只在自己的视图上加按钮，外壳不加通用按钮（Mac 的搜索在侧栏顶上）。
 - **菜单栏命令**（`AppCommands`，经 `.focusedSceneValue(\.appModel, …)` 找到当前窗口，文件头有完整的表）：
   - 文件 › 新建任务 ⌘N、新建清单 ⇧⌘N；编辑 › 搜索 ⌘F（⌘A、Esc 归列表和日历自己）。
   - 显示 › 各模块 ⌘1–⌘6；任务模块的显示为列表 / 看板 / 时间线 ⌃⌘1–3、显示已完成 ⇧⌘H；日历的日 / 3天 / 周 / 月 / 日程 ⌃⌘1–5、年、多周；放大 ⌘+（⌘= 也行，`InterfaceSizeKeys`）、缩小 ⌘-、实际大小 ⌘0（界面大小，不要窗口在前台）。
@@ -149,7 +154,7 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 
 任务模块（规格是 Flutter 版的 sidebar / task_list_pane / task_tile / task_detail / quick_add_field / task_actions / section_actions）：
 
-- **侧栏**：智能清单、清单（标题旁的 + 添加；右键 / 长按编辑、删除（先确认）；拖动排序）、过滤器（+ 和“编辑”打开过滤器编辑器）、标签、已完成 / 垃圾桶，每项带未完成数。
+- **侧栏**（`Tasks/ViewsList.swift`，Mac 上也是整个窗口的侧栏，见上）：智能清单、（Mac：其他模块各一行）、清单（标题旁的 + 添加；右键 / 长按编辑、删除（先确认）；拖动排序）、过滤器（+ 和“编辑”打开过滤器编辑器）、标签、已完成 / 垃圾桶，每项带未完成数。
 - **列表**（`TaskListArea` → `LayoutContent` → `TaskListView`）：按视图的 `ViewPrefs`（分组、排序、布局）显示，“显示选项”（⋯）里改，存在 `key_values`；“显示已完成”只在这个窗口有效（Flutter 版没有这一项，没存进 `ViewPrefs`）。分组可折叠；清单的自定义分组标题带 ⋯（重命名、上移、下移、删除分组）；今天 / 最近7天里空的日子也显示（不带数字、灰色）。垃圾桶有“清空”（先确认）和底部说明。拖动（`Drag/TaskListDrag.swift`）：Mac 上行能拖到别的位置、别的分组（改日期 / 清单 / 优先级），多选的一起走；iOS 和 iPadOS 上要先进“排序”：在手动排序的分组里长按任务行的右端（最后 64 点），列表进编辑模式，这些行右边出现系统的 ≡ 把手，拖把手在本分组里调顺序，右上角“完成”退出（离开这个视图也会退出）；长按行的其他地方还是菜单（第 10 节）。
 - **快速添加**（`QuickAddField`）：边输入边高亮识别出的日期、时间、重复、#标签、!优先级，末尾显示识别出的日期；回车添加，带上当前视图的默认值（`quickAddDefaults`），有日期时加上设置里的默认提醒；新任务不在当前视图里时提示加到了哪。Mac 和 iPad 在列表顶上（⌘N 让它获得焦点），iPhone 是导航栏“+”弹出的 sheet。
 - **详情**：标题、标签（点掉 / 添加）、描述（停 0.4 秒或离开时保存）；日期一行（点开日期对话框，重复和提醒的文字列在下面）；清单、优先级、置顶；子任务（勾选、改名、删除、拖动排序、添加）；垃圾桶里的任务只读，可以恢复 / 永久删除。
@@ -201,9 +206,9 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 
 ### 加一个模块
 
-1. `Model/AppModule.swift` 加一个 case，写上 `title`、`symbol`。顺序就是标签和 ⌘ 数字的顺序（现在六个，⌘1–⌘6，再加就到 ⌘7）。
-2. 写这个模块的界面：宽屏是它自己的 `NavigationSplitView`，侧栏加 `.moduleBar()`；窄屏（`model.width == .compact`）是一个 `NavigationStack`。参照 `CalendarScreen`。状态放自己的子模型。
-3. `Shell/ModuleScreen.swift` 的 `switch` 里加一行返回它。Mac 的模块栏、“显示”菜单、iOS 的标签都会自动出现。
+1. `Model/AppModule.swift` 加一个 case，写上 `title`、`symbol`、`tint`（Mac 侧栏里图标的颜色）。顺序就是侧栏、标签和 ⌘ 数字的顺序（现在六个，⌘1–⌘6，再加就到 ⌘7）。
+2. 写这个模块的界面：一个占满所给空间的视图，自己带 `NavigationStack`（标题、工具栏按钮都在里面），窄屏（`model.width == .compact`）也是它。状态放自己的子模型。不要自己套 `NavigationSplitView`，也不要自己的侧栏：Mac 上侧栏是整个窗口的。
+3. `Shell/MacShell.swift` 的 `detail` 里和 `Shell/ModuleScreen.swift`（iOS 的标签）的 `switch` 里各加一行返回它。Mac 的侧栏、“显示”菜单、iOS 的标签都会自动出现。想在侧栏那一行的行尾说点什么，在 `moduleBadge` 里加。
 
 ### 加一个对话框
 
@@ -295,7 +300,7 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 
 ### 接入应用
 
-- 四个模块是 `AppModule` 的 `matrix`、`focus`、`habits`、`countdowns`（⌘3–⌘6），`ModuleScreen` 交给 `EfficiencyScreen`（`Efficiency/App/`）。宽屏是 `NavigationSplitView`：侧栏列出四个模块，每个下面一行近况（今天的打卡、今天的专注、最近的倒数日、紧急的任务数），右边是模块自己的界面。iPhone 上四个模块合成一个“效率”标签（任务 / 日历 / 效率 / 搜索），显示上次用的那个，导航栏标题是切换模块的菜单（`toolbarTitleMenu`）。
+- 四个模块是 `AppModule` 的 `matrix`、`focus`、`habits`、`countdowns`（⌘3–⌘6），`MacShell` 和 `ModuleScreen` 都交给 `EfficiencyScreen`（`Efficiency/App/`），它只管把模块自己的界面接到数据上，不带侧栏：Mac 上四个模块是窗口侧栏里的四行（行尾的近况是 `moduleBadge`，鼠标停一下的那句是 `efficiencySummary`：今天的打卡、今天的专注、最近的倒数日、紧急的任务数），iPad 上是四个标签。iPhone 上四个模块合成一个“效率”标签（任务 / 日历 / 效率 / 搜索），显示上次用的那个，导航栏标题是切换模块的菜单（`toolbarTitleMenu`）。
 - 状态在 `model.efficiency`（`EfficiencyModel`）：四个观察（第一次需要时启动，`RootView` 上的 `EfficiencyDebugPresenter` 在窗口出现时启动）、写操作（界面交出来的整条记录转成 `EfficiencyRepo` 调用；删除倒数日和专注记录带撤销）、专注计时器（每次变化存 `LocalSettings.setFocusTimer`，启动时读回并补算；别的模块在前台时每 5 秒看一次钟，走完的番茄照样记录）。
 - 专注结束的通知由 `FocusEndNotifier` 用固定 ID `opentodo.focus.end` 排（提醒调度只管数字 ID，不会动它），每次计时器变化重排或取消。
 - 任务的右键菜单 / 详情的“更多”里有“开始专注”（`StartFocusButton`）：空闲时开始一个番茄并关联这个任务，已经在专注就改关联，然后切到专注模块。
@@ -406,9 +411,15 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 - 用 `onGeometryChange` 量出一个视图的尺寸、再用这个尺寸去定它自己内容的大小，会形成回路：横向 `ScrollView` 的高度取决于内容，内容高度又取自量到的高度。再加上 `.ignoresSafeArea` 往下延伸，就会越长越高，直到整屏，把顶部顶进导航栏下面（手机上的时间线）。量尺寸要量一个只占满给定空间的空视图（`Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)`），真正的内容放在它的 `.overlay` 里。
 - 多选时 iOS 列表编辑模式的选中行是系统的灰色（RGB 209,209,214，`systemGray4`），不是我们自己画的底色，不用改。
 - 窄列里“星期 + 日期 + 农历”挤一行会互相盖住；用 `ViewThatFits`：放得下一行就一行，放不下就星期在上、日期在下、不显示农历。
-- macOS 26 上用 `safeAreaInset` 挂在列表上下的栏（侧栏顶上的模块栏、底下的账号行）没有滚动边缘效果，列表滚到它下面时文字叠在一起；改用 `safeAreaBar`。
+- macOS 26 上用 `safeAreaInset` 挂在列表上下的栏（侧栏顶上的搜索、底下的账号行）没有滚动边缘效果，列表滚到它下面时文字叠在一起；改用 `safeAreaBar`。
 - macOS 的工具栏：`.secondaryAction` 放在整条工具栏的中间，不是主按钮旁边（要放一起就都用 `.primaryAction`，iOS 再用 `.secondaryAction` 收进 … 菜单，见 `ToolbarItemPlacement.moreActions`）；三栏里 detail 栏的 `.primaryAction` 排在这一栏的最左边，要靠右先放 `ToolbarSpacer(.flexible)`；`.inspector` 内容里的 `.toolbar` 在 inspector 关着时照样显示，要按开没开加 `if`。
-- `NavigationSplitView` 各栏的最小宽度加起来比窗口的最小宽度（`RootView` 的 760）大时，窗口缩到最窄各栏互相压住：侧栏的行被截掉左边、详情被截掉右边。各栏的 `min` 要加得起来。栏里有定宽的内容也会撑开这一栏：模块栏六个图标在界面大小特大时比侧栏最小宽度还宽，最窄窗口里三栏又压住了；现在图标能压窄（`frame(minWidth:idealWidth:maxWidth:)`，`layoutPriority(1)` 让它们先于 Spacer 拿到宽度，标准档照旧 30）。
+- `NavigationSplitView` 各栏的最小宽度加起来比窗口的最小宽度（`RootView` 的 760）大时，窗口缩到最窄各栏互相压住：侧栏的行被截掉左边、详情被截掉右边。各栏的 `min` 要加得起来。栏里有定宽的内容也会撑开这一栏（侧栏顶上以前有一排六个定宽的模块图标，界面大小特大时比侧栏最小宽度还宽，最窄窗口里三栏又压住了）。
+- **`.inspector` 不会让**（macOS 26，2026-11-27 量过）：它旁边的内容不能比它窄（内容的最小宽度就是 inspector 当前的宽度），窗口变窄时 inspector 和侧栏都停在原来的宽度不往 `min` 收，结果 760 宽的窗口里排了 990 宽，左右都被挤出窗口。挂在 `NavigationSplitView` 外面时它有自己的一段工具栏，挂在 detail 栏里面时列表的工具栏按钮全跑到它上面。Mac 的任务详情因此不用它，自己分栏（`MacTasksSplit`）。给两栏 `NavigationSplitView` 的 detail 栏加 `navigationSplitViewColumnWidth` 也不行：1180 宽的窗口里内容照样被排宽了几十点。
+- 想让工具栏按钮停在某一栏上方而不是窗口最右：在它们后面加一个空白的 `ToolbarItem`（`Color.clear.frame(width:)`），再 `.sharedBackgroundVisibility(.hidden)` 去掉它的玻璃底。
+- `Divider()` 单独放在 `.overlay` 里是横的；要竖线放进 `HStack`。
+- 纯 SwiftUI 的视图盖在 `List` / `Form` 的边上时点不到：它们底下是 AppKit 的滚动视图，鼠标先归它们，`zIndex` 也没用（用 `contentView.hitTest` 量过：分隔线两边用负的 padding 伸出去的 4 点落在 `NSClipView` 和表格上，只有线本身那 1 点归 SwiftUI）。要能点、能拖的东西得有自己的地方：任务列表和详情之间的分隔线自己占 9 点宽。这种“鼠标到底落在谁身上”的问题，在进程里合成事件测（第 5 节）：一个小程序把同样结构的视图放进窗口，`NSApp.postEvent` 发按下、拖动、抬起，每发一个转一下事件循环；头一次点击只是让窗口进入状态，先随便点一下再测。
+- 换了模块但视图还是同一个（`EfficiencyScreen(module:)` 从习惯换到专注）时 `onAppear` 不会再跑，要跟着参数变的用 `onChange(of:initial:)`。
+- macOS 上 `NSLog` 的内容用 `log show --predicate 'process == "OpenTodo"'` 查不到（模拟器里查得到）。要量窗口里的尺寸：临时在视图上 `onGeometryChange`，把数写进 `NSTemporaryDirectory()` 下的文件（沙盒里就是容器的 `Data/tmp/`），用 `open -g -n -F … -OTHiddenWindows yes` 启动后读文件；不用截图，ssh 会话里也能跑，十秒一轮。侧栏的宽度系统会记住（`-ApplePersistenceIgnoreState` 也不清），量出来不一定是 `ideal`。
 - 选中的列表行（前台窗口里是强调色底、白字）里写死颜色的文字（`.tint`、红色）不会跟着变白，读 `@Environment(\.backgroundProminence)`，`.increased` 时改用 `.secondary`。
 - 很宽的横向 `ScrollView`（时间线前后各十年，几十万点宽）在 Mac 窗口的分栏排版还没定下来时会被排回最开头，`ScrollPosition(x:)` 的初值也不再生效，时间线就开在十年前。`TimelineView` 现在等画布有了宽度才建滚动视图，宽窄两种排法用同一个 `AnyLayout` 不重建它，滚动位置一下子跳回开头时再放回去。这类问题用脚本截图不一定碰得上（有时对有时错），要多跑几次、往 stderr 打滚动位置看。
 - `.preferredColorScheme` 只管它所在的窗口，`Settings` 场景的窗口要单独加（调试的 `-OTAppearance`）。
@@ -437,7 +448,7 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 - 应用的 stdout 不是终端时有缓冲，被 `timeout` 杀掉或卡住时什么也看不到。自检（`selftest:` 路由）每行同时写进应用临时目录的 `selftest.log`。
 - 同一个测试目标里，两个文件各写一个顶层的 `let now` 会报重复声明（`private` 的也和别的文件的非 private 冲突）；测试文件里的顶层常量起个带前缀的名字。
 - `ScrollPosition`（`.scrollPosition` + `scrollTo(y:)`）在 macOS 上滚不动 `List`，偏移不变；`ScrollViewReader` 的 `scrollTo(id)` 可以。看板的自动滚动用前者（`ScrollView`），任务列表的按行用后者。
-- 三栏 `NavigationSplitView` 没法只藏详情栏（`columnVisibility` 只能藏侧栏）。看板和时间线要宽度时换成两栏，详情放 `.inspector`；两种结构切换时视图会重建。
+- 三栏 `NavigationSplitView` 没法只藏详情栏（`columnVisibility` 只能藏侧栏）。iPad 上看板和时间线要宽度时换成两栏，详情放 `.inspector`；两种结构切换时视图会重建（侧栏的滚动位置和宽度都丢）。Mac 上因此整个窗口只用一个两栏的分栏。
 - macOS 的任务列表里，行上挂 `.draggable` 又直接挂 `.onGeometryChange`（拖放的落点要量每行的位置）时，单击不再选中这一行：系统列表的选中从没变过，任务打不开（11-27 用户报的）。拆开单挂哪一个都没事，玩具列表里两个一起挂也没事，只在真实的行上出现。现在量位置的是行背后一个同样大小的 `Color.clear`（`DropSlotModifier`）。`-OTOpen task:` 路由和辅助功能接口选中行都不经过点击，所以截图验收时没发现。
 - iOS 的 `List`（底下是 `UICollectionView`）把拖到它上面的东西都留给自己：挂在整个列表上的 `.onDrop` 一次也收不到（日志里只有拖动开始），所以列表里拖了放不下、排不了序，这在 iPhone 和模拟器上都是一直如此，不是哪次改坏的（11-27 用户报的）。iPhone 上更早一步就不行：每行自己挂的 `.contextMenu` 把长按整个拿走，行连拖都拖不起来。iOS 上排序只能交给系统列表的 `ForEach.onMove`（只在同一个 `ForEach`、也就是同一个分组里移动），行不挂 `.draggable`。
   - `onMove` 平时一直开着的话，长按任意位置都会托起这一行，跟长按菜单抢：菜单挂在整个列表上（`.contextMenu(forSelectionType:)`）时两个能共存，但按住不动先出菜单、动了才拖，用户觉得冲突。现在 `onMove` 只在“排序”时给（列表进编辑模式，系统画 ≡ 把手，拖把手就行），平时长按就是菜单（行自己的 `.contextMenu`），长按行的右端进“排序”（`TaskListDrag.swift` 的 `taskRowMenu`）。编辑模式下列表的选中绑定要给 nil，不然每行前面出现多选圆圈。

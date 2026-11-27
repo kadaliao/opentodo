@@ -272,6 +272,49 @@ private func settle(_ model: AppModel) async throws {
         #expect(m.selectedTaskId == nil)
     }
 
+    @Test func theMacSidebarSelectsViewsAndModules() async throws {
+        let m = try await makeModel()
+        #expect(m.sidebarSelection == .view(.smart(.today)))
+        #expect(AppModule.sidebarModules == [.calendar, .matrix, .focus, .habits, .countdowns])
+
+        // A module's row: the module shows, the view is kept for coming back.
+        m.choose(.view(.list("work")))
+        m.open(taskId: "report")
+        m.choose(.module(.calendar))
+        #expect(m.module == .calendar && m.sidebarSelection == .module(.calendar))
+        #expect(m.view == .list("work") && m.selectedTaskId == nil)       // changing module closes the task
+
+        // From one module straight to another.
+        m.choose(.module(.habits))
+        #expect(m.module == .habits && m.sidebarSelection == .module(.habits))
+
+        // A view's row from another module: back in the tasks module, on that view.
+        m.choose(.view(.smart(.inbox)))
+        #expect(m.module == .tasks && m.view == .smart(.inbox) && m.sidebarSelection == .view(.smart(.inbox)))
+
+        // ⌘1 from another module comes back to the view last shown.
+        m.choose(.module(.focus))
+        m.switchTo(.tasks)
+        #expect(m.sidebarSelection == .view(.smart(.inbox)))
+    }
+
+    #if os(macOS)
+    @Test func theDetailGivesWayToTheListInANarrowWindow() {
+        // The default window (1180) less the sidebar: the detail as chosen.
+        #expect(TaskSplitLogic.detailWidth(wanted: 380, total: 942) == 380)
+        // Dragged past the limits.
+        #expect(TaskSplitLogic.detailWidth(wanted: 100, total: 942) == TaskSplitLogic.minDetailWidth)
+        #expect(TaskSplitLogic.detailWidth(wanted: 900, total: 1400) == TaskSplitLogic.maxDetailWidth)
+        // Dragged wide in a window that can't give it: the list keeps its minimum.
+        #expect(TaskSplitLogic.detailWidth(wanted: 560, total: 700) == 700 - TaskSplitLogic.minListWidth - TaskSplitLogic.handleWidth)
+        // The smallest window (760) beside a sidebar of 230: both fit.
+        let narrow = TaskSplitLogic.detailWidth(wanted: 380, total: 522)
+        #expect(narrow == 233 && narrow + TaskSplitLogic.minListWidth + TaskSplitLogic.handleWidth <= 522)
+        // … and beside the widest sidebar (320) the detail stops at its least.
+        #expect(TaskSplitLogic.detailWidth(wanted: 380, total: 432) == TaskSplitLogic.leastDetailWidth)
+    }
+    #endif
+
     @Test func routesOpenViewsTasksAndModules() async throws {
         let m = try await makeModel()
         m.apply(DebugRoute("list:work")!)

@@ -62,7 +62,7 @@
 | 右键 / 长按菜单：改日期、优先级、移动、标签、置顶、副本、删除、多选 | ✅ | `Tasks/TaskMenu.swift`，列表、看板、时间线、日历、详情“更多”共用 |
 | iOS 滑动：左滑完成，右滑删除 / 置顶 / 明天 | ✅ | `TaskMenu.swift` |
 | 完成重复任务、删除、跳过此次后的提示和撤销（⌘Z 也行） | ✅ | `AppModel+Actions.swift`；`Model/Notices.swift`（登记 `UndoManager`） |
-| 自适应布局：三栏 / 手机单栏 + 详情页 | ✅ | `Shell/TasksScreen.swift`（`TasksSplitView` / `PhoneTasks`）；苹果做法，没有 Flutter 的“中屏两栏” |
+| 自适应布局：三栏 / 手机单栏 + 详情页 | ✅ | Mac：`Shell/MacShell.swift`（侧栏、列表、详情，详情能拖宽）；iPad / iPhone：`Shell/TasksScreen.swift`（`TasksSplitView` / `PhoneTasks`）；苹果做法，没有 Flutter 的“中屏两栏” |
 | 默认值时机：快速添加（含日历新建框） | ✅ | `AppModel+Actions.swift` `quickAdd`（`settings.defaults.remindersFor`） |
 | 默认值时机：右键菜单第一次给任务设日期 | ✅ | `TaskRepo.setDue` |
 | 默认值时机：日期对话框给没日期的任务打开时 | ✅ | `Schedule/ScheduleEditor.swift` init；详情和 `DialogHost` 都传了 `settings.defaults` |
@@ -239,7 +239,7 @@
 |---|---|---|
 | 接进应用：`CalendarScreen` 用 `Calendar/CalendarView`，写操作都接上 | ✅ | `Shell/CalendarScreen.swift`；`Calendar/CalendarWiring.swift` `calendarActions`（改期 `moveAll`、改时长 `setDuration`、勾选 `setDone`、新建 `quickAdd`、批量 `applyBatch`）。`CalendarDemo` 只给调试路由 |
 | 月 / 周 / 3 天 / 日 / 日程 | ✅ | `CalendarView.swift`；`MonthBoard`、`TimeGrid`、日程 |
-| 模块切换（Mac 模块栏、iOS 标签），切换时清空多选 | ✅ | `Shell/ModuleScreen.swift`；`AppModel.switchTo` |
+| 模块切换（Mac 侧栏里的行、iOS 标签），切换时清空多选 | ✅ | `Shell/MacShell.swift`、`Shell/ModuleScreen.swift`；`AppModel.switchTo` / `choose` |
 | visibleRange（周、月从周一开始，月补齐整周，日程是当月） | ✅ | `OpenTodoDomain/Calendar.swift`；`CalendarTests` |
 | 上下页，按月翻时尽量保留几号 | ✅ | `Calendar.swift`；`Day.addingMonths` |
 | calendarEntries（有日期、没进垃圾桶、清单没隐藏、已完成可隐藏） | ✅ | `Calendar.swift` |
@@ -257,13 +257,13 @@
 | 新建框是快速添加，识别输入的日期，可换清单 | ✅ | `CalendarWiring.swift` `CalendarQuickAdd` |
 | 电脑工具栏 + 的默认日期 | ✅ | `CalendarInteraction.swift` `defaultNewDay` |
 | 手机 + 加到小月历里选中的那天 | 🔧 | 原来这个月里有今天就加到今天。现在手机上总是选中的那天；`CalendarInteractionTests.defaultNewDay` |
-| 按清单筛选（电脑侧栏、手机“更多”） | ✅ | `Calendar/CalendarSidebar.swift`；`CalendarView.swift` |
+| 按清单筛选（iPad 侧栏；Mac 和手机在“更多”里） | ✅ | `Calendar/CalendarSidebar.swift`；`CalendarView.swift`。Mac 的侧栏是整个窗口的，不再换成日历的那套（2026-11-27） |
 | 农历、节日、休 / 班标注 | ✅ | `CalendarParts.swift` `CalendarDayNote`；`Calendar.swift` `dayNote` |
 | 显示已完成 / 重复以后的日期 / 农历的开关——侧栏 | ✅ | `CalendarSidebar.swift` |
 | 同上——电脑“更多”里 | 🔧 | 原来电脑上只在侧栏里有，收起侧栏就找不到。现在“更多”里也有（Flutter 一样） |
 | 键盘 D 3 W M A（另加 Y）、T、← → | ✅ | `CalendarView.swift` `handle`；`CalendarInteractionTests.keys` |
 | 单键、⌘A、Esc 在真实窗口里（焦点在别处之后） | ❓ | `CalendarView` 用 `.focusable` + `onKeyPress`，只在出现时拿一次焦点；⌘A 可能先被“编辑 › 全选”拿走。要在 Mac 上按一遍 |
-| 宽屏侧栏：小月历、要显示的清单 | ✅ | `CalendarSidebar.swift` |
+| 宽屏侧栏：小月历、要显示的清单 | ✅ | iPad：`CalendarSidebar.swift`。Mac：小月历在窗口侧栏的底部（`CalendarMonthJumper`，日历在屏幕上时），要显示的清单在“更多”里 |
 | 宽屏侧栏：账号 | 🔧 | 原来日历侧栏底部没有账号行。现在和任务模块一样 |
 | 侧栏小月历的点跟着过滤器 | 🔧 | 原来按全部任务画点。现在先过选中的过滤器（`shownTasks`） |
 | 手机月视图：小月历加当天列表，左右滑翻月 | ✅ | `Calendar/CalendarMonths.swift` `PhoneMonth` |
@@ -369,7 +369,7 @@
 | 四象限：默认按优先级、补齐和丢弃、`matrix.prefs` | ✅ | `Efficiency/Matrix.swift`；`MatrixTests` |
 | 四象限：分象限、排序、拖进象限改什么 | ✅ | `Matrix.swift` `matrixCells` / `movedIntoQuadrant`；`MatrixTests` |
 | AppModule 四个 case，⌘3–⌘6 | ✅ | `Model/AppModule.swift`；`AppCommands.swift` |
-| 宽屏侧栏和近况行 | ✅ | `Efficiency/App/EfficiencyScreen.swift` `EfficiencySidebar` |
+| Mac 侧栏里的四行和行尾的近况 | ✅ | `Tasks/ViewsList.swift` `ModuleRow`；`EfficiencyScreen.swift` `moduleBadge` / `efficiencySummary`。原来效率模块有自己的侧栏，把四个模块又列了一遍，2026-11-27 并进窗口的侧栏 |
 | iPhone 合成一个“效率”标签、标题菜单切换 | ✅ | `EfficiencyScreen.swift`；`RootView.swift` |
 | 写操作调 EfficiencyRepo；删倒数日、删专注记录带撤销 | ✅ | `Efficiency/App/EfficiencyModel.swift` |
 | 专注计时器存 LocalSettings、启动时读回补算、别的模块在前台时每 5 秒看钟 | ✅ | `EfficiencyModel.swift` `start` / `timerChanged` / `runTicker` |

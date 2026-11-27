@@ -315,6 +315,21 @@ public final class AppModel {
         self.module = module
     }
 
+    /// What the Mac sidebar shows selected: the view while in the tasks
+    /// module, else the module.
+    public var sidebarSelection: SidebarItem {
+        module == .tasks ? .view(view) : .module(module)
+    }
+
+    /// A click on a sidebar row: a view (back in the tasks module if it was
+    /// another), or a module.
+    public func choose(_ item: SidebarItem) {
+        switch item {
+        case .view(let v): switchTo(.tasks); select(v)
+        case .module(let m): switchTo(m)
+        }
+    }
+
     /// 新建任务 (⌘N): focus the field heading the list or timeline, or the
     /// sheet on a phone and on a board (whose columns have their own fields).
     public func requestQuickAdd() {

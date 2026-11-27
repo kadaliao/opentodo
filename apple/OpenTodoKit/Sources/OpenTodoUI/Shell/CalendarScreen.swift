@@ -1,15 +1,20 @@
-// The calendar module. Wide (macOS, iPad): a split view with the
-// calendar's sidebar (module bar on top on macOS, small month, lists to
-// show, 显示已完成 / 农历) and the calendar; beside it the open task's
-// detail, or the batch panel while tasks are picked. Compact (iPhone): the
-// calendar in a navigation stack, a task's detail pushed on it, the batch
-// actions in the bottom bar. The calendar itself is `Calendar/`; its
-// callbacks go to the database through `CalendarWiring.swift`.
+// The calendar module in the window. macOS: `CalendarPane` in the window's
+// detail column — the calendar, and beside it the open task's detail or
+// the batch panel while tasks are picked; the lists to show are in the
+// toolbar's 更多 and the small month sits at the foot of the window's one
+// sidebar (Shell/MacShell.swift). iPad: the same pane in a split view of
+// its own with the calendar's sidebar (small month, lists to show, 显示已完成
+// / 农历). Compact (iPhone): the calendar in a navigation stack, a task's
+// detail pushed on it, the batch actions in the bottom bar. The calendar
+// itself is `Calendar/`; its callbacks go to the database through
+// `CalendarWiring.swift`.
 
 import OpenTodoDomain
 import SwiftUI
 
+/// The calendar as a tab (iOS, iPadOS).
 struct CalendarScreen: View {
+    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
 
     var body: some View {
@@ -17,21 +22,43 @@ struct CalendarScreen: View {
             if model.width == .compact {
                 PhoneCalendar()
             } else {
-                CalendarSplitView()
+                let calendar = model.calendar
+                NavigationSplitView {
+                    CalendarSidebar(model: calendar, tasks: calendar.shownTasks(model.data.tasks, filters: model.filters, now: model.now), lists: model.lists, now: model.now)
+                        .navigationSplitViewColumnWidth(min: 220, ideal: 250 * s, max: 320 * s)
+                        #if os(iOS)
+                        .navigationTitle("日历")
+                        #endif
+                } detail: {
+                    CalendarPane(listsInToolbar: false)
+                }
             }
         }
-        .onAppear {
-            model.connectCalendar()
-            // Back from another module: what was open may be gone or hidden.
-            model.closeCalendarTaskIfGone(hidden: true)
-        }
-        .onChange(of: model.data) { model.closeCalendarTaskIfGone() }
+        .modifier(CalendarConnection())
+    }
+}
+
+/// Wires the calendar to the window's data when it comes on screen.
+struct CalendarConnection: ViewModifier {
+    @Environment(AppModel.self) private var model
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                model.connectCalendar()
+                // Back from another module: what was open may be gone or hidden.
+                model.closeCalendarTaskIfGone(hidden: true)
+            }
+            .onChange(of: model.data) { model.closeCalendarTaskIfGone() }
     }
 }
 
 /// The calendar view on the window's data.
 private struct CalendarArea: View {
     @Environment(AppModel.self) private var model
+    /// No sidebar of the calendar's own beside it: the lists to show go in
+    /// the toolbar's 更多.
+    var listsInToolbar: Bool
 
     var body: some View {
         CalendarView(
@@ -40,104 +67,81 @@ private struct CalendarArea: View {
             options: CalendarOptions(
                 quickAdd: { request, done in AnyView(CalendarQuickAdd(request: request, done: done)) },
                 taskMenu: { task in AnyView(TaskMenu(task: task)) },
-                filtersInToolbar: model.width == .compact
+                filtersInToolbar: listsInToolbar
             )
         )
     }
 }
 
-private struct CalendarSplitView: View {
+/// The calendar with the open task's detail (or the batch panel) beside
+/// it: what fills a detail column.
+struct CalendarPane: View {
     @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
+    var listsInToolbar: Bool
     /// Room for the detail or batch panel beside the calendar; narrower,
     /// the batch bar goes along the bottom and a task opens in a sheet.
     @State private var beside = true
 
     var body: some View {
         let calendar = model.calendar
-        NavigationSplitView {
-            CalendarSidebar(model: calendar, tasks: calendar.shownTasks(model.data.tasks, filters: model.filters, now: model.now), lists: model.lists, now: model.now)
-                .moduleBar()
-                .modifier(AccountFooter())
-                .navigationSplitViewColumnWidth(min: 220, ideal: 250 * s, max: 320 * s)
-                #if os(iOS)
-                .navigationTitle("日历")
-                #endif
-        } detail: {
-            HStack(spacing: 0) {
-                VStack(spacing: 0) {
-                    CalendarArea()
-                        #if os(iOS)
-                        .batchBottomBar(
-                            selection: model.selection.isActive && !beside
-                                ? BatchSelection(ids: model.selection.ids, tasks: model.data.tasks) : nil,
-                            lists: model.lists, knownTags: model.tags, today: model.today
-                        ) { action in
-                            model.run { await model.applyBatch(action, order: model.calendarOrder) }
-                        }
-                        #endif
-                    #if os(macOS)
-                    if model.selection.isActive && !beside {
-                        BatchBar(
-                            selection: BatchSelection(ids: model.selection.ids, tasks: model.data.tasks),
-                            lists: model.lists, knownTags: model.tags, today: model.today
-                        ) { action in
-                            model.run { await model.applyBatch(action, order: model.calendarOrder) }
-                        }
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                CalendarArea(listsInToolbar: listsInToolbar)
+                    #if os(iOS)
+                    .batchBottomBar(
+                        selection: model.selection.isActive && !beside
+                            ? BatchSelection(ids: model.selection.ids, tasks: model.data.tasks) : nil,
+                        lists: model.lists, knownTags: model.tags, today: model.today
+                    ) { action in
+                        model.run { await model.applyBatch(action, order: model.calendarOrder) }
                     }
                     #endif
-                }
-                if beside && model.selection.isActive {
-                    Divider()
-                    BatchPanel(
+                #if os(macOS)
+                if model.selection.isActive && !beside {
+                    BatchBar(
                         selection: BatchSelection(ids: model.selection.ids, tasks: model.data.tasks),
                         lists: model.lists, knownTags: model.tags, today: model.today
                     ) { action in
                         model.run { await model.applyBatch(action, order: model.calendarOrder) }
                     }
-                    .frame(width: 340 * s)
-                } else if beside, let id = calendar.openTaskId, model.task(id) != nil {
-                    Divider()
-                    CalendarDetailPane(taskId: id)
-                        .frame(width: CalendarLogic.sidePanelWidth * s)
                 }
+                #endif
             }
-            .onGeometryChange(for: Bool.self) { [s] in CalendarLogic.panelsBeside(width: $0.size.width, scale: s) } action: { beside = $0 }
-            .sheet(item: Binding(
-                get: { beside ? nil : calendar.openTaskId.flatMap { model.task($0) != nil ? OpenTask(id: $0) : nil } },
-                set: { if $0 == nil { calendar.openTaskId = nil } }
-            )) { open in
-                CalendarDetailSheet(taskId: open.id)
+            if beside && model.selection.isActive {
+                Divider()
+                BatchPanel(
+                    selection: BatchSelection(ids: model.selection.ids, tasks: model.data.tasks),
+                    lists: model.lists, knownTags: model.tags, today: model.today
+                ) { action in
+                    model.run { await model.applyBatch(action, order: model.calendarOrder) }
+                }
+                .frame(width: 340 * s)
+            } else if beside, let id = calendar.openTaskId, model.task(id) != nil {
+                Divider()
+                CalendarDetailPane(taskId: id)
+                    .frame(width: CalendarLogic.sidePanelWidth * s)
             }
+        }
+        .onGeometryChange(for: Bool.self) { [s] in CalendarLogic.panelsBeside(width: $0.size.width, scale: s) } action: { beside = $0 }
+        .sheet(item: Binding(
+            get: { beside ? nil : calendar.openTaskId.flatMap { model.task($0) != nil ? OpenTask(id: $0) : nil } },
+            set: { if $0 == nil { calendar.openTaskId = nil } }
+        )) { open in
+            CalendarDetailSheet(taskId: open.id)
         }
     }
 }
 
-/// The open task beside the calendar, under a 任务详情 heading with a close
-/// button.
+/// The open task beside the calendar; its title row has 更多 and the
+/// close button.
 private struct CalendarDetailPane: View {
-    @Environment(\.uiScale) private var s
     @Environment(AppModel.self) private var model
     let taskId: String
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("任务详情").uiFont(.subheadline).foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    model.calendar.openTaskId = nil
-                } label: {
-                    Image(systemName: "xmark")
-                }
-                .buttonStyle(.borderless)
-                .help("关闭")
-                .accessibilityLabel("关闭")
-            }
-            .padding(.horizontal, 14 * s)
-            .padding(.vertical, 8 * s)
-            TaskDetailView(taskId: taskId)
-        }
+        TaskDetailView(taskId: taskId)
+            .environment(\.taskDetailChrome, TaskDetailChrome(onClose: { model.calendar.openTaskId = nil }))
     }
 }
 
@@ -147,7 +151,7 @@ private struct PhoneCalendar: View {
     var body: some View {
         @Bindable var calendar = model.calendar
         NavigationStack(path: $calendar.phonePath) {
-            CalendarArea()
+            CalendarArea(listsInToolbar: true)
                 .navigationDestination(for: String.self) { id in
                     TaskDetailView(taskId: id)
                 }

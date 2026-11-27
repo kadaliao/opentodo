@@ -1,7 +1,7 @@
 // The root of a window: makes the window's `AppModel` (opening the
 // database; the debug launch options in Debug builds) and lays out the
-// modules — on macOS one module at a time with the module bar in its
-// sidebar, on iOS and iPadOS a tab per module plus 搜索. Dialogs and the
+// modules — on macOS one sidebar for all of them with the selected one
+// beside it (`MacShell`), on iOS and iPadOS a tab per module plus 搜索. Dialogs and the
 // undo banner are attached here, once for the whole window.
 
 import OpenTodoData
@@ -110,7 +110,7 @@ private struct Shell: View {
 
     var body: some View {
         #if os(macOS)
-        ModuleScreen(module: model.module)
+        MacShell()
             .onChange(of: model.present.settings, initial: true) { _, want in
                 if want {
                     model.present.settings = false

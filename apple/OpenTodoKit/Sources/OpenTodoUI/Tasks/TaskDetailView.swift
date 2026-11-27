@@ -26,8 +26,23 @@ struct TaskDetailView: View {
     }
 }
 
+/// Where a task's detail keeps its 更多 menu when it is a pane beside
+/// something else (the Mac's list, board, timeline and calendar) instead of
+/// a screen of its own: in its title row, with a close button if the pane
+/// can be put away. The window's toolbar and title stay the other side's.
+struct TaskDetailChrome {
+    var onClose: (@MainActor () -> Void)?
+}
+
+extension EnvironmentValues {
+    /// Nil: the detail is its own screen (更多 in the toolbar, the list's
+    /// name as the title).
+    @Entry var taskDetailChrome: TaskDetailChrome? = nil
+}
+
 private struct TaskDetailForm: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.taskDetailChrome) private var chrome
     var task: TodoTask
 
     @State private var title = ""
@@ -64,6 +79,7 @@ private struct TaskDetailForm: View {
                         // The hidden label doesn't reach VoiceOver (nor UI tests).
                         .accessibilityLabel("标题")
                         .disabled(trashed)
+                    if let chrome { paneButtons(chrome) }
                 }
                 if !task.tags.isEmpty || !trashed { tagsRow }
                 TextField("描述", text: $notes, prompt: Text("描述"), axis: .vertical)
@@ -132,23 +148,40 @@ private struct TaskDetailForm: View {
         .onChange(of: notes) { scheduleSave() }
         .onChange(of: focus) { save() }
         .onDisappear(perform: save)
-        .navigationTitle(listName(task.listId, model.listsById))
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        .toolbar {
-            ToolbarItem {
-                Menu {
-                    TaskMenu(task: task)
-                } label: {
-                    Label("更多", systemImage: "ellipsis")
-                }
-                .help("更多")
-            }
-        }
+        .modifier(ScreenChrome(task: task, enabled: chrome == nil))
     }
 
     // MARK: Parts
+
+    /// 更多 and 关闭 at the end of the title row (`TaskDetailChrome`).
+    private func paneButtons(_ chrome: TaskDetailChrome) -> some View {
+        HStack(spacing: 10 * s) {
+            Menu {
+                TaskMenu(task: task)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .frame(width: 20 * s, height: 20 * s)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.button)
+            .buttonStyle(.borderless)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("更多")
+            .accessibilityLabel("更多")
+            if let close = chrome.onClose {
+                Button(action: close) {
+                    Image(systemName: "xmark")
+                        .frame(width: 20 * s, height: 20 * s)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .help("关闭详情")
+                .accessibilityLabel("关闭详情")
+            }
+        }
+        .foregroundStyle(.secondary)
+    }
 
     private var trashSection: some View {
         Section {
@@ -390,5 +423,35 @@ private struct ChecklistRow: View {
         guard text != item.title else { return }
         let t = text, id = item.id
         model.run { try await model.repo.updateChecklistItem(id, title: t) }
+    }
+}
+
+/// The detail as a screen of its own: the list's name as the title, 更多 in
+/// the toolbar.
+private struct ScreenChrome: ViewModifier {
+    @Environment(AppModel.self) private var model
+    var task: TodoTask
+    var enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content
+                .navigationTitle(listName(task.listId, model.listsById))
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem {
+                        Menu {
+                            TaskMenu(task: task)
+                        } label: {
+                            Label("更多", systemImage: "ellipsis")
+                        }
+                        .help("更多")
+                    }
+                }
+        } else {
+            content
+        }
     }
 }
