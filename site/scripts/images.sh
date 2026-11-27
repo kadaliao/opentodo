@@ -12,6 +12,9 @@
 #
 # 分享预览图 og.jpg 由 site/scripts/og.html 用无头 Chrome 截出来，最后一步生成。
 #
+# 应用的时钟定在当天上午 10:30（OT_TIME，可以用环境变量改），日历从早上开始显示，
+# 截出来的东西和几点截的无关。
+#
 # Mac 截图要在有“屏幕录制”权限的本机终端里跑，屏幕不能锁着（docs/apple.md 第 5 节）；
 # 经 ssh 登进来的会话没有这个权限，截出来是空白的。iPhone 用模拟器截，不受这些限制。
 # 需要 cwebp 和 ImageMagick（brew install webp imagemagick）。
@@ -20,23 +23,24 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SHOTS="$ROOT/apple/.shots/site"
 IMG="$ROOT/site/img"
 SIM="${OT_SITE_SIM:-iPhone Air}"
+export OT_TIME="${OT_TIME:-10:30}"
 mkdir -p "$SHOTS" "$IMG"
 
 # 名字 路由 [环境变量…]
 MAC_SHOTS=(
   "detail-light|task:report"
   "detail-dark|task:report|OT_APPEARANCE=dark"
-  "cal-week-dark|calendar-demo:week|OT_APPEARANCE=dark"
+  "cal-week-dark|calendar:week|OT_APPEARANCE=dark"
   "work-light|list:work"
-  "board-light|board:manual"
-  "timeline-light|timeline:week"
+  "board-light|board:@work"
+  "timeline-light|timeline:list:work"
   "focus-light|focus"
   "habits-light|habits"
   "countdowns-light|countdowns"
   "matrix-light|matrix"
   "work-dark|list:work|OT_APPEARANCE=dark"
-  "board-dark|board:manual|OT_APPEARANCE=dark"
-  "timeline-dark|timeline:week|OT_APPEARANCE=dark"
+  "board-dark|board:@work|OT_APPEARANCE=dark"
+  "timeline-dark|timeline:list:work|OT_APPEARANCE=dark"
   "focus-dark|focus|OT_APPEARANCE=dark"
   "habits-dark|habits|OT_APPEARANCE=dark"
   "countdowns-dark|countdowns|OT_APPEARANCE=dark"
