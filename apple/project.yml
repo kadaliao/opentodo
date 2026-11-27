@@ -54,6 +54,9 @@ targets:
       properties:
         CFBundleDisplayName: OpenTodo
         CFBundleDevelopmentRegion: zh-Hans
+        # The release script sets both (scripts/release.sh).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.productivity
         ITSAppUsesNonExemptEncryption: false
         NSAppTransportSecurity:
@@ -104,6 +107,9 @@ targets:
       properties:
         CFBundleDisplayName: OpenTodo
         CFBundleDevelopmentRegion: zh-Hans
+        # The release script sets both (scripts/release.sh).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         OTAppGroup: $(OT_APP_GROUP)
         OTURLScheme: $(OT_URL_SCHEME)
         NSExtension:
@@ -138,6 +144,9 @@ targets:
       properties:
         CFBundleDisplayName: OpenTodo
         CFBundleDevelopmentRegion: zh-Hans
+        # The release script sets both (scripts/release.sh).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         OTAppGroup: $(OT_APP_GROUP)
         OTURLScheme: $(OT_URL_SCHEME)
         NSExtension:

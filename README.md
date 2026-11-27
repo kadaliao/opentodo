@@ -7,6 +7,16 @@
 
 > 早期开发中。本地任务管理、多端同步、提醒、重复任务、日历、搜索、过滤器、看板和时间线两个客户端都有；番茄专注、习惯打卡、倒数日、四象限、小组件、菜单栏和分享扩展目前只在 Swift 版里。见[路线图](docs/roadmap.md)。
 
+## 下载
+
+macOS 版（macOS 26 起，Apple 芯片和 Intel 都能用）：
+
+```sh
+brew install --cask kadaliao/tap/opentodo
+```
+
+也可以在[发布页](https://github.com/kadaliao/opentodo/releases)下载 DMG，把 OpenTodo 拖进“应用程序”。安装包用 Developer ID 签名并经过苹果公证，每一版的改动见[更新记录](CHANGELOG.md)。iOS / iPadOS 版目前要自己编（见下面“开发”）。
+
 ## 功能
 
 - 智能清单：今天（含已过期）、明天、最近 7 天、收集箱、已完成、垃圾桶

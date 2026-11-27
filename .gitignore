@@ -10,3 +10,6 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 apple/.shots/
+
+# 发布产物（apple/scripts/release.sh）
+apple/build/

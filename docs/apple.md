@@ -24,7 +24,7 @@ apple/
     Sources/OpenTodoSystem/ 应用和扩展共用的系统集成部分：应用链接、小组件内容、扩展写库、分享转任务、全局快捷键的值
     Tests/                  每个库一个测试目标（Swift Testing）：OpenTodoDomainTests / OpenTodoDataTests / OpenTodoUITests / OpenTodoSystemTests
   UITestsIOS/               iOS 的 XCUITest（在模拟器里点界面）
-  scripts/                  generate.sh、build.sh、shot.sh（还有 shot.sh 用的 windowid.swift）、make_icon.swift（应用图标）
+  scripts/                  generate.sh、build.sh、shot.sh（还有 shot.sh 用的 windowid.swift）、make_icon.swift（应用图标）、release.sh（发布，第 9 节）
   .derived/                 build.sh 的 DerivedData 和日志，不进仓库
 ```
 
@@ -353,8 +353,22 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 ### Release 配置
 
 - 只看能不能编：`OT_CONFIGURATION=Release ./scripts/build.sh macos`（或 `ios`，模拟器），产物在 `.derived/Build/Products/Release/`、`Release-iphonesimulator/`。**不要运行**：Release 是正式包名 `com.liaoxingyi.opentodo`，一跑就打开用户真实的数据库和 App Group 容器。
-- 现在两个平台都编得过，不需要开发者后台做任何事：macOS 用开发证书签名，组是带团队前缀的 `<团队>.group.com.liaoxingyi.opentodo`，不需要描述文件；iOS 模拟器不签真实描述文件。应用、`….widgets`、`….share` 三个包名和 `opentodo` 这个 scheme 都按正式版的出来。
-- 还没验证、需要账号主人做的：给 iPhone 编 Release（和调试版一样，先在开发者账号里注册 `group.com.liaoxingyi.opentodo` 并给三个 App ID 打开，见上面“真机签名”）；把 macOS 版发给别人（要换成 Developer ID 证书签名并公证，或者走 App Store 的签名和描述文件），这两步都会动账号，没有做。
+- 现在两个平台都编得过，不需要开发者后台做任何事：macOS 用开发证书签名（发布的用 Developer ID，见下面“发布”），组是带团队前缀的 `<团队>.group.com.liaoxingyi.opentodo`，不需要描述文件；iOS 模拟器不签真实描述文件。应用、`….widgets`、`….share` 三个包名和 `opentodo` 这个 scheme 都按正式版的出来。
+- 还没做、需要账号主人做的：给 iPhone 编 Release（和调试版一样，先在开发者账号里注册 `group.com.liaoxingyi.opentodo` 并给三个 App ID 打开，见上面“真机签名”），会动账号。macOS 版发给别人见下面“发布”。
+
+### 发布（macOS）
+
+只发 macOS 版：GitHub Release 上放 `OpenTodo-<版本>.dmg`、`.zip` 和 `SHA256SUMS`，Homebrew 装的是 `kadaliao/tap` 里的 `opentodo` cask（用 DMG）。iOS 版不在这里发。
+
+1. 改动随手记进根目录 `CHANGELOG.md` 的“未发布”。发版时把它改成 `## [x.y.z] - 日期`，写给用户看的话：发布页的说明就是这一节。
+2. 改 `project.yml` 的 `MARKETING_VERSION`（三个 Info.plist 都引用它，改完跑 `generate.sh`），提交并推送。
+3. `cd apple && ./scripts/release.sh --publish`。它先检查：工作区干净、HEAD 就是 origin/main、标签 `v<版本>` 没被别的提交占、这个版本的 Release 还没有、更新记录里有这一节。然后编 Release、签名、公证并装订 App 和 DMG（要联网，几分钟），打出三个文件，打标签推上去，建 GitHub Release，最后触发 tap 的 `bump.yml`：它把 cask 的版本号和 sha256 改成新的（不触发也会在 6 小时内自己跑）。
+
+- 签名用 Developer ID Application 证书，开 Hardened Runtime，不带 `get-task-allow`，不要描述文件（macOS 的 App Group 带团队前缀）。没有描述文件就没有 `application-identifier`，同步登录的令牌存在登录钥匙串里（`TokenStore`）。从开发证书签的版本换过来，第一次打开时系统可能问能不能读这一项，点“始终允许”。
+- 公证用 notarytool 存在钥匙串里的配置，默认名 `notary`（`xcrun notarytool store-credentials notary …` 建的），`NOTARY_PROFILE` 可以换。只想看看能不能签：`NOTARY_PROFILE= ./scripts/release.sh`，不公证、不发布，产物在 `apple/build/release/`。
+- Build number 是提交数（`git rev-list --count HEAD`），只会变大。
+- 编出来的 App 不留在构建目录、也从 LaunchServices 注销：它是正式包名，一打开就用真实数据库。
+- cask 的 `zap` 会删掉 App Group 容器，数据库就在里面（同步过的服务器上还有）。
 
 ### 测试和截图
 

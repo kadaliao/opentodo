@@ -22,6 +22,7 @@
 - 数据库结构和 Flutter 版一致（schema 7 以前完全相同，8 起是 Swift 版加的）。加表加列：版本加一、写迁移、不能删库重建；加了同步类型的那次迁移把 `sync.cursor` 归零。
 - 调试版包名 `com.liaoxingyi.opentodo.dev`，正式版 `com.liaoxingyi.opentodo`（和 Flutter 版同一个，直接接着用它的数据）。测试和截图用临时数据库。
 - 改完跑 `cd apple/OpenTodoKit && swift build && swift test`，再跑 `apple/scripts/build.sh macos` 和 `build.sh ios`。界面改动看截图（`apple/scripts/shot.sh`）。
+- 用户能看到的改动记进根目录 `CHANGELOG.md` 的“未发布”。发版（macOS）：改 `MARKETING_VERSION`，`apple/scripts/release.sh --publish` 签名、公证、建 GitHub Release、更新 Homebrew tap，步骤见 docs/apple.md 的“发布”。
 - 不用模拟键盘鼠标去点真实窗口（会落进用户正在用的窗口）；要点界面用模拟器里的 XCUITest，或 `-OTOpen` 路由直接打开那个状态。
 - 几个 agent 并行时各用各的 git worktree；**同一时间最多一个开 iOS 模拟器**（七个模拟器同时开把机器拖垮过），其余只编不截。
 
