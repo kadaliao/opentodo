@@ -9,6 +9,8 @@
 
 ## 下载
 
+网站：<https://kadaliao.github.io/opentodo/>
+
 macOS 版（macOS 26 起，Apple 芯片和 Intel 都能用）：
 
 ```sh
@@ -42,6 +44,7 @@ brew install --cask kadaliao/tap/opentodo
 | `apple/` | Swift 原生客户端（macOS、iOS / iPadOS），SwiftUI + GRDB（SQLite），XcodeGen 生成工程 |
 | `app/` | Flutter 客户端（Android、Windows、Linux，也能编苹果平台），drift（SQLite）+ Riverpod |
 | `server/` | Go 同步服务，SQLite，单个可执行文件 |
+| `site/` | 产品网站，纯静态页面；截图用 `site/scripts/images.sh` 从演示数据生成 |
 | `docs/` | [开发文档](docs/development.md)、[Swift 版](docs/apple.md)、[架构](docs/architecture.md)、[路线图](docs/roadmap.md) |
 
 ## 开发

@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenTodo：为 Mac 原生打造的开源待办清单</title>
+<meta name="description" content="OpenTodo 是为 Mac 原生打造的开源待办清单。快速添加能听懂中文日期，日历、看板、时间线、番茄专注、习惯打卡一应俱全；离线可用，同步服务可以自己部署。">
+<meta name="theme-color" content="#ffffff">
+<link rel="icon" type="image/png" sizes="64x64" href="img/icon-64.png">
+<link rel="apple-touch-icon" href="img/icon-180.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="OpenTodo：为 Mac 原生打造的开源待办清单">
+<meta property="og:description" content="快速添加能听懂中文日期，离线可用，同步服务可以自己部署。免费、开源。">
+<meta property="og:url" content="https://kadaliao.github.io/opentodo/">
+<meta property="og:image" content="https://kadaliao.github.io/opentodo/img/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://kadaliao.github.io/opentodo/img/og.jpg">
+<link rel="canonical" href="https://kadaliao.github.io/opentodo/">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="localnav">
+  <div class="localnav-inner">
+    <a class="brand" href="#top" aria-label="OpenTodo 首页">
+      <img src="img/icon-64.png" width="28" height="28" alt="">
+      <span>OpenTodo</span>
+    </a>
+    <nav class="localnav-links" aria-label="页面导航">
+      <a href="#features">功能</a>
+      <a href="#open">开源</a>
+      <a href="https://github.com/kadaliao/opentodo">GitHub</a>
+    </nav>
+    <a class="pill" href="#download">下载</a>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- Hero -->
+<section class="band hero" id="top">
+  <div class="wrap center">
+    <img class="hero-icon" src="img/icon-256.png" width="112" height="112" alt="">
+    <h1 class="hero-name">OpenTodo</h1>
+    <p class="display">安排好每一天。</p>
+    <p class="hero-sub">为 Mac 原生打造的开源待办清单。<br>离线就能用，同步服务可以自己部署。</p>
+    <div class="cta-row">
+      <a class="btn btn-primary js-dmg" href="https://github.com/kadaliao/opentodo/releases/download/v0.1.0/OpenTodo-0.1.0.dmg">下载 macOS 版</a>
+      <a class="btn btn-secondary" href="https://github.com/kadaliao/opentodo">在 GitHub 上查看</a>
+    </div>
+    <p class="fine">免费。版本 <span data-version>0.1.0</span>，需要 macOS 26 或更新版本。</p>
+  </div>
+  <div class="hero-stage">
+    <figure class="window-shot hero-shot" data-appearance="light">
+      <img class="look-light" src="img/detail-light-1280.webp" srcset="img/detail-light-1280.webp 1280w, img/detail-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="OpenTodo 的主窗口：左边是清单，中间是今天的任务，右边是选中任务的详情和子任务">
+      <img class="look-dark" src="img/detail-dark-1280.webp" srcset="img/detail-dark-1280.webp 1280w, img/detail-dark.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="深色外观下的主窗口" loading="lazy">
+    </figure>
+    <div class="segmented" role="group" aria-label="切换截图的外观">
+      <button type="button" data-look="light" aria-pressed="true">浅色</button>
+      <button type="button" data-look="dark" aria-pressed="false">深色</button>
+    </div>
+  </div>
+</section>
+
+<!-- Quick add: the one moving moment -->
+<section class="band tone-mist" id="features">
+  <div class="wrap center">
+    <h2 class="headline">说一句，就记下了。</h2>
+    <p class="lede">在快速添加里照平常说话那样写。日期、时间、重复、标签和优先级会被认出来，边打边标亮。</p>
+  </div>
+  <div class="qa" data-qa>
+    <div class="qa-field" aria-hidden="true">
+      <svg class="qa-plus" viewBox="0 0 20 20" width="20" height="20"><path d="M10 3v14M3 10h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+      <span class="qa-text"></span><span class="qa-caret"></span>
+    </div>
+    <div class="qa-result" aria-hidden="true">
+      <span class="qa-check"></span>
+      <span class="qa-title"></span>
+      <span class="qa-chips"></span>
+    </div>
+    <p class="visually-hidden" aria-live="polite" data-qa-say></p>
+    <div class="qa-examples" role="group" aria-label="换一句试试">
+      <button type="button" aria-pressed="true">明天下午3点开会 #工作 !高</button>
+      <button type="button" aria-pressed="false">每周一三五跑步</button>
+      <button type="button" aria-pressed="false">每月15号还信用卡</button>
+      <button type="button" aria-pressed="false">上午9点到11点半 写方案</button>
+    </div>
+  </div>
+</section>
+
+<!-- Calendar -->
+<section class="band tone-night">
+  <div class="wrap center">
+    <h2 class="headline">一周的安排，摊开来看。</h2>
+    <p class="lede">月、周、三天、单日、日程，还有多周和全年。拖动任务就改了日期和时间，拉下边缘改时长。农历、节日和法定节假日的休、班都标在上面。</p>
+  </div>
+  <figure class="window-shot wide-shot">
+    <img src="img/cal-week-dark-1280.webp" srcset="img/cal-week-dark-1280.webp 1280w, img/cal-week-dark.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="日历的周视图：每天的任务按时间排开，日期旁标着农历" loading="lazy">
+  </figure>
+</section>
+
+<!-- Views -->
+<section class="band">
+  <div class="wrap center">
+    <h2 class="headline">同一份清单，三种看法。</h2>
+    <p class="lede">清单里可以分组，拖动排序，拖到别的分组。每个清单都能换成看板或时间线来看。</p>
+  </div>
+  <div class="switcher" data-switcher>
+    <div class="segmented" role="tablist" aria-label="显示方式">
+      <button type="button" role="tab" aria-selected="true" aria-controls="view-list" id="tab-list">列表</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-board" id="tab-board" tabindex="-1">看板</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-timeline" id="tab-timeline" tabindex="-1">时间线</button>
+    </div>
+    <div class="switcher-stage">
+      <figure class="window-shot" role="tabpanel" id="view-list" aria-labelledby="tab-list">
+        <img src="img/work-light-1280.webp" srcset="img/work-light-1280.webp 1280w, img/work-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="“工作”清单分成“进行中”和“待安排”两组" loading="lazy">
+        <figcaption>分组、置顶，按时间、标题拼音或优先级排序。</figcaption>
+      </figure>
+      <figure class="window-shot" role="tabpanel" id="view-board" aria-labelledby="tab-board" hidden>
+        <img src="img/board-light-1280.webp" srcset="img/board-light-1280.webp 1280w, img/board-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="看板：每个分组是一列，任务卡片可以在列之间拖动" loading="lazy">
+        <figcaption>每个分组一列，把卡片拖到下一列就是换了分组。</figcaption>
+      </figure>
+      <figure class="window-shot" role="tabpanel" id="view-timeline" aria-labelledby="tab-timeline" hidden>
+        <img src="img/timeline-light-1280.webp" srcset="img/timeline-light-1280.webp 1280w, img/timeline-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="时间线：任务按开始和结束日期画成横条" loading="lazy">
+        <figcaption>跨好几天的任务画成横条，前后能看好几个月。</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- Details -->
+<section class="band tone-mist">
+  <div class="wrap center">
+    <h2 class="headline">小地方，也替你想好了。</h2>
+  </div>
+  <div class="bento">
+
+    <article class="tile tile-repeat">
+      <h3 class="tile-title">重复任务，连调休都算进去。</h3>
+      <p class="tile-text">每天、每周几、每月第几个周几、每年，或者自定义间隔。下一次可以从到期那天算，也可以从完成那天算。</p>
+      <ul class="rules">
+        <li><span class="rule">每个法定工作日</span><span class="rule-note">跳过节假日，调休的周末照常提醒</span></li>
+        <li><span class="rule">每年农历八月十五</span><span class="rule-note">按农历算，每年自动换算成公历</span></li>
+        <li><span class="rule">每月最后一天</span><span class="rule-note">大月小月都对得上</span></li>
+        <li><span class="rule">每 3 天，从完成那天算</span><span class="rule-note">晚做一天，下一次也往后挪</span></li>
+      </ul>
+    </article>
+
+    <article class="tile tile-search">
+      <p class="search-demo" aria-hidden="true"><span class="search-q">zb</span><span class="search-hit"><mark>周</mark>报</span></p>
+      <h3 class="tile-title">拼音和首字母也能搜。</h3>
+      <p class="tile-text">“zhoubao”“zb”都能找到“周报”。标题、描述、子任务和标签一起找，命中的地方标黄。</p>
+    </article>
+
+    <article class="tile tile-remind">
+      <h3 class="tile-title">到点就提醒。</h3>
+      <p class="tile-text">一个任务可以设好几个提醒。应用没开着也会弹出通知，在通知上直接完成或稍后再提醒。</p>
+      <p class="chips" aria-label="提醒时间示例"><span class="chip">准时</span><span class="chip">提前 15 分钟</span><span class="chip">提前 1 天</span></p>
+    </article>
+
+    <article class="tile tile-multi">
+      <p class="keys" aria-hidden="true"><kbd>⌘</kbd><kbd>A</kbd></p>
+      <h3 class="tile-title">一次改一批。</h3>
+      <p class="tile-text">⌘ 点选、Shift 连选、⌘A 全选，一起改日期、优先级、清单和标签。删错了可以撤销。</p>
+    </article>
+
+    <article class="tile tile-size">
+      <p class="sizes" aria-hidden="true"><span>待办</span><span>待办</span><span>待办</span><span>待办</span></p>
+      <h3 class="tile-title">字大字小，自己定。</h3>
+      <p class="tile-text">界面大小分小、标准、大、特大四档，所有窗口的文字和图标一起缩放。</p>
+    </article>
+
+    <article class="tile tile-filter">
+      <p class="chips" aria-hidden="true"><span class="chip chip-teal">本周</span><span class="chip chip-teal">高优先级</span><span class="chip chip-teal">清单：工作</span></p>
+      <h3 class="tile-title">过滤器，把散落的任务收拢。</h3>
+      <p class="tile-text">按清单、标签、日期、优先级和内容筛选，还能“不包含”“满足任一”。过滤器跟着账号同步。</p>
+    </article>
+
+  </div>
+</section>
+
+<!-- Efficiency modules -->
+<section class="band">
+  <div class="wrap center">
+    <h2 class="headline">不只是待办。</h2>
+    <p class="lede">番茄专注、习惯打卡、倒数纪念日和四象限，和任务放在同一个应用里，用同一个账号同步。</p>
+  </div>
+  <div class="switcher" data-switcher>
+    <div class="segmented" role="tablist" aria-label="效率工具">
+      <button type="button" role="tab" aria-selected="true" aria-controls="mod-focus" id="tab-focus">番茄专注</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="mod-habits" id="tab-habits" tabindex="-1">习惯打卡</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="mod-countdowns" id="tab-countdowns" tabindex="-1">倒数纪念日</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="mod-matrix" id="tab-matrix" tabindex="-1">四象限</button>
+    </div>
+    <div class="switcher-stage">
+      <figure class="window-shot" role="tabpanel" id="mod-focus" aria-labelledby="tab-focus">
+        <img src="img/focus-light-1280.webp" srcset="img/focus-light-1280.webp 1280w, img/focus-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="番茄专注的计时器，正在为一个任务计时" loading="lazy">
+        <figcaption>给任务计时，每一段专注都记下来，按天、周、月看统计。</figcaption>
+      </figure>
+      <figure class="window-shot" role="tabpanel" id="mod-habits" aria-labelledby="tab-habits" hidden>
+        <img src="img/habits-light-1280.webp" srcset="img/habits-light-1280.webp 1280w, img/habits-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="习惯打卡：今天要打卡的习惯和连续天数" loading="lazy">
+        <figcaption>每天打个勾，看连续了多少天，整个月的记录排成月历。</figcaption>
+      </figure>
+      <figure class="window-shot" role="tabpanel" id="mod-countdowns" aria-labelledby="tab-countdowns" hidden>
+        <img src="img/countdowns-light-1280.webp" srcset="img/countdowns-light-1280.webp 1280w, img/countdowns-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="倒数纪念日的卡片：离生日和纪念日还有几天" loading="lazy">
+        <figcaption>生日、纪念日、还有几天。支持农历，生日会算上岁数。</figcaption>
+      </figure>
+      <figure class="window-shot" role="tabpanel" id="mod-matrix" aria-labelledby="tab-matrix" hidden>
+        <img src="img/matrix-light-1280.webp" srcset="img/matrix-light-1280.webp 1280w, img/matrix-light.webp 2560w" sizes="(min-width: 1180px) 1120px, 94vw" width="2560" height="1600" alt="四象限：任务按重要和紧急分在四格里" loading="lazy">
+        <figcaption>按重要和紧急把任务分进四格，先做该先做的。</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- System integration -->
+<section class="band tone-night">
+  <div class="wrap center">
+    <h2 class="headline">想到什么，随手记下。</h2>
+    <p class="lede">不用先切回 OpenTodo。它住在菜单栏、桌面和系统的各个角落里。</p>
+  </div>
+  <figure class="panel-shot">
+    <img src="img/quick-panel.webp" width="1275" height="127" alt="快速添加面板：输入“明天下午3点开会 #工作 !高”，右边已经认出“明天，下午 3:00”" loading="lazy">
+    <figcaption>在任何应用里按下全局快捷键，就弹出这个面板。</figcaption>
+  </figure>
+  <ul class="anywhere">
+    <li><h3>菜单栏小窗</h3><p>点一下菜单栏，今天要做的事就在眼前。</p></li>
+    <li><h3>桌面小组件</h3><p>今天的任务、快速添加、倒数日和习惯。</p></li>
+    <li><h3>快捷指令和 Spotlight</h3><p>添加任务、完成任务、打开清单，都能串进自动化。</p></li>
+    <li><h3>分享扩展</h3><p>在别的应用里，把网页和文字分享成任务。</p></li>
+  </ul>
+</section>
+
+<!-- iPhone -->
+<section class="band devices">
+  <div class="wrap center">
+    <h2 class="headline">iPhone 上也有一份。</h2>
+    <p class="lede">登录同一个账号，Mac 和 iPhone 自动同步。iPhone 和 iPad 版还没有上架，现在可以从源代码自己编译。</p>
+  </div>
+  <div class="phones">
+    <figure class="phone"><img src="img/iphone-today.webp" width="1260" height="2736" alt="iPhone 上的“今天”清单" loading="lazy"></figure>
+    <figure class="phone"><img src="img/iphone-cal.webp" width="1260" height="2736" alt="iPhone 上的月历" loading="lazy"></figure>
+    <figure class="phone"><img src="img/iphone-habits.webp" width="1260" height="2736" alt="iPhone 上的习惯打卡" loading="lazy"></figure>
+  </div>
+</section>
+
+<!-- Open -->
+<section class="band tone-mist" id="open">
+  <div class="wrap center">
+    <h2 class="headline">数据在你自己手里。</h2>
+  </div>
+  <div class="pillars">
+    <div class="pillar">
+      <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><rect x="5" y="9" width="30" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M14 33h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <h3>本地优先</h3>
+      <p>任务存在你的电脑上，没有网络也照常用。联网后自动增量同步，两边都改过的，以较新的修改为准。</p>
+    </div>
+    <div class="pillar">
+      <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><rect x="7" y="7" width="26" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.2"/><rect x="7" y="23" width="26" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12.5" cy="12" r="1.6" fill="currentColor"/><circle cx="12.5" cy="28" r="1.6" fill="currentColor"/></svg>
+      <h3>同步服务自己部署</h3>
+      <p>同步服务是一个 Go 写的可执行文件，数据存在 SQLite 里。部署在自己的服务器上，登录时填上地址就行；也可以直接用官方的。</p>
+    </div>
+    <div class="pillar">
+      <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><path d="M15 12l-8 8 8 8M25 12l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <h3>完全开源</h3>
+      <p>客户端和同步服务的代码都在 GitHub 上，按 AGPL-3.0 许可发布。可以自由使用、修改和分发。</p>
+    </div>
+  </div>
+  <div class="center">
+    <a class="btn btn-secondary" href="https://github.com/kadaliao/opentodo">在 GitHub 上查看源代码</a>
+  </div>
+</section>
+
+<!-- Download -->
+<section class="band download" id="download">
+  <div class="wrap center">
+    <img class="dl-icon" src="img/icon-256.png" width="144" height="144" alt="">
+    <h2 class="headline">下载 OpenTodo</h2>
+    <p class="lede">免费下载，没有内购，也没有广告。</p>
+    <a class="btn btn-primary btn-large js-dmg" href="https://github.com/kadaliao/opentodo/releases/download/v0.1.0/OpenTodo-0.1.0.dmg">下载 macOS 版</a>
+    <p class="fine">版本 <span data-version>0.1.0</span>，磁盘映像，<span data-size>25 MB</span></p>
+
+    <div class="brew">
+      <p class="brew-label">或者用 Homebrew 安装</p>
+      <div class="brew-box">
+        <code id="brew-cmd">brew install --cask kadaliao/tap/opentodo</code>
+        <button type="button" class="copy" data-copy="#brew-cmd">拷贝</button>
+      </div>
+    </div>
+
+    <ul class="facts">
+      <li>需要 macOS 26 或更新版本</li>
+      <li>Apple 芯片和 Intel 芯片都能用</li>
+      <li>用 Developer ID 签名，经过苹果公证</li>
+    </ul>
+    <p class="dl-links">
+      <a href="https://github.com/kadaliao/opentodo/blob/main/CHANGELOG.md">更新记录</a>
+      <a href="https://github.com/kadaliao/opentodo/releases">所有版本</a>
+      <a class="js-sums" href="https://github.com/kadaliao/opentodo/releases/download/v0.1.0/SHA256SUMS">SHA-256 校验和</a>
+      <a href="https://github.com/kadaliao/opentodo#开发">从源代码编译</a>
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <p class="footer-links">
+      <a href="https://github.com/kadaliao/opentodo">GitHub</a>
+      <a href="https://github.com/kadaliao/opentodo/issues">问题反馈</a>
+      <a href="https://github.com/kadaliao/opentodo/blob/main/CHANGELOG.md">更新记录</a>
+      <a href="https://github.com/kadaliao/opentodo/blob/main/LICENSE">AGPL-3.0 许可证</a>
+    </p>
+    <p>Copyright © 2026 Kada Liao。OpenTodo 是开源软件。</p>
+    <p>Mac、macOS、iPhone 和 iPad 是 Apple Inc. 的商标。</p>
+  </div>
+</footer>
+
+<script src="main.js" defer></script>
+</body>
+</html>
