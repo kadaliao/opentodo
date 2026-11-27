@@ -36,14 +36,18 @@ public struct TextPromptRequest: Identifiable {
     public var placeholder: String
     public var initial: String
     public var action: String
+    /// Tags to offer under the field, narrowed as it's typed
+    /// (`tagSuggestions`); picking one submits it. Empty: none.
+    public var suggestions: [String]
     public var onSubmit: @MainActor (String) -> Void
 
     public init(title: String, placeholder: String, initial: String = "", action: String = "确定",
-                onSubmit: @escaping @MainActor (String) -> Void) {
+                suggestions: [String] = [], onSubmit: @escaping @MainActor (String) -> Void) {
         self.title = title
         self.placeholder = placeholder
         self.initial = initial
         self.action = action
+        self.suggestions = suggestions
         self.onSubmit = onSubmit
     }
 }

@@ -176,16 +176,22 @@ private struct DropSlotModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .named(DragController.space))
-            } action: { frame in
-                let f = CGRect(
-                    x: frame.minX - outset.leading,
-                    y: frame.minY - outset.top,
-                    width: frame.width + outset.leading + outset.trailing,
-                    height: frame.height + outset.top + outset.bottom
-                )
-                controller?.setSlot(id, frame: f, kind: kind, clips: clips)
+            // Measured on a view behind it, the same size: on the list's
+            // rows (macOS), `onGeometryChange` on the row itself, together
+            // with the row's `.draggable`, kept a click from selecting the
+            // row — the task never opened (docs/apple.md §10).
+            .background {
+                Color.clear.onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .named(DragController.space))
+                } action: { frame in
+                    let f = CGRect(
+                        x: frame.minX - outset.leading,
+                        y: frame.minY - outset.top,
+                        width: frame.width + outset.leading + outset.trailing,
+                        height: frame.height + outset.top + outset.bottom
+                    )
+                    controller?.setSlot(id, frame: f, kind: kind, clips: clips)
+                }
             }
             .onChange(of: kind, initial: true) { _, kind in
                 controller?.setSlot(id, kind: kind, clips: clips)

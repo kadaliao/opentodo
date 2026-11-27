@@ -66,6 +66,23 @@ private func hasAll(_ text: String, _ terms: [String]) -> Bool {
     return terms.allSatisfy { has(text, lower, $0) }
 }
 
+/// The tags to offer while one is being typed (添加标签): all of `tags`
+/// when nothing is typed; else those search would find (ignoring case and
+/// a leading `#`, Chinese also in pinyin: `gz` for 工作), the ones that
+/// start with it first, each group in the order given.
+public func tagSuggestions(_ tags: [String], typed: String) -> [String] {
+    let terms = searchTerms(typed)
+    guard !terms.isEmpty else { return tags }
+    var starting: [String] = []
+    var containing: [String] = []
+    for tag in tags {
+        let ranges = terms.map { findRanges(tag, [$0]) }
+        guard ranges.allSatisfy({ !$0.isEmpty }) else { continue }
+        if ranges[0].first?.lowerBound == 0 { starting.append(tag) } else { containing.append(tag) }
+    }
+    return starting + containing
+}
+
 public struct TaskHit: Sendable, Hashable {
     public var task: TodoTask
     public var titleRanges: TextRanges

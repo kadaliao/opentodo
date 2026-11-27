@@ -47,7 +47,8 @@ extension AppModel {
     }
 }
 
-/// Esc, the iPhone edit mode and bottom bar, and 完成 to stop picking.
+/// Esc, the iPhone edit mode and bottom bar, and 完成 to stop picking —
+/// or sorting (iOS 排序, TaskListDrag.swift), which is edit mode too.
 struct TaskListPicking: ViewModifier {
     @Environment(AppModel.self) private var model
     var view: ViewRef
@@ -56,8 +57,9 @@ struct TaskListPicking: ViewModifier {
         #if os(macOS)
         content.onExitCommand { model.selection.clear() }
         #else
+        let sorting = model.taskList.isSorting(view)
         content
-            .environment(\.editMode, .constant(model.selection.isPicking ? .active : .inactive))
+            .environment(\.editMode, .constant(model.selection.isPicking || sorting ? .active : .inactive))
             .batchBottomBar(selection: model.width == .compact && model.selection.isPicking
                                 ? model.batchSelection ?? BatchSelection(ids: [], tasks: []) : nil,
                             lists: model.lists, knownTags: model.tags, today: model.today) { action in
@@ -68,8 +70,15 @@ struct TaskListPicking: ViewModifier {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("完成") { model.selection.clear() }
                     }
+                } else if sorting {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("完成") { model.taskList.stopSorting() }
+                    }
                 }
             }
+            // 排序 is for the view on screen: it stops on leaving it.
+            .onChange(of: view) { model.taskList.stopSorting() }
+            .onDisappear { if model.taskList.isSorting(view) { model.taskList.stopSorting() } }
         #endif
     }
 }

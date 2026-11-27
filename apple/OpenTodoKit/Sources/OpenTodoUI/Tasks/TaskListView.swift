@@ -2,7 +2,8 @@
 // headers fold, a list's own sections have a ⋯ menu (重命名, 上移, 下移,
 // 删除分组), empty days of 今天 / 最近7天 show without a count. Rows select
 // (wide) or push (phone) the task; the checkbox completes it; right-click /
-// long-press and swipes have the everyday actions. On macOS and iPad the
+// long-press and swipes have the everyday actions. On iOS a long press on
+// a row's right end starts 排序 (TaskListDrag.swift). On macOS and iPad the
 // quick-add field heads the list; the trash ends with a note.
 //
 // The list's selection is `model.selection` (one task now; a set later,
@@ -21,7 +22,10 @@ struct TaskListView: View {
         let sections = model.sections(for: view)
         let compact = model.width == .compact
         let trash = view == .smart(.trash)
-        List(selection: compact && !model.selection.isPicking ? nil : model.listSelection(in: view)) {
+        let sorting = model.taskList.isSorting(view)
+        // While sorting (edit mode) a selection would put a circle on
+        // every row.
+        List(selection: sorting || compact && !model.selection.isPicking ? nil : model.listSelection(in: view)) {
             if !compact && canQuickAdd(view) {
                 QuickAddField(focusRequests: model.taskList.quickAddRequests)
                     .padding(.vertical, 6 * s)
@@ -32,12 +36,12 @@ struct TaskListView: View {
                 if let title = section.title {
                     let folded = model.taskList.isFolded(section, in: view)
                     Section {
-                        if !folded { rows(section) }
+                        if !folded { rows(section, sorting: sorting) }
                     } header: {
                         header(section, title: title, folded: folded)
                     }
                 } else {
-                    Section { rows(section) }
+                    Section { rows(section, sorting: sorting) }
                 }
             }
             if trash && !sections.isEmpty {
@@ -54,6 +58,7 @@ struct TaskListView: View {
         .alternatingRowBackgrounds(.disabled)
         #else
         .listStyle(.plain)
+        .sensoryFeedback(.impact, trigger: sorting) { _, now in now }
         #endif
         .taskListDragSpace(sections)
         .overlay {
@@ -80,17 +85,25 @@ struct TaskListView: View {
     }
 
     @ViewBuilder
-    private func rows(_ section: TaskSection) -> some View {
-        ForEach(section.tasks) { task in
+    private func rows(_ section: TaskSection, sorting: Bool) -> some View {
+        TaskListDropRows(section: section, sorting: sorting) { task in
             TaskRow(task, now: model.now, list: model.listsById[task.listId], showList: model.showsList(in: view),
                     checklist: model.checklistProgress(of: task.id)) {
                 model.run { await model.setDone(task, task.status == .open) }
             }
             .tag(task.id)
-            .modifier(OpenOnTap(compact: model.width == .compact && !model.selection.isPicking) {
+            #if os(iOS)
+            // A long press on the row's right end sorts instead (TaskListDropRows).
+            .taskRowMenu(task, in: section, sorting: sorting, sorts: !model.selection.isPicking) {
+                model.taskList.startSorting(view)
+            }
+            #endif
+            .modifier(OpenOnTap(compact: model.width == .compact && !model.selection.isPicking && !sorting) {
                 model.open(taskId: task.id)
             })
+            #if os(macOS)
             .contextMenu { TaskMenu(task: task) }
+            #endif
             .modifier(TaskSwipeActions(task: task))
             .taskListDragRow(task, in: section)
         }

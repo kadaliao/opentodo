@@ -53,20 +53,38 @@ struct DialogHost: ViewModifier {
     }
 }
 
-/// A one-line prompt: 添加分组, 重命名分组, 添加标签.
+/// A one-line prompt: 添加分组, 重命名分组, 添加标签. With suggestions (the
+/// tags in use) they're listed under the field, narrowed as it's typed;
+/// a click picks one, and so do ↓ / ↑ then Return.
 private struct TextPromptSheet: View {
     @Environment(\.uiScale) private var s
     let request: TextPromptRequest
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
+    /// The suggestion ↓ / ↑ moved to; Return picks it.
+    @State private var highlighted: Int?
     @FocusState private var focused: Bool
+
+    /// At most this many show: typing narrows them.
+    private static let shown = 8
+
+    private var matches: [String] {
+        Array(tagSuggestions(request.suggestions, typed: text).prefix(Self.shown))
+    }
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField(request.placeholder, text: $text)
+                // macOS puts a form field's title beside it and leaves the
+                // field blank; hidden, the field takes the row and shows
+                // the placeholder.
+                TextField(request.placeholder, text: $text, prompt: Text(request.placeholder))
+                    .labelsHidden()
                     .focused($focused)
-                    .onSubmit(submit)
+                    .onSubmit { submit(highlighted.flatMap { matches.indices.contains($0) ? matches[$0] : nil } ?? text) }
+                    .onKeyPress(.downArrow) { move(1) }
+                    .onKeyPress(.upArrow) { move(-1) }
+                if !request.suggestions.isEmpty { suggestionsSection }
             }
             .formStyle(.grouped)
             .navigationTitle(request.title)
@@ -76,23 +94,66 @@ private struct TextPromptSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(request.action, action: submit)
+                    Button(request.action) { submit(text) }
                         .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
-        .frame(minWidth: 360 * s, minHeight: 150 * s)
-        .presentationDetents([.height(220)])
+        .frame(minWidth: 360 * s, minHeight: (request.suggestions.isEmpty ? 150 : 340) * s)
+        .presentationDetents(request.suggestions.isEmpty ? [.height(220)] : [.medium, .large])
+        .defaultFocus($focused, true)
         .onAppear {
             text = request.initial
             focused = true
         }
+        .onChange(of: text) { highlighted = nil }
     }
 
-    private func submit() {
-        guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+    @ViewBuilder private var suggestionsSection: some View {
+        let matches = matches
+        Section {
+            ForEach(Array(matches.enumerated()), id: \.element) { i, tag in
+                Button {
+                    submit(tag)
+                } label: {
+                    Label(tag, systemImage: "number")
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("添加这个标签")
+                .listRowBackground(i == highlighted ? Color.accentColor.opacity(0.15) : nil)
+            }
+        } header: {
+            Text(text.trimmingCharacters(in: .whitespaces).isEmpty ? "已有标签" : "匹配的标签")
+                .uiDefaultFont(.headline)
+        } footer: {
+            if matches.isEmpty {
+                Text("没有匹配的标签，按回车新建“\(text.trimmingCharacters(in: .whitespaces))”。")
+                    .uiDefaultFont(.subheadline)
+            }
+        }
+    }
+
+    /// ↓ / ↑: the next or previous suggestion; up from the first goes back
+    /// to the field's own text.
+    private func move(_ by: Int) -> KeyPress.Result {
+        let count = matches.count
+        guard count > 0 else { return .ignored }
+        switch (highlighted, by > 0) {
+        case (nil, true): highlighted = 0
+        case (nil, false): return .ignored
+        case (let i?, true): highlighted = min(i + 1, count - 1)
+        case (let i?, false): highlighted = i > 0 ? i - 1 : nil
+        }
+        return .handled
+    }
+
+    private func submit(_ value: String) {
+        guard !value.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         dismiss()
-        request.onSubmit(text)
+        request.onSubmit(value)
     }
 }
 
@@ -112,7 +173,9 @@ private struct ListEditorSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("清单名称", text: $name)
+                    // Hidden label: the field takes the row (TextPromptSheet).
+                    TextField("清单名称", text: $name, prompt: Text("清单名称"))
+                        .labelsHidden()
                         .focused($focused)
                         .onSubmit(submit)
                 }

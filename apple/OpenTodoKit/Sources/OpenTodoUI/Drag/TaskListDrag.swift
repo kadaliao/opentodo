@@ -15,6 +15,9 @@
 
 import OpenTodoDomain
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 extension View {
     /// The task list's drag space, over `sections` (as shown).
@@ -90,7 +93,8 @@ private struct TaskListDragRow: ViewModifier {
         let lit = group.map { drag?.highlights($0.target) == true } ?? false
         content
             .frame(maxWidth: .infinity, alignment: .leading)
-            .taskDragSource(task, picked: picked, isEnabled: !section.finished && task.trashedAt == nil) {
+            .taskDragSource(task, picked: picked,
+                            isEnabled: rowsDragThemselves && !section.finished && task.trashedAt == nil) {
                 // Values only: the dragged copy is drawn outside the window.
                 DragRowPreview(task: task, now: model.now, list: model.listsById[task.listId],
                                checklist: model.checklistProgress(of: task.id))
@@ -151,6 +155,143 @@ private struct SectionHeaderDrag: ViewModifier {
         }
     }
 }
+
+/// The rows of `section`, each made by `row`. On iOS the system list
+/// drags them itself, while 排序 is on (`sorting`): the list is in edit
+/// mode and each row of a group in manual order has the system's ≡ handle
+/// to drag it by within the group (`onMove`), written as a drop would be.
+/// A long press on a row's right end turns 排序 on (`taskRowMenu`); anywhere
+/// else on the row it's the task's menu. There the drag space can't do
+/// it: the `List` keeps every drag over it to itself (its `onDrop` never
+/// hears of one), and an iPhone list row doesn't drag with `.draggable`
+/// at all. On macOS the drag space does it (rows into other groups too,
+/// picked tasks together).
+struct TaskListDropRows<Row: View>: View {
+    let section: TaskSection
+    var sorting = false
+    @ViewBuilder let row: (TodoTask) -> Row
+    #if os(iOS)
+    @Environment(AppModel.self) private var model
+    #endif
+
+    var body: some View {
+        #if os(iOS)
+        // Only while sorting: with `onMove` on, the list also lifts a row
+        // on a long press anywhere, and that and the menu fight over it.
+        let group = sorting ? sortableGroup(section) : nil
+        ForEach(section.tasks) { row($0) }
+            .onMove(perform: group.map { g in { from, to in move(from, to: to, in: g) } })
+        #else
+        ForEach(section.tasks) { row($0) }
+        #endif
+    }
+
+    #if os(iOS)
+    /// `to` counts the rows as they are, the moved one still in its place
+    /// (as `GroupDrop.plan` does).
+    private func move(_ from: IndexSet, to: Int, in group: GroupDrop) {
+        guard let i = from.first, section.tasks.indices.contains(i),
+              let plan = group.plan(DraggedTasks(section.tasks[i]), at: to) else { return }
+        model.run { await model.dropTasks(plan) }
+    }
+    #endif
+}
+
+/// The group `section` is, when its rows can be put in order by hand.
+func sortableGroup(_ section: TaskSection) -> GroupDrop? {
+    guard !section.finished, let group = GroupDrop(section), group.ordered else { return nil }
+    return group
+}
+
+#if os(iOS)
+extension View {
+    /// A row's long-press menu, and in a group in manual order its right
+    /// end: a long press there turns 排序 on (`start`) instead. It goes on
+    /// before the row's tap (a tap on the right end still opens the task).
+    /// While sorting (`sorting`) there's neither: rows move by their handles.
+    func taskRowMenu(_ task: TodoTask, in section: TaskSection, sorting: Bool, sorts: Bool,
+                     start: @escaping () -> Void) -> some View {
+        modifier(TaskRowMenu(task: task, sorting: sorting,
+                             grip: !sorting && sorts && task.trashedAt == nil && sortableGroup(section) != nil,
+                             start: start))
+    }
+}
+
+private struct TaskRowMenu: ViewModifier {
+    @Environment(\.uiScale) private var s
+    let task: TodoTask
+    let sorting: Bool
+    let grip: Bool
+    let start: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .contextMenu {
+                if !sorting { TaskMenu(task: task) }
+            }
+            .overlay(alignment: .trailing) {
+                if grip {
+                    LongPressArea(duration: 0.4, action: start)
+                        .frame(width: 64 * s)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityActions {
+                if grip { Button("排序", action: start) }
+            }
+    }
+}
+
+/// A long press here: `action`, and not the row's menu. The list shows a
+/// row's menu for a long press anywhere on the row, so a SwiftUI gesture
+/// on top got both (and a menu emptied while the finger was down still
+/// came at times). UIKit's lets the others wait: every other press waits
+/// for this one to fail (a tap here still opens the task, once the finger
+/// lifts); scrolling doesn't.
+private struct LongPressArea: UIViewRepresentable {
+    var duration: TimeInterval
+    var action: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        let press = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pressed(_:)))
+        press.delegate = context.coordinator
+        view.addGestureRecognizer(press)
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.action = action
+        for case let press as UILongPressGestureRecognizer in view.gestureRecognizers ?? [] {
+            press.minimumPressDuration = duration
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var action: () -> Void = {}
+
+        @objc func pressed(_ press: UILongPressGestureRecognizer) {
+            if press.state == .began { action() }
+        }
+
+        func gestureRecognizer(_ press: UIGestureRecognizer,
+                               shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+            !(other is UIPanGestureRecognizer)
+        }
+    }
+}
+#endif
+
+/// Whether list rows are dragged with `.draggable` (and the drag space):
+/// on macOS; on iOS the system list does it (`TaskListDropRows`).
+#if os(iOS)
+private let rowsDragThemselves = false
+#else
+private let rowsDragThemselves = true
+#endif
 
 private struct OptionalDropSlot: ViewModifier {
     let id: String

@@ -91,6 +91,7 @@ cd apple && ./scripts/generate.sh                      # 生成 OpenTodo.xcodepr
 - Flutter 版的每个单元测试都要有对应的 Swift 测试（测试名和用例照搬），这是“行为一样”的凭据。
 - 界面改动要看截图：浅色、深色，手机和电脑。截图放 `apple/.shots/`（不进仓库）。
 - 别用模拟键盘鼠标去点真实窗口（会落进用户正在用的别的窗口）。要点界面，用模拟器里的 XCUITest，或者用 `-OTOpen` 直接打开那个状态再截图。
+- Mac 上要验证点了会怎样：用辅助功能接口操作藏在桌面后面的调试版窗口（选中列表行 `AXSelectedRows`、按按钮 `AXPress`、往输入框填字 `AXValue`），再读界面结构看结果，不碰真鼠标键盘。它不经过鼠标事件，单击被拦掉这类问题（第 10 节）查不出来；那种要在一个小程序里把视图放进窗口、在进程里合成点击：`NSApplication` 子类的 `isActive` 返回 true，窗口子类的 `isKeyWindow` / `isMainWindow` 返回 true，先 `makeKey()`，再 `postEvent` 按下和抬起（再去改 `NSApp.keyWindow` 反而一点都点不中）。终端没有“屏幕录制”权限时也只能这样看。
 - iOS 的界面测试（XCUITest）在工程的 `OpenTodoUITestsIOS` 目标里，代码在 `apple/UITestsIOS/<功能>/`，只放非手指不可的（拖动、长按、滑动），能在 AppModel 上说清的放包里的测试。用 `XCUIApplication.launchOpenTodo(route:)` 启动（新的临时库、`-OTSeed demo`、`-OTOpen` 路由），怎么加、怎么跑见 `UITestsIOS/Support/LaunchOpenTodo.swift`。
 - 几个人（agent）同时干活时各用各的 git worktree。**同一时间最多一个人开 iOS 模拟器**（名字 `OT-<自己的名字>`，不动别人的），其余只跑 `build.sh ios`；七个模拟器同时开把机器拖垮过（第 10 节）。
 
@@ -149,7 +150,7 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 任务模块（规格是 Flutter 版的 sidebar / task_list_pane / task_tile / task_detail / quick_add_field / task_actions / section_actions）：
 
 - **侧栏**：智能清单、清单（标题旁的 + 添加；右键 / 长按编辑、删除（先确认）；拖动排序）、过滤器（+ 和“编辑”打开过滤器编辑器）、标签、已完成 / 垃圾桶，每项带未完成数。
-- **列表**（`TaskListArea` → `LayoutContent` → `TaskListView`）：按视图的 `ViewPrefs`（分组、排序、布局）显示，“显示选项”（⋯）里改，存在 `key_values`；“显示已完成”只在这个窗口有效（Flutter 版没有这一项，没存进 `ViewPrefs`）。分组可折叠；清单的自定义分组标题带 ⋯（重命名、上移、下移、删除分组）；今天 / 最近7天里空的日子也显示（不带数字、灰色）。垃圾桶有“清空”（先确认）和底部说明。
+- **列表**（`TaskListArea` → `LayoutContent` → `TaskListView`）：按视图的 `ViewPrefs`（分组、排序、布局）显示，“显示选项”（⋯）里改，存在 `key_values`；“显示已完成”只在这个窗口有效（Flutter 版没有这一项，没存进 `ViewPrefs`）。分组可折叠；清单的自定义分组标题带 ⋯（重命名、上移、下移、删除分组）；今天 / 最近7天里空的日子也显示（不带数字、灰色）。垃圾桶有“清空”（先确认）和底部说明。拖动（`Drag/TaskListDrag.swift`）：Mac 上行能拖到别的位置、别的分组（改日期 / 清单 / 优先级），多选的一起走；iOS 和 iPadOS 上要先进“排序”：在手动排序的分组里长按任务行的右端（最后 64 点），列表进编辑模式，这些行右边出现系统的 ≡ 把手，拖把手在本分组里调顺序，右上角“完成”退出（离开这个视图也会退出）；长按行的其他地方还是菜单（第 10 节）。
 - **快速添加**（`QuickAddField`）：边输入边高亮识别出的日期、时间、重复、#标签、!优先级，末尾显示识别出的日期；回车添加，带上当前视图的默认值（`quickAddDefaults`），有日期时加上设置里的默认提醒；新任务不在当前视图里时提示加到了哪。Mac 和 iPad 在列表顶上（⌘N 让它获得焦点），iPhone 是导航栏“+”弹出的 sheet。
 - **详情**：标题、标签（点掉 / 添加）、描述（停 0.4 秒或离开时保存）；日期一行（点开日期对话框，重复和提醒的文字列在下面）；清单、优先级、置顶；子任务（勾选、改名、删除、拖动排序、添加）；垃圾桶里的任务只读，可以恢复 / 永久删除。
 - **右键菜单 / 长按菜单**（`TaskMenu`，也是详情的“更多”）：完成；今天 / 明天 / 下周一 / 选择日期… / 清除日期 / 跳过此次；优先级；移到清单；标签；置顶；创建副本；删除。iOS 滑动：左滑出“完成”，右滑出“删除 / 置顶 / 明天”。完成重复任务、删除、跳过此次之后底部有提示，前两种带“撤销”。
@@ -377,7 +378,7 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 - `.environment(model)` 要放在修饰器链的最外层：读 `@Environment(AppModel.self)` 的修饰器（对话框、提示条、截图）写在它外面会在启动时崩（“No Observable object of type AppModel found”）。单元测试不渲染视图，查不出来，要真启动一次。
 - `OpenTodoUI` 里的类型名会挡住同名的系统类型和别的模块的类型，不报重名：时间线的 `TimelineView` 挡住了 SwiftUI 的 `TimelineView`（用系统那个要写 `SwiftUI.TimelineView`，否则编译器报“表达式太复杂”或参数对不上）；界面里的类挡住领域层的 `TaskSelection`。起名前在整个包里搜一下。
 - macOS 的 `TabView` 只有放在 `Settings` 场景里才画成设置窗口那种工具栏图标标签；放在普通窗口里画成另一种标签条。调试路由要看设置的样子，只摆当前那一页的内容（`prefs:` 路由就这么做），整窗的样子要在真的设置窗口里看。
-- iOS 的 `Form` 里，`TextField` 只显示占位文字、不显示标题（macOS 两个都显示），占位文字要自己写明是什么字段；`Picker` 的标签写成两行时，选中的值会被挤到第三行，说明文字放到分组的脚注里。
+- iOS 的 `Form` 里，`TextField` 只显示占位文字、不显示标题（macOS 两个都显示），占位文字要自己写明是什么字段。macOS 的分组 `Form` 把标题放在左边、输入框在右边且没有边框，空着时那一格看起来只有一行字，没人知道能输入（“添加标签”“添加清单”就这样）；一行只有一个输入框的对话框要 `.labelsHidden()` 再给 `prompt:`，输入框才占满一行、显示占位文字。`Picker` 的标签写成两行时，选中的值会被挤到第三行，说明文字放到分组的脚注里。
 - 调试路由的展示修饰器如果整个换掉内容，要挂在设置外观（`-OTAppearance` 的 `preferredColorScheme`）的那些修饰器里面，否则深色截图出来还是浅色。
 - `List(selection:)` 绑 `Set` 时 ⌘ 点选、Shift 连选、⌘A 都是系统做的，但只给出结果集合，分不出“⌘ 点掉一个只剩一个”和“普通点了一下”，所以前者在 Swift 版里会变成打开那一个（Flutter 版保持多选）。
 - `Text("\(year)年")` 里插的整数按本地化格式加千分位，显示成“2,026年”。插数字的文字用 `Text(verbatim:)`，或先拼成 `String` 再交给 `Text`（`navigationTitle(String)` 没这个问题）。
@@ -423,6 +424,11 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 - 同一个测试目标里，两个文件各写一个顶层的 `let now` 会报重复声明（`private` 的也和别的文件的非 private 冲突）；测试文件里的顶层常量起个带前缀的名字。
 - `ScrollPosition`（`.scrollPosition` + `scrollTo(y:)`）在 macOS 上滚不动 `List`，偏移不变；`ScrollViewReader` 的 `scrollTo(id)` 可以。看板的自动滚动用前者（`ScrollView`），任务列表的按行用后者。
 - 三栏 `NavigationSplitView` 没法只藏详情栏（`columnVisibility` 只能藏侧栏）。看板和时间线要宽度时换成两栏，详情放 `.inspector`；两种结构切换时视图会重建。
+- macOS 的任务列表里，行上挂 `.draggable` 又直接挂 `.onGeometryChange`（拖放的落点要量每行的位置）时，单击不再选中这一行：系统列表的选中从没变过，任务打不开（11-27 用户报的）。拆开单挂哪一个都没事，玩具列表里两个一起挂也没事，只在真实的行上出现。现在量位置的是行背后一个同样大小的 `Color.clear`（`DropSlotModifier`）。`-OTOpen task:` 路由和辅助功能接口选中行都不经过点击，所以截图验收时没发现。
+- iOS 的 `List`（底下是 `UICollectionView`）把拖到它上面的东西都留给自己：挂在整个列表上的 `.onDrop` 一次也收不到（日志里只有拖动开始），所以列表里拖了放不下、排不了序，这在 iPhone 和模拟器上都是一直如此，不是哪次改坏的（11-27 用户报的）。iPhone 上更早一步就不行：每行自己挂的 `.contextMenu` 把长按整个拿走，行连拖都拖不起来。iOS 上排序只能交给系统列表的 `ForEach.onMove`（只在同一个 `ForEach`、也就是同一个分组里移动），行不挂 `.draggable`。
+  - `onMove` 平时一直开着的话，长按任意位置都会托起这一行，跟长按菜单抢：菜单挂在整个列表上（`.contextMenu(forSelectionType:)`）时两个能共存，但按住不动先出菜单、动了才拖，用户觉得冲突。现在 `onMove` 只在“排序”时给（列表进编辑模式，系统画 ≡ 把手，拖把手就行），平时长按就是菜单（行自己的 `.contextMenu`），长按行的右端进“排序”（`TaskListDrag.swift` 的 `taskRowMenu`）。编辑模式下列表的选中绑定要给 nil，不然每行前面出现多选圆圈。
+  - 列表行的 `.contextMenu` 不看按在行的哪一块：在行上面盖一层带 SwiftUI `onLongPressGesture` 的透明视图，长按那里照样出菜单，长按手势也照样触发；按下时把菜单内容清空也挡不住，有时还是会弹出来。能挡住的是 UIKit 的 `UILongPressGestureRecognizer`（`UIViewRepresentable`）：在它的 delegate 里，`gestureRecognizer(_:shouldBeRequiredToFailBy:)` 对除了 `UIPanGestureRecognizer` 以外的都返回 true，菜单、托起、SwiftUI 的点按都等它失败才动。单击照样能打开任务（手指一抬它就失败），滚动不受影响。
+  - XCUITest 里任务行这个元素是整行宽，右端那 64 点在行内容的最右边，再往右是列表的边距；按 `dx: 0.97` 会落在边距上，要按 `dx: 0.9`。系统把手的辅助功能标签是“对<行的标签>重新排序”（`UITestsIOS/Tasks/TaskListDragUITests.swift`）。
 - 拖放：`DropDelegate` 只给指针位置，拿不到被拖的东西；`.draggable` 的 payload 是自动闭包，在拖动开始时才求值，`DragController` 就在这里记下拖的是什么。`onDragSessionUpdated`、`onDropSessionUpdated`、`dragContainer` 在 iOS 上要 27（macOS 26 就有），最低 iOS 26 时要 `#available`；iOS 26 拖到窗口外取消时没有结束通知，靠离开拖放区域或下一次拖动清状态。
 - `Text + Text` 在 iOS 26 上弃用（编译警告），拼不同字体的文字改用插值：`Text("\(a)\(b)")`，`a`、`b` 都是 `Text`。
 - 根视图把“一开始在哪一页”放在 `@State` 的初值里时，之后再传新的起点不起作用；要让已经显示着的模块重新打开到某一页（点通知、点“今天”里的条目），换一下它的 `.id(...)` 让它重建。

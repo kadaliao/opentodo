@@ -107,10 +107,15 @@ extension AppModel {
         await attempt { try await repo.setTags(task.id, tags) }
     }
 
-    /// Asks for a new tag and adds it.
+    /// Asks for a tag and adds it, offering the tags already in use that
+    /// the task doesn't have. One typed like an existing tag but in other
+    /// case (`opentodo` for OpenTodo) is taken as that tag.
     public func askNewTag(_ task: TodoTask) {
-        present.textPrompt = TextPromptRequest(title: "添加标签", placeholder: "标签名称") { [self] text in
-            let tag = text.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        let known = tags
+        present.textPrompt = TextPromptRequest(title: "添加标签", placeholder: "标签名称",
+                                               suggestions: known.filter { !task.tags.contains($0) }) { [self] text in
+            let typed = text.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+            let tag = known.first { $0.caseInsensitiveCompare(typed) == .orderedSame } ?? typed
             guard !tag.isEmpty, !task.tags.contains(tag) else { return }
             run { try await self.repo.setTags(task.id, task.tags + [tag]) }
         }

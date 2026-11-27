@@ -1,6 +1,7 @@
 // The task list's own state on this window: which groups are folded,
-// whether 已完成 shows, and requests for the quick-add field to take
-// focus. Kept per view (`ViewRef.description`), for the session only.
+// whether 已完成 shows, requests for the quick-add field to take focus,
+// and which view is being sorted (iOS). Kept per view
+// (`ViewRef.description`), for the session only.
 
 import Observation
 import OpenTodoDomain
@@ -32,6 +33,16 @@ public final class TaskListState {
     }
 
     public func focusQuickAdd() { quickAddRequests += 1 }
+
+    /// The view being sorted (iOS 排序: the list's edit mode, rows dragged
+    /// by their ≡ handles), if any.
+    public private(set) var sortingView: String?
+
+    public func isSorting(_ view: ViewRef) -> Bool { sortingView == view.description }
+
+    public func startSorting(_ view: ViewRef) { sortingView = view.description }
+
+    public func stopSorting() { sortingView = nil }
 
     /// Text for the quick-add field to start with (`-OTQuickAdd`); taken once.
     public var prefill: String?
