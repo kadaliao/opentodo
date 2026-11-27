@@ -203,10 +203,10 @@ private func settle(_ model: AppModel) async throws {
 
     @Test func countsOpenTasksPerView() async throws {
         let m = try await makeModel()
-        // 评审 / 报销 (overdue) + 浇水 / 周会 / 总结 / 超市 (today).
-        #expect(m.count(of: .smart(.today)) == 6)
+        // 评审 / 报销 (overdue) + 改版上线 (a span over today) / 浇水 / 周会 / 总结 / 超市 (today).
+        #expect(m.count(of: .smart(.today)) == 7)
         #expect(m.count(of: .smart(.inbox)) == 3)
-        #expect(m.count(of: .list("work")) == 7)
+        #expect(m.count(of: .list("work")) == 9)
         #expect(m.count(of: .filter("important-week")) >= 1)
     }
 
@@ -223,7 +223,7 @@ private func settle(_ model: AppModel) async throws {
         let s = m.sections(for: .smart(.today))
         #expect(s.map(\.title) == ["已过期", daySectionTitle(today, today: today), "已完成"])
         #expect(s[0].tasks.map(\.id).sorted() == ["invoice", "review"])
-        #expect(s[1].tasks.map(\.id) == ["plants", "standup", "report", "milk"])
+        #expect(s[1].tasks.map(\.id) == ["launch", "plants", "standup", "report", "milk"])
     }
 
     @Test func next7ShowsEveryDayEvenEmptyOnes() async throws {

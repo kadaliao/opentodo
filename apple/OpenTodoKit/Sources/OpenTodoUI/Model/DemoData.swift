@@ -7,7 +7,11 @@
 //     lists     work 工作 · life 生活 · shopping 购物 · reading 读书 · fitness 健身
 //     tasks     report (今天下午, 高, 子任务, 提醒) · standup (今天, 每周, 时间段)
 //               review / invoice (过期) · slides (明天, 置顶) · okr · call (收集箱)
-//               milk (今天, 子任务) · rent (每月) · run (今天已完成) · old (垃圾桶) …
+//               milk (今天, 子任务) · rent (每月) · run (今天已完成) · old (垃圾桶)
+//               launch / review-prep (跨好几天) …
+//               and timed things on most of the four days either side of
+//               today (the past ones done), so a week of the calendar is
+//               never empty whatever day it is shot on.
 //     filter    important-week 本周的重要工作
 //
 // e.g. `-OTOpen list:work`, `-OTOpen task:report`.
@@ -97,7 +101,11 @@ public enum DemoData {
         task("slides", "做季度汇报的幻灯片", list: "work", section: "work-doing", due: 1, time: (14, 0),
                        priority: .medium, tags: ["工作"], pinned: true,
                        checklist: [("确定大纲", false), ("做图表", false)])
+        task("launch", "官网改版上线", list: "work", section: "work-doing", due: -2, duration: 5 * minutesPerDay,
+                       priority: .medium, tags: ["工作"])
         task("okr", "起草明年的 OKR", list: "work", section: "work-later", due: 3, priority: .low)
+        task("review-prep", "准备年终述职", list: "work", section: "work-later", due: 2, duration: 4 * minutesPerDay,
+                       priority: .medium)
         task("onboarding", "给新同事准备入职资料", list: "work", section: "work-later")
         task("email", "回复客户关于报价的邮件", list: "work", section: "work-doing", due: 0, priority: .medium,
                        doneHoursAgo: 2)
@@ -109,6 +117,9 @@ public enum DemoData {
                        reminders: [540], rule: "FREQ=MONTHLY;BYMONTHDAY=\((today + 5).day)")
         task("dinner", "周末陪爸妈吃饭", list: "life", due: 4, time: (18, 30), tags: ["家"])
         task("parcel", "取快递", list: "life", due: -1, doneHoursAgo: 20)
+        task("checkup", "体检", list: "life", due: -4, time: (8, 30), duration: 120, doneHoursAgo: 4 * 24)
+        task("friends", "和老同学吃晚饭", list: "life", due: -1, time: (19, 0), duration: 120, doneHoursAgo: 14)
+        task("haircut", "理发", list: "life", due: 3, time: (11, 0), duration: 45)
         // 购物
         task("milk", "超市：牛奶、鸡蛋、面包", list: "shopping", due: 0, time: (19, 0),
                        checklist: [("牛奶", true), ("鸡蛋", false), ("全麦面包", false)])
@@ -117,10 +128,14 @@ public enum DemoData {
         // 读书
         task("book", "读完《置身事内》第二部分", list: "reading", due: 6, priority: .low, tags: ["读书"])
         task("notes", "整理上个月的读书摘录", list: "reading", doneHoursAgo: 30)
+        task("club", "读书会：聊《置身事内》", list: "reading", due: -3, time: (20, 0), duration: 90,
+                       tags: ["读书"], doneHoursAgo: 2 * 24 + 12)
         // 健身
         task("run", "晨跑 5 公里", list: "fitness", due: 0, time: (7, 0), rule: "FREQ=DAILY", doneHoursAgo: 3)
         task("gym", "健身房：练腿", list: "fitness", due: 1, time: (19, 30), duration: 90,
                        rule: "FREQ=WEEKLY;BYDAY=\(weekdayCode(today + 1))")
+        task("swim", "游泳 1 公里", list: "fitness", due: -2, time: (7, 30), duration: 60, doneHoursAgo: 2 * 24)
+        task("yoga", "瑜伽课", list: "fitness", due: 2, time: (19, 0), duration: 60)
         // 垃圾桶
         task("old", "预约汽车保养", list: "life", trashed: true)
 

@@ -81,6 +81,9 @@ public struct DebugLaunch: Sendable, Hashable {
     public var windowSize: DebugWindowSize?
     public var interfaceSize: InterfaceSize?
     public var hiddenWindows = false
+    /// `-OTTime HH:MM`: the app's clock stands still at that time today
+    /// (screenshots that shouldn't depend on when they're taken).
+    public var timeOfDay: Int?
     /// Arguments that were given but not understood, for a log line.
     public var problems: [String] = []
 
@@ -115,11 +118,21 @@ public struct DebugLaunch: Sendable, Hashable {
                 if let s = InterfaceSize(rawValue: value) { interfaceSize = s } else { problems.append("unknown interface size: \(value)") }
             case "-OTHiddenWindows":
                 if value == "yes" { hiddenWindows = true } else if value != "no" { problems.append("-OTHiddenWindows takes yes or no") }
+            case "-OTTime":
+                if let t = Self.timeOfDay(value) { timeOfDay = t } else { problems.append("-OTTime takes HH:MM, not \(value)") }
             case "-OTAppearance":
                 if let a = DebugAppearance(rawValue: value) { appearance = a } else { problems.append("unknown appearance: \(value)") }
             default: problems.append("unknown option: \(name)")
             }
         }
+    }
+
+    /// "10:30" → 630; nil unless it's a time of day.
+    static func timeOfDay(_ text: String) -> Int? {
+        let parts = text.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]),
+              (0..<24).contains(h), (0..<60).contains(m) else { return nil }
+        return h * 60 + m
     }
 
     public static var current: DebugLaunch { DebugLaunch(arguments: ProcessInfo.processInfo.arguments) }

@@ -1,4 +1,6 @@
 import Foundation
+import OpenTodoData
+import OpenTodoDomain
 import Testing
 @testable import OpenTodoUI
 
@@ -28,6 +30,26 @@ import Testing
     #expect(!DebugLaunch(arguments: ["app", "-OTHiddenWindows", "no"]).hiddenWindows)
     #expect(!DebugLaunch(arguments: ["app"]).hiddenWindows)
     #expect(DebugLaunch(arguments: ["app", "-OTHiddenWindows", "1"]).problems.count == 1)
+}
+
+@Test func readsTheTimeOfDay() {
+    #expect(DebugLaunch(arguments: ["app", "-OTTime", "10:30"]).timeOfDay == 630)
+    #expect(DebugLaunch(arguments: ["app", "-OTTime", "0:05"]).timeOfDay == 5)
+    #expect(DebugLaunch(arguments: ["app"]).timeOfDay == nil)
+    for bad in ["24:00", "10:60", "1030", "10:", "ten:30"] {
+        let l = DebugLaunch(arguments: ["app", "-OTTime", bad])
+        #expect(l.timeOfDay == nil && l.problems.count == 1)
+    }
+}
+
+@MainActor @Test func pinsTheClockOfALaunchWithATime() throws {
+    func services() throws -> AppServices {
+        let db = try AppDatabase.inMemory()
+        return AppServices(database: db, tokens: KeyValueTokenStore(db), reminderBackend: MemoryReminderBackend())
+    }
+    let pinned = AppModel.forLaunch(DebugLaunch(arguments: ["app", "-OTTime", "10:30"]), services: try services())
+    #expect(pinned.clockPinned && pinned.now.minuteOfDay == 630 && pinned.today == Day.today(in: pinned.timeZone))
+    #expect(!AppModel.forLaunch(DebugLaunch(arguments: ["app"]), services: try services()).clockPinned)
 }
 
 @Test func reportsWhatItCannotRead() {

@@ -39,12 +39,14 @@ extension AppModel {
     public static func forLaunch(_ debug: DebugLaunch?, services: AppServices? = nil) -> AppModel {
         let services = services ?? launchServices(debug)
         let seed = debug?.seed
-        let model = AppModel(repo: services.repo, settings: services.settings, services: services) {
+        let tz = services.repo.timeZone
+        let pinned = debug?.timeOfDay.map { LocalDateTime(Day.today(in: tz), minute: $0) }
+        let model = AppModel(repo: services.repo, settings: services.settings, services: services, now: pinned) {
             switch seed {
             case .demo:
                 await services.start(seed: false)
                 do {
-                    try await DemoData.seed(services.repo, now: LocalDateTime.now(in: services.repo.timeZone))
+                    try await DemoData.seed(services.repo, now: pinned ?? LocalDateTime.now(in: tz))
                     try await EfficiencyDemo.seed(services.efficiency, today: Day.today(in: services.repo.timeZone))
                 } catch {
                     print("OpenTodo: seeding failed: \(error)")
@@ -53,6 +55,7 @@ extension AppModel {
                 await services.start()
             }
         }
+        model.clockPinned = pinned != nil
         if services.database.url == nil { model.notices.show("打不开数据库，这次的改动不会保存") }
         if let route = debug?.open { model.applyWhenLoaded(route) }
         model.taskList.prefill = debug?.quickAddText

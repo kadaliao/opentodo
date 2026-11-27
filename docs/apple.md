@@ -68,7 +68,7 @@ apple/
 - 深色模式、动态字体、VoiceOver 标签要正常。强调色是 `#14A38B`（Assets 里的 AccentColor），优先级颜色照 `app/lib/ui/theme.dart`。
 - 状态放在 `@Observable` 的模型里（`AppModel` 经 `.environment` 传下去），视图里不直接碰数据库；写操作都走 `TaskRepo`。
 - 竞品截图在 `reference/dida-app/`（不进仓库；用 worktree 时它只在主工作区里，位置见 `CLAUDE.local.md`），只看功能怎么组织；名字、图标、文案、配色不能用。
-- 调试入口（只在调试版里，应用外壳用 `#if DEBUG` 把 `DebugLaunch.current` 传给 `RootView`）：`-OTDatabasePath <文件>` 指定数据库（这时通知放内存、令牌放库里、不注册全局快捷键）、`-OTSeed demo` 填演示数据、`-OTOpen <路由>` 直接打开某个界面、`-OTAppearance light|dark`、`-OTQuickAdd <文字>` 预填快速添加、`-OTInterfaceSize small|standard|large|extraLarge`（macOS）这次运行用的界面大小（不管存的是什么）、`-OTHiddenWindows yes`（macOS）窗口都放到桌面后面（第 5 节）、`-OTSnapshot <png>`（macOS）窗口出来、数据到了以后自己画成 PNG 再退出。路由（`smart:today`、`list:<id>`、`task:<id>`、`calendar:month`，各功能的演示路由）的完整列表在 `OpenTodoUI/App/DebugLaunch.swift` 文件头。macOS 版开了沙盒，只能写自己的容器，所以文件参数写相对路径时落在应用的临时目录（`~/Library/Containers/com.liaoxingyi.opentodo.dev/Data/tmp/`），脚本都这么传。
+- 调试入口（只在调试版里，应用外壳用 `#if DEBUG` 把 `DebugLaunch.current` 传给 `RootView`）：`-OTDatabasePath <文件>` 指定数据库（这时通知放内存、令牌放库里、不注册全局快捷键）、`-OTSeed demo` 填演示数据、`-OTOpen <路由>` 直接打开某个界面、`-OTAppearance light|dark`、`-OTQuickAdd <文字>` 预填快速添加、`-OTTime HH:MM` 应用的时钟停在今天的这个时刻（截图不随截的时间变，`shot.sh` 用 `OT_TIME` 传）、`-OTInterfaceSize small|standard|large|extraLarge`（macOS）这次运行用的界面大小（不管存的是什么）、`-OTHiddenWindows yes`（macOS）窗口都放到桌面后面（第 5 节）、`-OTSnapshot <png>`（macOS）窗口出来、数据到了以后自己画成 PNG 再退出。路由（`smart:today`、`list:<id>`、`task:<id>`、`calendar:month`，各功能的演示路由）的完整列表在 `OpenTodoUI/App/DebugLaunch.swift` 文件头。macOS 版开了沙盒，只能写自己的容器，所以文件参数写相对路径时落在应用的临时目录（`~/Library/Containers/com.liaoxingyi.opentodo.dev/Data/tmp/`），脚本都这么传。
 
 ## 5. 怎么验证
 

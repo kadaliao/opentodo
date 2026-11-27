@@ -14,6 +14,7 @@
 #   OT_APPEARANCE=dark    dark mode (iOS: the simulator's; macOS: the app's)
 #   OT_SIM_TYPE=<type>    device type for a new simulator (default iPhone 18 Pro)
 #   OT_QUICKADD=<text>    type this into the quick-add field (-OTQuickAdd)
+#   OT_TIME=HH:MM         the app's clock stands still at this time today (-OTTime)
 #   OT_MAC_METHOD=…       macOS: `window` screencaptures the app's main window
 #                         (needs the screen recording permission for the
 #                         terminal); `app` captures all the app's windows
@@ -115,6 +116,7 @@ shot_ios() {
   local args=(-OTDatabasePath "$run_id/opentodo.sqlite" -OTOpen "$route")
   [ -n "$seed" ] && args+=(-OTSeed "$seed")
   [ -n "${OT_QUICKADD:-}" ] && args+=(-OTQuickAdd "$OT_QUICKADD")
+  [ -n "${OT_TIME:-}" ] && args+=(-OTTime "$OT_TIME")
   xcrun simctl launch "$udid" "$BUNDLE_ID" "${args[@]}" >/dev/null
   sleep 2
   settle xcrun simctl io "$udid" screenshot --type=png "$out" >/dev/null 2>&1
@@ -145,6 +147,7 @@ shot_macos() {
   [ -n "$seed" ] && args+=(-OTSeed "$seed")
   [ -n "${OT_APPEARANCE:-}" ] && args+=(-OTAppearance "$OT_APPEARANCE")
   [ -n "${OT_QUICKADD:-}" ] && args+=(-OTQuickAdd "$OT_QUICKADD")
+  [ -n "${OT_TIME:-}" ] && args+=(-OTTime "$OT_TIME")
   [ -n "${OT_INTERFACE_SIZE:-}" ] && args+=(-OTInterfaceSize "$OT_INTERFACE_SIZE")
   [ -z "${OT_VISIBLE:-}" ] && args+=(-OTHiddenWindows yes)
   args+=(-OTWindowSize "${OT_WINDOW_SIZE:-1180x760}" -ApplePersistenceIgnoreState YES)

@@ -97,6 +97,8 @@ public final class AppModel {
     /// snapshot: snapshots from outside must wait for its own.
     var awaitingFirstSnapshot: Bool { started && !loaded }
     @ObservationIgnored private var observation: ObservationHandle?
+    /// `now` stays as it was given (`-OTTime`): `start` runs no clock.
+    @ObservationIgnored public var clockPinned = false
     /// Run once before the data is watched (seeding the database).
     @ObservationIgnored private var prepare: (() async -> Void)?
 
@@ -124,7 +126,7 @@ public final class AppModel {
         }, onChange: { [weak self] data in
             self?.receive(data)
         })
-        guard clock else { return }
+        guard clock, !clockPinned else { return }
         Task { [weak self] in
             while !Task.isCancelled {
                 let seconds = 60 - Calendar.current.component(.second, from: .now)
