@@ -365,7 +365,7 @@ Settings/ Account/  设置的各页、账号和登录         System/     菜单
 3. `cd apple && ./scripts/release.sh --publish`。它先检查：工作区干净、HEAD 就是 origin/main、标签 `v<版本>` 没被别的提交占、这个版本的 Release 还没有、更新记录里有这一节。然后编 Release、签名、公证并装订 App 和 DMG（要联网，几分钟），打出三个文件，打标签推上去，建 GitHub Release，最后触发 tap 的 `bump.yml`：它把 cask 的版本号和 sha256 改成新的（不触发也会在 6 小时内自己跑）。
 
 - 签名用 Developer ID Application 证书，开 Hardened Runtime，不带 `get-task-allow`，不要描述文件（macOS 的 App Group 带团队前缀）。没有描述文件就没有 `application-identifier`，同步登录的令牌存在登录钥匙串里（`TokenStore`）。从开发证书签的版本换过来，第一次打开时系统可能问能不能读这一项，点“始终允许”。
-- 公证用 notarytool 存在钥匙串里的配置，默认名 `notary`（`xcrun notarytool store-credentials notary …` 建的），`NOTARY_PROFILE` 可以换。只想看看能不能签：`NOTARY_PROFILE= ./scripts/release.sh`，不公证、不发布，产物在 `apple/build/release/`。
+- 公证用 App Store Connect 的 API key：`NOTARY_KEY`（.p8 文件）、`NOTARY_KEY_ID`、`NOTARY_ISSUER`，都没给时从 `~/.appstoreconnect/notary.env` 读（和 suck-my-disk 的发布脚本共用）；也可以用 notarytool 存在钥匙串里的配置（`NOTARY_PROFILE`，不在登录钥匙串里时再给 `NOTARY_KEYCHAIN`）。凭据在编译之前就先试一次。只想看看能不能签：`NOTARIZE=0 ./scripts/release.sh`，不公证、不能发布，产物在 `apple/build/release/`。
 - Build number 是提交数（`git rev-list --count HEAD`），只会变大。
 - 编出来的 App 不留在构建目录、也从 LaunchServices 注销：它是正式包名，一打开就用真实数据库。
 - cask 的 `zap` 会删掉 App Group 容器，数据库就在里面（同步过的服务器上还有）。

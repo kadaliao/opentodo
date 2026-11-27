@@ -11,9 +11,14 @@
 # notes); it tags v<version>, creates the GitHub Release with the files and
 # asks the tap (kadaliao/homebrew-tap) to pick the new version up.
 #
-# NOTARY_PROFILE: notarytool's keychain profile (default `notary`; empty
-# skips notarizing, for a local try only). SIGN_IDENTITY: the certificate.
-# Steps in docs/apple.md (发布).
+# Notarizing takes one of (as suck-my-disk's release script):
+#   - an App Store Connect API key: NOTARY_KEY (the .p8 file), NOTARY_KEY_ID
+#     and NOTARY_ISSUER. When none of these is set they're read from
+#     ~/.appstoreconnect/notary.env, if it exists. Nothing in a keychain.
+#   - notarytool's keychain profile: NOTARY_PROFILE, with NOTARY_KEYCHAIN
+#     naming the keychain file it is in when that isn't the login keychain.
+# NOTARIZE=0 skips it (a local try only; such a build isn't published).
+# SIGN_IDENTITY: the certificate. Steps in docs/apple.md (发布).
 set -euo pipefail
 APPLE="$(cd "$(dirname "$0")/.." && pwd)"
 ROOT="$(cd "$APPLE/.." && pwd)"
@@ -30,12 +35,36 @@ VERSION=$(sed -nE 's/^ *MARKETING_VERSION: "?([^"]+)"?$/\1/p' project.yml)
 BUILD=$(git rev-list --count HEAD)
 TAG="v$VERSION"
 IDENTITY="${SIGN_IDENTITY:-Developer ID Application: Xingyi Liao (HMDAVG9B8J)}"
-NOTARY_PROFILE="${NOTARY_PROFILE-notary}"
 OUT="$APPLE/build/release"
 STAGE="$OUT/stage"
 DERIVED="$APPLE/build/ReleaseData"
 APP="$STAGE/OpenTodo.app"
 [ -n "$VERSION" ] || { echo "no MARKETING_VERSION in project.yml" >&2; exit 1; }
+
+NOTARY_ENV="$HOME/.appstoreconnect/notary.env"
+if [ -z "${NOTARY_PROFILE:-}${NOTARY_KEY:-}" ] && [ "${NOTARIZE:-1}" != 0 ] && [ -r "$NOTARY_ENV" ]; then
+  # shellcheck disable=SC1090
+  . "$NOTARY_ENV"
+fi
+NOTARY=()
+if [ "${NOTARIZE:-1}" = 0 ]; then
+  :
+elif [ -n "${NOTARY_KEY:-}" ]; then
+  : "${NOTARY_KEY_ID:?NOTARY_KEY needs NOTARY_KEY_ID}" "${NOTARY_ISSUER:?NOTARY_KEY needs NOTARY_ISSUER}"
+  [ -r "$NOTARY_KEY" ] || { echo "can't read NOTARY_KEY: $NOTARY_KEY" >&2; exit 1; }
+  NOTARY=(--key "$NOTARY_KEY" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER")
+elif [ -n "${NOTARY_PROFILE:-}" ]; then
+  NOTARY=(--keychain-profile "$NOTARY_PROFILE")
+  if [ -n "${NOTARY_KEYCHAIN:-}" ]; then NOTARY+=(--keychain "$NOTARY_KEYCHAIN"); fi
+fi
+if [ ${#NOTARY[@]} -gt 0 ]; then
+  # Before the build, not minutes into it: the credentials must work now.
+  xcrun notarytool history "${NOTARY[@]}" >/dev/null || { echo "notarytool can't sign in with these credentials" >&2; exit 1; }
+elif [ -n "$publish" ]; then
+  echo "a published build is notarized: give notarytool credentials (see the top of this script)" >&2; exit 1
+else
+  echo "▸ not notarizing: don't hand this build out"
+fi
 
 notes() {
   # The CHANGELOG section of $VERSION, without its heading.
@@ -55,7 +84,6 @@ if [ -n "$publish" ]; then
   fi
   if gh release view "$TAG" >/dev/null 2>&1; then echo "the release $TAG is already out" >&2; exit 1; fi
   [ -n "$(notes)" ] || { echo "CHANGELOG.md has no section ## [$VERSION]" >&2; exit 1; }
-  [ -n "$NOTARY_PROFILE" ] || { echo "a published build is notarized: NOTARY_PROFILE can't be empty" >&2; exit 1; }
 fi
 
 echo "▸ OpenTodo $VERSION ($BUILD)"
@@ -85,10 +113,10 @@ for bundle in "$APP" "$APP"/Contents/PlugIns/*.appex; do
     || { echo "$(basename "$bundle"): not in the App Group" >&2; exit 1; }
 done
 
-if [ -n "$NOTARY_PROFILE" ]; then
+if [ ${#NOTARY[@]} -gt 0 ]; then
   echo "▸ notarize the app"
   ditto -c -k --keepParent "$APP" "$OUT/notarize.zip"
-  xcrun notarytool submit "$OUT/notarize.zip" --keychain-profile "$NOTARY_PROFILE" --wait
+  xcrun notarytool submit "$OUT/notarize.zip" "${NOTARY[@]}" --wait
   xcrun stapler staple "$APP"
   spctl --assess --type execute "$APP"
   rm "$OUT/notarize.zip"
@@ -103,9 +131,9 @@ ln -s /Applications "$OUT/dmg/Applications"
 hdiutil create -quiet -volname "OpenTodo $VERSION" -srcfolder "$OUT/dmg" -fs APFS -format ULFO -ov "$DMG"
 rm -rf "$OUT/dmg"
 codesign --sign "$IDENTITY" --timestamp "$DMG"
-if [ -n "$NOTARY_PROFILE" ]; then
+if [ ${#NOTARY[@]} -gt 0 ]; then
   echo "▸ notarize the dmg"
-  xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+  xcrun notarytool submit "$DMG" "${NOTARY[@]}" --wait
   xcrun stapler staple "$DMG"
   spctl --assess --type open --context context:primary-signature "$DMG"
 fi
