@@ -393,8 +393,9 @@ private func sectionNames(_ sections: [ListSection]) -> [String] {
     ]
     var sections: [ListSection] = []
     let lists = [work: TaskList(id: work, name: "工作")]
-    // 今天 has no hand-made order to offer.
-    #expect(!sortsFor(.smart(.today)).contains(.manual))
+    // 今天 offers 自定义 (dragging a task's handle switches to it), but
+    // sorts by time unless asked.
+    #expect(sortsFor(.smart(.today)).contains(.manual) && sortsFor(.smart(.today)).first == .due)
 
     var view = list(tasks, sections, view: .smart(.today), grouping: .list, lists: lists)
     #expect(view.map(\.title) == ["收集箱", "工作"])

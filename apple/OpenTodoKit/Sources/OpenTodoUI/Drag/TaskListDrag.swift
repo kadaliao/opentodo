@@ -66,6 +66,10 @@ private struct TaskListDragSpace: ViewModifier {
         let folded = { (s: TaskSection) in model.taskList.isFolded(s, in: model.view) }
         let rows = shownRowIds(sections, folded: folded)
         content
+            // While a row is lifted by its handle the list doesn't scroll
+            // with the finger (iOS would, and the row would land elsewhere);
+            // near the ends it still scrolls on its own.
+            .scrollDisabled(drag.lift != nil)
             .environment(\.dragPicked, pickedTasks(sections, model.selection.ids, folded: folded))
             .dragAutoScroll("task-list", rows: rows)
             .dragSpace(drag)
@@ -92,7 +96,7 @@ private struct TaskListDragRow: ViewModifier {
     func body(content: Content) -> some View {
         let group = GroupDrop(section)
         let lit = group.map { drag?.highlights($0.target) == true } ?? false
-        let sortGroup = task.trashedAt == nil ? sortableGroup(section) : nil
+        let sortGroup = task.trashedAt == nil ? handleGroup(section, in: model.view) : nil
         #if os(macOS)
         let showsHandle = sortGroup != nil && (hovering || drag?.lift != nil && drag?.isDragged(task.id) == true)
         #else
@@ -198,16 +202,29 @@ func sortableGroup(_ section: TaskSection) -> GroupDrop? {
     return group
 }
 
+/// The group a row's handle (`SortHandle`) moves tasks within: the group
+/// `section` is when `view` is in 自定义 order, and also when it isn't but
+/// can be (今天, a tag, a list sorted by time…): the first press switches
+/// it to 自定义, keeping the order shown (`AppModel.sortByHand`). An
+/// ungrouped view's one section stands for the whole order.
+func handleGroup(_ section: TaskSection, in view: ViewRef) -> GroupDrop? {
+    if let group = sortableGroup(section) { return group }
+    guard !section.finished, sortsFor(view).contains(.manual) else { return nil }
+    // A group that takes no drops (已过期) has no order of its own either.
+    guard let target = section.target ?? (section.title == nil ? .order : nil) else { return nil }
+    return GroupDrop(target, tasks: section.tasks, manual: false)
+}
+
 #if os(iOS)
 extension View {
     /// A row's long-press menu, and in a group in manual order its right
     /// end: a long press there turns 排序 on (`start`) instead. It goes on
     /// before the row's tap (a tap on the right end still opens the task).
     /// While sorting (`sorting`) there's neither: rows move by their handles.
-    func taskRowMenu(_ task: TodoTask, in section: TaskSection, sorting: Bool, sorts: Bool,
+    func taskRowMenu(_ task: TodoTask, in section: TaskSection, of view: ViewRef, sorting: Bool, sorts: Bool,
                      start: @escaping () -> Void) -> some View {
         modifier(TaskRowMenu(task: task, sorting: sorting,
-                             grip: !sorting && sorts && task.trashedAt == nil && sortableGroup(section) != nil,
+                             grip: !sorting && sorts && task.trashedAt == nil && handleGroup(section, in: view) != nil,
                              start: start))
     }
 }
@@ -335,6 +352,12 @@ private struct SortHandle: View {
     }
 
     private func lift(_ drag: DragController) {
+        // Not in 自定义 order yet: it is from now on, in the order shown;
+        // the places it can land follow once that's saved.
+        if !group.manual {
+            let view = model.view
+            model.run { await model.sortByHand(view) }
+        }
         let target = group.target
         let preview = LiftedRowPreview(task: task, now: model.now, list: model.listsById[task.listId],
                                        checklist: model.checklistProgress(of: task.id))

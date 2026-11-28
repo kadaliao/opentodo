@@ -18,6 +18,23 @@ func matrixDrop(
     return moved == t ? nil : (t, moved)
 }
 
+/// The task `id` dragged by its handle to `position` in quadrant `index`:
+/// the new `sortOrder`s to write, and whether the quadrants switch to
+/// 自定义 order (`MatrixPrefs.manualOrder`). The first time, every quadrant
+/// keeps the order it showed by time.
+func matrixReorder(
+    _ id: String, to position: Int, in index: Int, tasks: [TodoTask], prefs: MatrixPrefs, now: LocalDateTime
+) -> (orders: [String: Double], switchToManual: Bool) {
+    let cells = matrixCells(tasks, prefs: prefs, now: now)
+    guard cells.indices.contains(index) else { return ([:], false) }
+    var orders: [String: Double] = [:]
+    if !prefs.manualOrder {
+        for c in cells where c.index != index { orders.merge(ordersFollowing(c.tasks)) { $1 } }
+    }
+    orders.merge(ordersFollowing(moving(cells[index].tasks, id, to: position))) { $1 }
+    return (orders, !prefs.manualOrder)
+}
+
 /// The quadrant a task shows in, if any.
 func matrixQuadrantIndex(of t: TodoTask, prefs: MatrixPrefs, now: LocalDateTime) -> Int? {
     matrixCells([t], prefs: prefs, now: now).first { !$0.tasks.isEmpty }?.index

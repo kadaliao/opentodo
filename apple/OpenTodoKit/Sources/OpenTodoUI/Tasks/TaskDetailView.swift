@@ -139,6 +139,7 @@ private struct TaskDetailForm: View {
             }
         }
         .formStyle(.grouped)
+        .reorderScrollLock()
         .onAppear {
             title = task.title
             notes = task.content
@@ -445,6 +446,7 @@ private struct ChecklistStack: View {
             }
         }
         .onChange(of: items.map(\.id)) { pending = nil }
+        .preference(key: ReorderingKey.self, value: dragging != nil)
     }
 
     /// The subtasks in the order to show: the one just dropped already in
@@ -456,9 +458,9 @@ private struct ChecklistStack: View {
         return known.count == items.count ? known : items
     }
 
-    private func dragState(_ shown: [ChecklistItem]) -> ChecklistDrag? {
+    private func dragState(_ shown: [ChecklistItem]) -> StackDrag? {
         guard let dragging, let from = shown.firstIndex(where: { $0.id == dragging }) else { return nil }
-        return ChecklistDrag(from: from, dy: dy, heights: shown.map { heights[$0.id] ?? 0 })
+        return StackDrag(from: from, dy: dy, heights: shown.map { heights[$0.id] ?? 0 })
     }
 
     private func handle(_ item: ChecklistItem, _ shown: [ChecklistItem]) -> some View {
@@ -476,7 +478,7 @@ private struct ChecklistStack: View {
                     .onChanged { value in
                         if dragging == nil { dragging = item.id }
                         guard let from = shown.firstIndex(where: { $0.id == item.id }) else { return }
-                        dy = ChecklistDrag.clamp(value.translation.height, from: from,
+                        dy = StackDrag.clamp(value.translation.height, from: from,
                                                  heights: shown.map { heights[$0.id] ?? 0 })
                     }
                     .onEnded { _ in drop(item, shown) }
@@ -500,7 +502,7 @@ private struct ChecklistStack: View {
 
 /// A subtask being dragged in a stack of rows `heights` tall (in order):
 /// the one at `from`, `dy` points from its place.
-struct ChecklistDrag: Equatable {
+struct StackDrag: Equatable {
     var from: Int
     var dy: CGFloat
     var heights: [CGFloat]

@@ -94,7 +94,7 @@ struct TaskListView: View {
             .tag(task.id)
             #if os(iOS)
             // A long press on the row's right end sorts instead (TaskListDropRows).
-            .taskRowMenu(task, in: section, sorting: sorting, sorts: !model.selection.isPicking) {
+            .taskRowMenu(task, in: section, of: view, sorting: sorting, sorts: !model.selection.isPicking) {
                 model.taskList.startSorting(view)
             }
             #endif

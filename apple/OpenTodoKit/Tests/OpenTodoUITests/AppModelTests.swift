@@ -784,3 +784,31 @@ private func settle(_ model: AppModel) async throws {
         #expect(phone.selectedTaskId == "okr" && phone.phonePath.last == .task("okr"))
     }
 }
+
+// MARK: - Sorting by hand where the view sorted by time
+
+@Suite struct SortByHandTests {
+    @Test func todaySwitchesToManualKeepingTheOrderShown() async throws {
+        let m = try await makeModel()
+        let view = ViewRef.smart(.today)
+        #expect(m.prefs(for: view).sortIn(view) == .due)
+        let before = m.sections(for: view).filter { !$0.finished }.map { $0.tasks.map(\.id) }
+        await m.sortByHand(view)
+        try await settle(m)
+        #expect(m.prefs(for: view).sortIn(view) == .manual)
+        let after = m.sections(for: view).filter { !$0.finished }.map { $0.tasks.map(\.id) }
+        #expect(after == before)
+        // Then a drag within a day writes the new place.
+        let day = try #require(m.sections(for: view).first { !$0.finished && $0.target != nil && $0.tasks.count > 1 })
+        let group = try #require(GroupDrop(day))
+        #expect(group.manual)
+        let last = try #require(day.tasks.last)
+        let plan = try #require(group.plan(DraggedTasks(last), at: 0))
+        await m.dropTasks(plan)
+        try await settle(m)
+        let moved = try #require(m.sections(for: view).first { $0.id == day.id })
+        // First among the unpinned (pinned ones stay on top).
+        let firstUnpinned = moved.tasks.first { $0.pinnedAt == nil }
+        #expect(last.pinnedAt != nil || firstUnpinned?.id == last.id)
+    }
+}

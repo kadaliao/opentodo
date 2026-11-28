@@ -284,6 +284,19 @@ extension AppModel {
         }
     }
 
+    /// Before a task of `view` is dragged by its handle in a view that
+    /// isn't in 自定义 order: the view's open tasks keep the order shown
+    /// (`ordersFollowing`), and the view sorts 自定义 from now on.
+    public func sortByHand(_ view: ViewRef) async {
+        guard prefs(for: view).sortIn(view) != .manual, sortsFor(view).contains(.manual) else { return }
+        let shown = sections(for: view).filter { !$0.finished }.flatMap(\.tasks)
+        let orders = ordersFollowing(shown)
+        if !orders.isEmpty {
+            await attempt { try await repo.dropInto(Array(orders.keys), .order, orders) }
+        }
+        settings.setSort(view, .manual)
+    }
+
     // MARK: - Checklist
 
     /// Puts the subtask at `index` (counting it where it is now).

@@ -44,10 +44,16 @@ public final class DragController {
 
     public private(set) var lift: Lift?
 
+    /// Where the space is in the terms places are measured in: zero on
+    /// macOS, its place on the screen on iOS (`dragFrame`).
+    public internal(set) var origin: CGPoint = .zero
+
     struct SlotEntry {
         var frame: CGRect
         var kind: DropSlotKind
         var clips: [String]
+        /// The view that registered it (`DropSlotModifier`'s own id).
+        var owner: UUID?
     }
 
     struct Region {
@@ -171,15 +177,22 @@ public final class DragController {
         }
     }
 
-    func setSlot(_ id: String, frame: CGRect? = nil, kind: DropSlotKind? = nil, clips: [String]) {
+    func setSlot(_ id: String, frame: CGRect? = nil, kind: DropSlotKind? = nil, clips: [String], owner: UUID? = nil) {
         var entry = slots[id] ?? SlotEntry(frame: .zero, kind: kind ?? .taskArea(GroupDrop(.order), index: 0), clips: clips)
         if let frame { entry.frame = frame }
         if let kind { entry.kind = kind }
         entry.clips = clips
+        if let owner { entry.owner = owner }
         slots[id] = entry
     }
 
-    func removeSlot(_ id: String) { slots[id] = nil }
+    /// Forgets the place `id` — unless another view has taken it over since
+    /// (`owner`): when a list rebuilds a row, the new row can register before
+    /// the old one says it's gone, and the place would vanish with it.
+    func removeSlot(_ id: String, owner: UUID? = nil) {
+        if let owner, let current = slots[id]?.owner, current != owner { return }
+        slots[id] = nil
+    }
 
     /// The places inside the scroll view `region` that it shows now.
     public func visibleSlotIds(in region: String) -> Set<String> {
@@ -210,7 +223,13 @@ public final class DragController {
     // MARK: Scrolling at the edges
 
     private func scrollSteps(at p: CGPoint) -> [(String, CGFloat)] {
-        regions.map { id, r in (id, edgeScrollStep(p, in: clip(r.frame, r.clips), axis: r.axis)) }
+        regions.map { id, r in
+            let step = edgeScrollStep(p, in: clip(r.frame, r.clips), axis: r.axis)
+            // A row lifted by its handle near an edge starts there: only
+            // scroll once it's been moved toward that edge.
+            if let lift, step != 0, !(abs(lift.dy) > 8 && (lift.dy > 0) == (step > 0)) { return (id, 0) }
+            return (id, step)
+        }
     }
 
     private func startScrolling() {

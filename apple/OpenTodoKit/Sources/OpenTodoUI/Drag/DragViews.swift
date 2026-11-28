@@ -103,21 +103,43 @@ private struct DragSpace: ViewModifier {
         content
             .overlay(alignment: .topLeading) {
                 DropIndicatorView(hover: controller.hover)
+                    .offset(x: -controller.origin.x, y: -controller.origin.y)
             }
             .overlay(alignment: .topLeading) {
                 if let lift = controller.lift {
                     lift.preview
                         .frame(width: lift.frame.width, height: lift.frame.height)
                         .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
-                        .offset(x: lift.frame.minX, y: lift.frame.minY + lift.dy)
+                        .offset(x: lift.frame.minX - controller.origin.x, y: lift.frame.minY + lift.dy - controller.origin.y)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
             }
             .coordinateSpace(.named(DragController.space))
+            #if os(iOS)
+            // Places are measured on the screen here (`dragFrame`); this is
+            // where the space is on it.
+            .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: { controller.origin = $0 }
+            #endif
             .onDrop(of: [.text], delegate: SpaceDropDelegate(controller: controller))
             .environment(controller)
     }
+}
+
+/// Where a place is, in the terms the drag space works in: the space's own
+/// coordinates on macOS; on iOS the screen's, because inside a list row
+/// (`UICollectionView` cells) the space's name isn't found and SwiftUI
+/// quietly measures on the screen instead — the list itself, outside the
+/// rows, would come out in the space's coordinates, and nothing below
+/// the list's height would take a drop. `DragController.origin` turns
+/// these into the space's coordinates for drawing, and the other way for
+/// a drop's location.
+nonisolated func dragFrame(_ proxy: GeometryProxy) -> CGRect {
+    #if os(iOS)
+    proxy.frame(in: .global)
+    #else
+    proxy.frame(in: .named(DragController.space))
+    #endif
 }
 
 private struct SpaceDropDelegate: DropDelegate {
@@ -125,16 +147,21 @@ private struct SpaceDropDelegate: DropDelegate {
 
     func validateDrop(info: DropInfo) -> Bool { controller.item != nil }
 
-    func dropEntered(info: DropInfo) { controller.move(to: info.location) }
+    func dropEntered(info: DropInfo) { controller.move(to: place(info)) }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        controller.move(to: info.location)
+        controller.move(to: place(info))
         return DropProposal(operation: controller.hover == nil ? .forbidden : .move)
     }
 
     func dropExited(info: DropInfo) { controller.leave() }
 
-    func performDrop(info: DropInfo) -> Bool { controller.drop(at: info.location) }
+    func performDrop(info: DropInfo) -> Bool { controller.drop(at: place(info)) }
+
+    /// The pointer in the terms places are measured in (`dragFrame`).
+    private func place(_ info: DropInfo) -> CGPoint {
+        CGPoint(x: info.location.x + controller.origin.x, y: info.location.y + controller.origin.y)
+    }
 }
 
 /// The insertion line (with a ring at its start, as AppKit draws it) or
@@ -181,6 +208,7 @@ private struct DropSlotModifier: ViewModifier {
     let id: String
     let kind: DropSlotKind
     let outset: EdgeInsets
+    @State private var owner = UUID()
     @Environment(DragController.self) private var controller: DragController?
     @Environment(\.dragClips) private var clips
 
@@ -192,7 +220,7 @@ private struct DropSlotModifier: ViewModifier {
             // row — the task never opened (docs/apple.md §10).
             .background {
                 Color.clear.onGeometryChange(for: CGRect.self) { proxy in
-                    proxy.frame(in: .named(DragController.space))
+                    dragFrame(proxy)
                 } action: { frame in
                     let f = CGRect(
                         x: frame.minX - outset.leading,
@@ -200,13 +228,13 @@ private struct DropSlotModifier: ViewModifier {
                         width: frame.width + outset.leading + outset.trailing,
                         height: frame.height + outset.top + outset.bottom
                     )
-                    controller?.setSlot(id, frame: f, kind: kind, clips: clips)
+                    controller?.setSlot(id, frame: f, kind: kind, clips: clips, owner: owner)
                 }
             }
             .onChange(of: kind, initial: true) { _, kind in
-                controller?.setSlot(id, kind: kind, clips: clips)
+                controller?.setSlot(id, kind: kind, clips: clips, owner: owner)
             }
-            .onDisappear { controller?.removeSlot(id) }
+            .onDisappear { controller?.removeSlot(id, owner: owner) }
     }
 }
 
@@ -294,7 +322,7 @@ private struct DragAutoScroll: ViewModifier {
                 state.viewport = g.containerSize
             }
             .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .named(DragController.space))
+                dragFrame(proxy)
             } action: { frame in
                 controller?.setRegion(id, frame: frame, axis: axis, clips: clips, scroll: scroll)
             }
@@ -323,7 +351,7 @@ private struct ListAutoScroll: ViewModifier {
             content
                 .environment(\.dragClips, clips + [id])
                 .onGeometryChange(for: CGRect.self) { proxy in
-                    proxy.frame(in: .named(DragController.space))
+                    dragFrame(proxy)
                 } action: { frame in
                     controller?.setRegion(id, frame: frame, axis: .vertical, clips: clips) { step in
                         scroll(step, proxy)

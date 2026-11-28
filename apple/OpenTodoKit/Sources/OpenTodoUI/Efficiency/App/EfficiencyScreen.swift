@@ -107,6 +107,17 @@ struct EfficiencyScreen: View {
                     }
                 },
                 onPrefsChange: { model.settings.setMatrixPrefs($0) },
+                onReorder: { orders, switchToManual in
+                    model.run {
+                        if !orders.isEmpty { try await model.repo.dropInto(Array(orders.keys), .order, orders) }
+                        // After the orders are in, so nothing re-sorts for a moment.
+                        if switchToManual {
+                            var p = model.settings.matrixPrefs
+                            p.manualOrder = true
+                            model.settings.setMatrixPrefs(p)
+                        }
+                    }
+                },
                 ruleEditor: filterRuleEditor, start: matrixStart(start)
             )
             .id(id)

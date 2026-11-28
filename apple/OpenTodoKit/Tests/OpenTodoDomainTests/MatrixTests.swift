@@ -122,3 +122,20 @@ struct MatrixTests {
         #expect(movedIntoQuadrant(task, MatrixQuadrant(name: "", rule: rule), today: mToday) == task)
     }
 }
+
+
+@Suite("Matrix manual order")
+struct MatrixManualOrderTests {
+    @Test("自定义 order is kept in the prefs and sorts by sortOrder; older prefs read as by time")
+    func manual() {
+        let now = LocalDateTime(Day(2026, 11, 28), minute: 600)
+        let a = TodoTask(id: "a", listId: "L", title: "a", priority: .high, dueDate: Day(2026, 11, 29), sortOrder: 1)
+        let b = TodoTask(id: "b", listId: "L", title: "b", priority: .high, dueDate: Day(2026, 11, 28), sortOrder: 2)
+        #expect(matrixCells([a, b], now: now)[0].tasks.map(\.id) == ["b", "a"])
+        let manual = MatrixPrefs(manualOrder: true)
+        #expect(matrixCells([a, b], prefs: manual, now: now)[0].tasks.map(\.id) == ["a", "b"])
+        #expect(MatrixPrefs.decode(manual.json).manualOrder)
+        #expect(!MatrixPrefs.decode(MatrixPrefs().json).manualOrder)
+        #expect(!MatrixPrefs.decode(#"{"quadrants":[]}"#).manualOrder)
+    }
+}

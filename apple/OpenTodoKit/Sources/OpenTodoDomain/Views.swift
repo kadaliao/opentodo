@@ -202,7 +202,10 @@ public func isDateView(_ view: ViewRef) -> Bool {
 /// too) can be ordered by hand.
 public func sortsFor(_ view: ViewRef) -> [TaskSort] {
     if arrangedListId(view) != nil { return TaskSort.allCases }
-    return groupingsFor(view).isEmpty ? [] : [.due, .title, .tag, .priority]
+    // 自定义 last, so the default stays 时间 (the Flutter version has no
+    // 自定义 here; it falls back to its default). Dragging a task by its
+    // handle switches to it (`ordersFollowing`).
+    return groupingsFor(view).isEmpty ? [] : [.due, .title, .tag, .priority, .manual]
 }
 
 /// The list a view shows, if it is one the person arranges by hand: one of
@@ -213,6 +216,31 @@ public func arrangedListId(_ view: ViewRef) -> String? {
     case .smart(.inbox): inboxListId
     default: nil
     }
+}
+
+/// New `sortOrder`s that put `shown` in this order (as 自定义 sorts them),
+/// reusing the values they have between them, so tasks elsewhere keep
+/// their places; ties are nudged apart. Only the ones that change.
+public func ordersFollowing(_ shown: [TodoTask]) -> [String: Double] {
+    var values = shown.map(\.sortOrder).sorted()
+    for i in values.indices.dropFirst() where values[i] <= values[i - 1] { values[i] = values[i - 1] + 1 }
+    var out: [String: Double] = [:]
+    for (t, v) in zip(shown, values) where t.sortOrder != v { out[t.id] = v }
+    return out
+}
+
+/// `shown` with the task `id` moved to `position` (its place in the
+/// result), kept among the pinned or the unpinned like it, which 自定义
+/// always shows first.
+public func moving(_ shown: [TodoTask], _ id: String, to position: Int) -> [TodoTask] {
+    guard let from = shown.firstIndex(where: { $0.id == id }) else { return shown }
+    var rest = shown
+    let t = rest.remove(at: from)
+    let pinned = t.pinnedAt != nil
+    let split = rest.firstIndex { $0.pinnedAt == nil } ?? rest.count
+    let lo = pinned ? 0 : split, hi = pinned ? split : rest.count
+    rest.insert(t, at: min(max(position, lo), hi))
+    return rest
 }
 
 /// Manual order: smallest `sortOrder` first, newest first on a tie.
@@ -609,9 +637,9 @@ public func buildSections(
         sections = bySection(open, listId, sectionsByList[listId] ?? [], order)
     case .date where dateView:
         sections = byViewDay(open, today, days: view == .smart(.next7) ? 7 : 1,
-                             first: view == .smart(.tomorrow) ? today + 1 : today)
+                             first: view == .smart(.tomorrow) ? today + 1 : today, manual: manual)
     case .date: sections = byDate(open, today, manual)
-    case .list: sections = byList(open, lists)
+    case .list: sections = byList(open, lists, manual)
     case .tag: sections = byTag(open, manual)
     case .priority: sections = byPriority(open, manual)
     case .none:
@@ -659,7 +687,7 @@ private func bySection(_ open: [TodoTask], _ listId: String, _ listSections: [Li
 
 /// 今天 / 明天 / 最近7天 by day: 已过期, then each of the view's `days` days
 /// from `first`.
-private func byViewDay(_ open: [TodoTask], _ today: Day, days: Int, first: Day) -> [TaskSection] {
+private func byViewDay(_ open: [TodoTask], _ today: Day, days: Int, first: Day, manual: Bool = false) -> [TaskSection] {
     let overdue = open.filter { lastDueDay($0) < today }
     // A span that began earlier shows once, on the view's first day.
     var keys: [Day] = []
@@ -679,7 +707,8 @@ private func byViewDay(_ open: [TodoTask], _ today: Day, days: Int, first: Day) 
             id: "day-\(key.key)",
             title: daySectionTitle(key, today: today),
             tasks: byDay[key] ?? [],
-            target: .date(key)
+            target: .date(key),
+            manualOrder: manual
         ))
     }
     return out
@@ -741,7 +770,7 @@ public func groupForTimeline(_ tasks: [TodoTask], _ grouping: TaskGrouping, _ li
 }
 
 /// By list, in the sidebar's order (收集箱 first).
-private func byList(_ open: [TodoTask], _ lists: [String: TaskList]) -> [TaskSection] {
+private func byList(_ open: [TodoTask], _ lists: [String: TaskList], _ manual: Bool = false) -> [TaskSection] {
     var ids: [String] = []
     var byList: [String: [TodoTask]] = [:]
     for t in open {
@@ -765,7 +794,8 @@ private func byList(_ open: [TodoTask], _ lists: [String: TaskList]) -> [TaskSec
             id: "list-\(id)",
             title: listName(id, lists),
             tasks: byList[id]!,
-            target: id == inboxListId || lists[id] != nil ? .list(id) : nil
+            target: id == inboxListId || lists[id] != nil ? .list(id) : nil,
+            manualOrder: manual
         )
     }
 }

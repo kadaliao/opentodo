@@ -13,7 +13,7 @@ settings:
     DEVELOPMENT_TEAM: HMDAVG9B8J
     CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.3.0"
+    MARKETING_VERSION: "0.3.1"
     CURRENT_PROJECT_VERSION: "1"
   # System integration (docs/apple.md, 系统集成): the App Group the app and
   # its extensions share the database through, and the URL scheme the app

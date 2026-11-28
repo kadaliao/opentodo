@@ -32,6 +32,9 @@ public struct MatrixRootView: View {
     public var onMoveTask: (TodoTask, TodoTask) -> Void
     public var onQuickAdd: (String, QuickAddDefaults) -> Void
     public var onPrefsChange: (MatrixPrefs) -> Void
+    /// New `sortOrder`s from dragging a task by its handle, and whether the
+    /// quadrants switch to 自定义 order (write the orders first).
+    public var onReorder: ([String: Double], Bool) -> Void
     public var ruleEditor: MatrixRuleEditor?
 
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -48,11 +51,12 @@ public struct MatrixRootView: View {
         onMoveTask: @escaping (TodoTask, TodoTask) -> Void,
         onQuickAdd: @escaping (String, QuickAddDefaults) -> Void,
         onPrefsChange: @escaping (MatrixPrefs) -> Void,
+        onReorder: @escaping ([String: Double], Bool) -> Void = { _, _ in },
         ruleEditor: MatrixRuleEditor? = nil
     ) {
         self.init(tasks: tasks, prefs: prefs, now: now, lists: lists, onToggleDone: onToggleDone, onOpenTask: onOpenTask,
-                  onMoveTask: onMoveTask, onQuickAdd: onQuickAdd, onPrefsChange: onPrefsChange, ruleEditor: ruleEditor,
-                  start: .grid)
+                  onMoveTask: onMoveTask, onQuickAdd: onQuickAdd, onPrefsChange: onPrefsChange, onReorder: onReorder,
+                  ruleEditor: ruleEditor, start: .grid)
     }
 
     enum Start: Hashable {
@@ -65,7 +69,8 @@ public struct MatrixRootView: View {
         tasks: [TodoTask], prefs: MatrixPrefs, now: LocalDateTime, lists: [TaskList],
         onToggleDone: @escaping (TodoTask) -> Void, onOpenTask: @escaping (TodoTask) -> Void,
         onMoveTask: @escaping (TodoTask, TodoTask) -> Void, onQuickAdd: @escaping (String, QuickAddDefaults) -> Void,
-        onPrefsChange: @escaping (MatrixPrefs) -> Void, ruleEditor: MatrixRuleEditor?, start: Start
+        onPrefsChange: @escaping (MatrixPrefs) -> Void, onReorder: @escaping ([String: Double], Bool) -> Void = { _, _ in },
+        ruleEditor: MatrixRuleEditor?, start: Start
     ) {
         self.tasks = tasks
         self.prefs = prefs
@@ -76,6 +81,7 @@ public struct MatrixRootView: View {
         self.onMoveTask = onMoveTask
         self.onQuickAdd = onQuickAdd
         self.onPrefsChange = onPrefsChange
+        self.onReorder = onReorder
         self.ruleEditor = ruleEditor
         if case .quadrant(let i) = start { _path = State(initialValue: [i]) } else { _path = State(initialValue: []) }
         _editing = State(initialValue: start == .edit)
@@ -129,6 +135,10 @@ public struct MatrixRootView: View {
             },
             quickAdd: { title, i in
                 onQuickAdd(title, matrixQuickAddDefaults(i, prefs: prefs, today: now.day))
+            },
+            reorder: { id, position, i in
+                let r = matrixReorder(id, to: position, in: i, tasks: tasks, prefs: prefs, now: now)
+                if !r.orders.isEmpty || r.switchToManual { onReorder(r.orders, r.switchToManual) }
             }
         )
     }
@@ -152,6 +162,8 @@ struct MatrixRowActions {
     /// A task id dropped into a quadrant.
     var move: (String, Int) -> Void
     var quickAdd: (String, Int) -> Void
+    /// A task dragged by its handle to a place in its quadrant.
+    var reorder: (String, Int, Int) -> Void = { _, _, _ in }
 }
 
 // MARK: - Block
@@ -170,6 +182,13 @@ struct MatrixBlock: View {
     @State private var newTitle = ""
 
     private var tint: Color { MatrixStyle.tint(cell.index) }
+
+    /// Mac: the ≡ shows while the pointer is over a row; iPad: always.
+    #if os(macOS)
+    private static let handles: ReorderHandles = .onHover
+    #else
+    private static let handles: ReorderHandles = .always
+    #endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -190,18 +209,24 @@ struct MatrixBlock: View {
             .accessibilityLabel(Text("\(cell.name)，\(cell.tasks.count)个任务"))
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(cell.tasks) { t in
+                VStack(alignment: .leading, spacing: 0) {
+                    // The ≡ moves a task up and down in the quadrant; the
+                    // rest of the row drags it into another quadrant.
+                    ReorderStack(cell.tasks, handles: compact ? .hidden : Self.handles) { t in
                         MatrixTaskRow(task: t, now: now, lists: lists, compact: compact, tint: tint,
                                       onToggle: compact ? nil : { actions.toggleDone(t) })
-                            .padding(.horizontal, (compact ? 10 : 14) * s)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(.rect)
                             .onTapGesture { compact ? onExpand() : actions.open(t) }
                             .draggable(t.id) {
                                 Text(t.title).padding(8 * s).background(.regularMaterial, in: .rect(cornerRadius: 8 * s))
                             }
                             .contextMenu { MatrixTaskMenu(task: t, index: cell.index, prefs: prefs, actions: actions) }
+                    } onMove: { t, position in
+                        actions.reorder(t.id, position, cell.index)
                     }
+                    .padding(.leading, (compact ? 10 : 14) * s)
+                    .padding(.trailing, (compact ? 10 : 6) * s)
                     if cell.tasks.isEmpty {
                         Text(compact ? "没有任务" : "没有任务，可以把任务拖到这里")
                             .uiFont(.footnote)
@@ -212,6 +237,7 @@ struct MatrixBlock: View {
                 }
             }
             .scrollDisabled(compact)
+            .reorderScrollLock()
 
             if !compact {
                 HStack(spacing: 6 * s) {
@@ -331,6 +357,8 @@ struct MatrixQuadrantPage: View {
     var actions: MatrixRowActions
 
     @State private var newTitle = ""
+    /// 排序: the tasks are one stack, each with its ≡ (`ReorderStack`).
+    @State private var sorting = false
 
     var body: some View {
         let tint = MatrixStyle.tint(cell.index)
@@ -351,14 +379,32 @@ struct MatrixQuadrantPage: View {
                 if cell.tasks.isEmpty {
                     Text("没有任务").foregroundStyle(.secondary)
                 }
-                ForEach(cell.tasks) { t in
-                    MatrixTaskRow(task: t, now: now, lists: lists, compact: false, tint: tint, onToggle: { actions.toggleDone(t) })
-                        .contentShape(.rect)
-                        .onTapGesture { actions.open(t) }
-                        .swipeActions(edge: .leading) {
-                            Button("完成", systemImage: "checkmark") { actions.toggleDone(t) }.tint(.green)
-                        }
-                        .contextMenu { MatrixTaskMenu(task: t, index: cell.index, prefs: prefs, actions: actions) }
+                if sorting {
+                    ReorderStack(cell.tasks, handles: .always, dividerInset: 0) { t in
+                        MatrixTaskRow(task: t, now: now, lists: lists, compact: false, tint: tint)
+                            .padding(.vertical, 6 * s)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } onMove: { t, position in
+                        actions.reorder(t.id, position, cell.index)
+                    }
+                } else {
+                    ForEach(cell.tasks) { t in
+                        MatrixTaskRow(task: t, now: now, lists: lists, compact: false, tint: tint, onToggle: { actions.toggleDone(t) })
+                            .contentShape(.rect)
+                            .onTapGesture { actions.open(t) }
+                            .swipeActions(edge: .leading) {
+                                Button("完成", systemImage: "checkmark") { actions.toggleDone(t) }.tint(.green)
+                            }
+                            .contextMenu { MatrixTaskMenu(task: t, index: cell.index, prefs: prefs, actions: actions) }
+                    }
+                }
+            }
+        }
+        .reorderScrollLock()
+        .toolbar {
+            if cell.tasks.count > 1 || sorting {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(sorting ? "完成" : "排序") { sorting.toggle() }
                 }
             }
         }

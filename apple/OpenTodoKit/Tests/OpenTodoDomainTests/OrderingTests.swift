@@ -90,3 +90,33 @@ struct OrderingTests {
         #expect(m["a"] == 1.0)
     }
 }
+
+// Dragging a task by its handle in a view that wasn't in 自定义 order
+// (今天, 四象限): the order shown becomes the order kept.
+
+@Suite("Orders following what's shown")
+struct OrdersFollowingTests {
+    private func t(_ id: String, _ order: Double, pinned: Bool = false) -> TodoTask {
+        TodoTask(id: id, listId: "L", title: id, pinnedAt: pinned ? 1 : nil, sortOrder: order)
+    }
+
+    @Test("the values they have, handed out in the order shown")
+    func reuse() {
+        let shown = [t("c", 3000), t("a", 1000), t("b", 2000)]
+        #expect(ordersFollowing(shown) == ["c": 1000, "a": 2000, "b": 3000])
+        #expect(ordersFollowing([t("a", 1), t("b", 2)]).isEmpty)
+    }
+
+    @Test("ties are nudged apart")
+    func ties() {
+        #expect(ordersFollowing([t("a", 5), t("b", 5), t("c", 5)]) == ["b": 6, "c": 7])
+    }
+
+    @Test("a move stays among the pinned or the unpinned")
+    func pinned() {
+        let shown = [t("p", 9, pinned: true), t("a", 1), t("b", 2)]
+        #expect(moving(shown, "b", to: 0).map(\.id) == ["p", "b", "a"])
+        #expect(moving(shown, "p", to: 2).map(\.id) == ["p", "a", "b"])
+        #expect(moving(shown, "a", to: 2).map(\.id) == ["p", "b", "a"])
+    }
+}

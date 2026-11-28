@@ -68,6 +68,27 @@ final class TaskListDragUITests: XCTestCase {
         XCTAssertTrue(app.textFields["添加子任务"].waitForExistence(timeout: 5))
     }
 
+    /// 今天 sorts by time; dragging a task by its handle switches it to
+    /// 自定义, keeping the order shown, and the task stays where it's put.
+    @MainActor
+    func testTodaySortedByTimeCanBeSortedByHand() {
+        app.terminate()
+        app = XCUIApplication.launchOpenTodo(route: "smart:today")
+        let early = row("部门周会")          // 10:00
+        let late = row("写第四季度工作总结")   // 15:00
+        XCTAssertTrue(early.waitForExistence(timeout: 15))
+        XCTAssertLessThan(early.frame.minY, late.frame.minY)
+        rightEnd(of: late).press(forDuration: 0.8)
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertTrue(handle("report").waitForExistence(timeout: 5))
+        handle("report").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.2, thenDragTo: early.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)),
+                   withVelocity: .slow, thenHoldForDuration: 0.5)
+        done.tap()
+        XCTAssertTrue(late.waitForExistence(timeout: 5))
+        XCTAssertLessThan(row("写第四季度工作总结").frame.minY, row("部门周会").frame.minY)
+    }
+
     @MainActor
     func testLongPressElsewhereOpensTheMenu() {
         let r = row("部门周会")

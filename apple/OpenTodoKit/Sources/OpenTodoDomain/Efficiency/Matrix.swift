@@ -33,8 +33,21 @@ public struct MatrixPrefs: Sendable, Hashable, Codable {
     /// Always four.
     public var quadrants: [MatrixQuadrant]
 
-    public init(quadrants: [MatrixQuadrant] = MatrixPrefs.defaultQuadrants) {
+    /// Each quadrant in 自定义 order (`sortOrder`, set by dragging a task's
+    /// handle) instead of by time. Swift version only; missing is false.
+    public var manualOrder: Bool
+
+    public init(quadrants: [MatrixQuadrant] = MatrixPrefs.defaultQuadrants, manualOrder: Bool = false) {
         self.quadrants = MatrixPrefs.fill(quadrants)
+        self.manualOrder = manualOrder
+    }
+
+    private enum CodingKeys: String, CodingKey { case quadrants, manualOrder }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(quadrants, forKey: .quadrants)
+        if manualOrder { try c.encode(true, forKey: .manualOrder) }
     }
 
     public static let defaultQuadrants: [MatrixQuadrant] = [
@@ -57,7 +70,7 @@ public struct MatrixPrefs: Sendable, Hashable, Codable {
         self.init(quadrants: (qs ?? []).enumerated().map { i, q in
             let d = i < 4 ? MatrixPrefs.defaultQuadrants[i] : MatrixQuadrant(name: "", rule: "{}")
             return MatrixQuadrant(name: q.name ?? d.name, rule: q.rule ?? d.rule)
-        })
+        }, manualOrder: ((try? c.decodeIfPresent(Bool.self, forKey: .manualOrder)) ?? nil) ?? false)
     }
 
     /// A quadrant with whatever fields could be read.
@@ -113,7 +126,7 @@ public func matrixCells(_ tasks: [TodoTask], prefs: MatrixPrefs = .standard, now
     for t in tasks where t.deletedAt == nil && isOpen(t) {
         if let i = tests.firstIndex(where: { $0(t) }) { buckets[i].append(t) }
     }
-    let compare = TaskSort.due.compare
+    let compare = (prefs.manualOrder ? TaskSort.manual : .due).compare
     return prefs.quadrants.enumerated().map { i, q in
         MatrixCell(index: i, name: q.name, tasks: buckets[i].sorted(comparing: compare))
     }
