@@ -31,8 +31,11 @@ public struct ViewIcon: View {
     }
 
     public static func list(_ list: TaskList?, style: Style = .plain) -> ViewIcon {
-        if let e = list?.emoji, !e.isEmpty { return ViewIcon(.emoji(e), style: style) }
-        return ViewIcon(.symbol(ViewSymbol.list, Palette.list(list?.color)), style: style)
+        switch list?.icon {
+        case .emoji(let e)?: return ViewIcon(.emoji(e), style: style)
+        case .symbol(let name)?: return ViewIcon(.symbol(name, Palette.list(list?.color)), style: style)
+        case nil: return ViewIcon(.symbol(ViewSymbol.list, Palette.list(list?.color)), style: style)
+        }
     }
 
     public static func filter(style: Style = .plain) -> ViewIcon {
@@ -55,7 +58,13 @@ public struct ViewIcon: View {
             // selected sidebar row can turn it white.
             Image(systemName: name)
         case (.emoji(let e), .plain):
-            Text(e)
+            // A typed-in character or two (`ListIcon.custom`) fits the
+            // symbol's box.
+            if e.count > 1 {
+                Text(e).uiFont(.caption2, weight: .semibold).lineLimit(1).minimumScaleFactor(0.6)
+            } else {
+                Text(e)
+            }
         case (.symbol(let name, let color), .badge):
             Image(systemName: name)
                 .symbolVariant(.fill)
@@ -65,9 +74,23 @@ public struct ViewIcon: View {
                 .background(color.gradient, in: Circle())
         case (.emoji(let e), .badge):
             Text(e)
-                .uiFont(size: 17)
+                .uiFont(size: e.count > 1 ? 12 : 17, weight: e.count > 1 ? .semibold : .regular)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .frame(width: 30 * s, height: 30 * s)
                 .background(Color.secondary.opacity(0.14), in: Circle())
         }
+    }
+}
+
+/// A list's name with its icon, for menus and pickers: a symbol as the
+/// item's image, an emoji (or `fallback`) before the name.
+@ViewBuilder
+func listMenuLabel(_ l: TaskList, fallback: String? = "📋") -> some View {
+    switch l.icon {
+    case .symbol(let name)?: Label(l.name, systemImage: name)
+    case .emoji(let e)?: Text("\(e) \(l.name)")
+    case nil:
+        if let fallback { Text("\(fallback) \(l.name)") } else { Text(l.name) }
     }
 }

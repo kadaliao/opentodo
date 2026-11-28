@@ -13,6 +13,7 @@ import '../state/providers.dart';
 import 'task_actions.dart';
 import 'task_tile.dart';
 import 'theme.dart';
+import '../domain/list_icon.dart';
 
 /// The right pane on a wide window.
 class TaskDetailPane extends ConsumerWidget {
@@ -288,7 +289,7 @@ class _TaskDetailState extends ConsumerState<TaskDetail> {
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
         child: Row(children: [
           TextButton.icon(
-            icon: Text(task.listId == inboxListId ? '📥' : (lists[task.listId]?.emoji ?? '📋')),
+            icon: Text(task.listId == inboxListId ? '📥' : (listEmoji(lists[task.listId]?.emoji) ?? '📋')),
             label: Text(listName(task.listId, lists)),
             onPressed: trashed
                 ? null

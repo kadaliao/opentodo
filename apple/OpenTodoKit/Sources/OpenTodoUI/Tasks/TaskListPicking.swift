@@ -48,7 +48,7 @@ extension AppModel {
 }
 
 /// Esc, the iPhone edit mode and bottom bar, and 完成 to stop picking —
-/// or sorting (iOS 排序, TaskListDrag.swift), which is edit mode too.
+/// or sorting (iOS 排序, TaskListDrag.swift: each row shows its ≡).
 struct TaskListPicking: ViewModifier {
     @Environment(AppModel.self) private var model
     var view: ViewRef
@@ -59,7 +59,7 @@ struct TaskListPicking: ViewModifier {
         #else
         let sorting = model.taskList.isSorting(view)
         content
-            .environment(\.editMode, .constant(model.selection.isPicking || sorting ? .active : .inactive))
+            .environment(\.editMode, .constant(model.selection.isPicking ? .active : .inactive))
             .batchBottomBar(selection: model.width == .compact && model.selection.isPicking
                                 ? model.batchSelection ?? BatchSelection(ids: [], tasks: []) : nil,
                             lists: model.lists, knownTags: model.tags, today: model.today) { action in

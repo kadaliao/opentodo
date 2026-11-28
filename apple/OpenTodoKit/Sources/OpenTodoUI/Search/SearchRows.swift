@@ -73,8 +73,10 @@ struct SearchViewRow: View {
     @ViewBuilder private var icon: some View {
         switch entry {
         case .list(let l):
-            if let emoji = l.emoji, !emoji.isEmpty {
+            if let emoji = l.textEmoji {
                 Text(emoji)
+            } else if case .symbol(let name)? = l.icon {
+                Image(systemName: name).foregroundStyle(Palette.list(l.color))
             } else {
                 Image(systemName: "list.bullet").foregroundStyle(.secondary)
             }
@@ -135,7 +137,7 @@ struct SearchTaskRow: View {
 
     private var listLabel: String {
         guard hit.task.listId != inboxListId, let list = lists[hit.task.listId] else { return "收集箱" }
-        return "\(list.emoji ?? "") \(list.name)".trimmingCharacters(in: .whitespaces)
+        return "\(list.textEmoji ?? "") \(list.name)".trimmingCharacters(in: .whitespaces)
     }
 }
 

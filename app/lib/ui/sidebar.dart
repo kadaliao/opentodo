@@ -8,6 +8,7 @@ import 'account_ui.dart';
 import 'dialogs.dart';
 import 'filter_editor.dart';
 import 'settings_page.dart';
+import '../domain/list_icon.dart';
 
 class Sidebar extends ConsumerWidget {
   const Sidebar({super.key, this.onSelected});
@@ -125,7 +126,7 @@ class Sidebar extends ConsumerWidget {
         for (final l in lists)
           item(
             ListViewRef(l.id),
-            _Emoji(l.emoji),
+            _Emoji(listEmoji(l.emoji)),
             l.name,
             onMenu: () => _listMenu(context, ref, l),
           ),

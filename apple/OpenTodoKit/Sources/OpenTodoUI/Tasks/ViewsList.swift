@@ -123,6 +123,9 @@ struct ViewsList: View {
             label
                 .modifier(SidebarBadge(count: count))
                 .listItemTint(icon.tint.map(ListItemTint.fixed) ?? .monochrome)
+                #if os(macOS)
+                .sidebarTaskDrop(view)
+                #endif
                 .tag(SidebarItem.view(view))
         case .phone:
             NavigationLink(value: PhoneRoute.view(view)) {

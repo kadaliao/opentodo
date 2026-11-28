@@ -20,6 +20,7 @@ import 'agenda_view.dart';
 import 'entry_chip.dart';
 import 'month_view.dart';
 import 'time_grid.dart';
+import '../../domain/list_icon.dart';
 
 /// The calendar module: a header to change mode and page, the mode's view,
 /// and on a wide window a sidebar (small month, lists) and the selected
@@ -399,7 +400,7 @@ class ListFilter extends ConsumerWidget {
     final lists = ref.watch(listsProvider).value ?? const <TaskList>[];
     final rows = [
       (inboxListId, '📥', '收集箱'),
-      for (final l in lists) (l.id, l.emoji ?? '📋', l.name),
+      for (final l in lists) (l.id, listEmoji(l.emoji) ?? '📋', l.name),
     ];
     void toggle(String id, bool show) {
       final hidden = {...prefs.hiddenLists};
@@ -575,7 +576,7 @@ class _NewTaskFormState extends ConsumerState<_NewTaskForm> {
       Align(
         alignment: Alignment.centerLeft,
         child: TextButton.icon(
-          icon: Text(_listId == inboxListId ? '📥' : (lists[_listId]?.emoji ?? '📋')),
+          icon: Text(_listId == inboxListId ? '📥' : (listEmoji(lists[_listId]?.emoji) ?? '📋')),
           label: Text(listName(_listId, lists)),
           onPressed: () async {
             final id = await pickList(context, ref, current: _listId);

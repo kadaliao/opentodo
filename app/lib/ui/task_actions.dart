@@ -8,6 +8,7 @@ import '../state/providers.dart';
 import '../state/selection.dart';
 import 'schedule_dialog.dart';
 import 'theme.dart';
+import '../domain/list_icon.dart';
 
 /// Right-click (or long-press) menu for a task row.
 Future<void> showTaskMenu(
@@ -176,7 +177,7 @@ Future<String?> pickList(BuildContext context, WidgetRef ref, {String? current})
       title: const Text('移动到'),
       children: [
         _listOption(context, inboxListId, '📥', '收集箱', current),
-        for (final l in lists) _listOption(context, l.id, l.emoji ?? '📋', l.name, current),
+        for (final l in lists) _listOption(context, l.id, listEmoji(l.emoji) ?? '📋', l.name, current),
       ],
     ),
   );

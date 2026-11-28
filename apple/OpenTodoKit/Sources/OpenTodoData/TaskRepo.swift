@@ -520,20 +520,23 @@ public final class TaskRepo: Sendable {
     // MARK: - Lists
 
     @discardableResult
-    public func addList(_ name: String, emoji: String? = nil, id: String? = nil) async throws -> String {
+    public func addList(_ name: String, emoji: String? = nil, color: Int? = nil, id: String? = nil) async throws -> String {
         let id = id ?? newId()
         let now = self.now
-        let list = TaskList(id: id, name: name, emoji: emoji, sortOrder: Double(now), createdAt: now, updatedAt: now)
+        let list = TaskList(id: id, name: name, emoji: emoji, color: color, sortOrder: Double(now), createdAt: now, updatedAt: now)
         try await write { try list.insert($0) }
         return id
     }
 
-    /// Nil leaves a field as it is.
-    public func updateList(_ id: String, name: String? = nil, emoji: String? = nil, sortOrder: Double? = nil) async throws {
+    /// Nil leaves a field as it is; `emoji: .some(nil)` / `color: .some(nil)`
+    /// take the icon / colour away.
+    public func updateList(_ id: String, name: String? = nil, emoji: String?? = nil, color: Int?? = nil,
+                           sortOrder: Double? = nil) async throws {
         try await write { db in
             guard var l = try TaskList.fetchOne(db, key: id) else { return }
             if let name { l.name = name }
             if let emoji { l.emoji = emoji }
+            if let color { l.color = color }
             if let sortOrder { l.sortOrder = sortOrder }
             l.updatedAt = self.now
             l.dirty = true

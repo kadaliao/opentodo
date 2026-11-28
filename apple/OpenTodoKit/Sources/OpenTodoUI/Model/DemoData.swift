@@ -30,7 +30,7 @@ public enum DemoData {
     public static func seed(_ repo: TaskRepo, now: LocalDateTime) async throws {
         if try await !repo.database.observeTasks().first().isEmpty { return }
         let d = make(today: now.day, now: now, timeZone: repo.timeZone)
-        for l in d.lists { try await repo.addList(l.name, emoji: l.emoji, id: l.id) }
+        for l in d.lists { try await repo.addList(l.name, emoji: l.emoji, color: l.color, id: l.id) }
         for s in d.sections { try await repo.addSection(s.listId, s.name, id: s.id) }
         for t in d.tasks {
             try await repo.addTask(
@@ -140,8 +140,9 @@ public enum DemoData {
         task("old", "预约汽车保养", list: "life", trashed: true)
 
         let lists = [("work", "工作", "💼"), ("life", "生活", "🏠"), ("shopping", "购物", "🛒"),
-                     ("reading", "读书", "📚"), ("fitness", "健身", "🏃")].enumerated().map { i, l in
-            TaskList(id: l.0, name: l.1, emoji: l.2, sortOrder: Double(i + 1) * 1024, createdAt: nowMs, updatedAt: nowMs)
+                     ("reading", "读书", "📚"), ("fitness", "健身", "sf:figure.run")].enumerated().map { i, l in
+            // 健身 has a symbol for its icon, in its own colour.
+            TaskList(id: l.0, name: l.1, emoji: l.2, color: l.0 == "fitness" ? 0xFFFF9500 : nil, sortOrder: Double(i + 1) * 1024, createdAt: nowMs, updatedAt: nowMs)
         }
         let sections = [
             ListSection(id: "work-doing", listId: "work", name: "进行中", sortOrder: 0, createdAt: nowMs, updatedAt: nowMs),

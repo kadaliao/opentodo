@@ -1,6 +1,7 @@
 // The task list with a finger: a long press on a row's right end turns
-// 排序 on (each row of a group in manual order gets the system's ≡ handle;
-// dragging one reorders within the group; 完成 turns it off); a long press
+// 排序 on (each row of a group in manual order gets a ≡ handle; dragging
+// one moves the task straight up or down within the group; 完成 turns it
+// off); a long press
 // elsewhere on the row opens the task's menu; a tap opens the task. On the
 // demo list 工作 (`-OTOpen list:work`), section 进行中: 做季度汇报的幻灯片
 // (pinned, on top), 写第四季度工作总结, 部门周会, 评审设计稿的第二版,
@@ -25,9 +26,10 @@ final class TaskListDragUITests: XCTestCase {
     @MainActor
     private var done: XCUIElement { app.navigationBars.buttons["完成"] }
 
+    /// A row's ≡ while sorting (`SortHandle`), by the task's id.
     @MainActor
-    private func handle(_ title: String) -> XCUIElement {
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "对完成、" + title + "、")).firstMatch
+    private func handle(_ id: String) -> XCUIElement {
+        app.descendants(matching: .any)["sort-handle-\(id)"].firstMatch
     }
 
     /// The right end of a row (the grip is the last 64 points of it).
@@ -43,18 +45,18 @@ final class TaskListDragUITests: XCTestCase {
         XCTAssertTrue(target.waitForExistence(timeout: 15))
         XCTAssertTrue(dragged.waitForExistence(timeout: 5))
         XCTAssertLessThan(target.frame.minY, dragged.frame.minY)
-        XCTAssertFalse(handle("部门周会").exists)
+        XCTAssertFalse(handle("standup").exists)
         rightEnd(of: dragged).press(forDuration: 0.8)
         // 排序: handles, 完成, and no menu.
         XCTAssertTrue(done.waitForExistence(timeout: 5))
-        XCTAssertTrue(handle("报销十一月的差旅费").waitForExistence(timeout: 5))
+        XCTAssertTrue(handle("invoice").waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["开始专注"].exists)
         // The last of the section onto the top half of 部门周会: before it.
-        handle("报销十一月的差旅费").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        handle("invoice").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .press(forDuration: 0.2, thenDragTo: target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)),
                    withVelocity: .slow, thenHoldForDuration: 0.5)
         done.tap()
-        XCTAssertFalse(handle("报销十一月的差旅费").waitForExistence(timeout: 2))
+        XCTAssertFalse(handle("invoice").waitForExistence(timeout: 2))
         // Out and back in: the list is drawn again from what was saved.
         app.navigationBars.buttons["BackButton"].tap()
         app.buttons["工作"].firstMatch.tap()

@@ -104,6 +104,16 @@ private struct DragSpace: ViewModifier {
             .overlay(alignment: .topLeading) {
                 DropIndicatorView(hover: controller.hover)
             }
+            .overlay(alignment: .topLeading) {
+                if let lift = controller.lift {
+                    lift.preview
+                        .frame(width: lift.frame.width, height: lift.frame.height)
+                        .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
+                        .offset(x: lift.frame.minX, y: lift.frame.minY + lift.dy)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
             .coordinateSpace(.named(DragController.space))
             .onDrop(of: [.text], delegate: SpaceDropDelegate(controller: controller))
             .environment(controller)
@@ -207,6 +217,7 @@ private struct DragSource<Preview: View>: ViewModifier {
     let isEnabled: Bool
     let preview: () -> Preview
     @Environment(DragController.self) private var controller: DragController?
+    @Environment(\.dragHandoff) private var handoff
 
     func body(content: Content) -> some View {
         if isEnabled, let controller {
@@ -224,6 +235,7 @@ private struct DragSource<Preview: View>: ViewModifier {
     /// autoclosure): that's when the controller learns what's dragged.
     private func token(_ controller: DragController) -> DragToken {
         controller.begin(item)
+        handoff?.begin(item, text: text)
         return DragToken(text: text)
     }
 }

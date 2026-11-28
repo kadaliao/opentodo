@@ -128,7 +128,7 @@ struct ListQuery: EntityStringQuery {
 
     private func all() async -> [ListEntity] {
         let lists = await WidgetStore.taskData(WidgetStore.open()).lists.filter { $0.id != inboxListId }
-        return [ListEntity.inbox] + lists.map { ListEntity(id: $0.id, name: $0.name, emoji: $0.emoji) }
+        return [ListEntity.inbox] + lists.map { ListEntity(id: $0.id, name: $0.name, emoji: $0.textEmoji) }
     }
 
     func entities(for identifiers: [String]) async throws -> [ListEntity] {

@@ -86,7 +86,12 @@ public struct TaskRow: View {
             }
             if showList {
                 HStack(spacing: 3 * s) {
-                    if let e = list?.emoji, !e.isEmpty { Text(e).uiFont(.caption2) }
+                    switch list?.icon {
+                    case .emoji(let e)?: Text(e).uiFont(.caption2)
+                    case .symbol(let name)?:
+                        Image(systemName: name).uiFont(.caption2).foregroundStyle(Palette.list(list?.color))
+                    case nil: EmptyView()
+                    }
                     Text(list?.name ?? "收集箱")
                 }
                 .foregroundStyle(.secondary)

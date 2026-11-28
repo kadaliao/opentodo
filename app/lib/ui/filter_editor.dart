@@ -6,6 +6,7 @@ import '../domain/filters.dart';
 import '../domain/views.dart';
 import '../state/providers.dart';
 import 'dialogs.dart';
+import '../domain/list_icon.dart';
 
 /// Asks for a new filter and saves it; returns its id.
 Future<String?> addFilter(BuildContext context, WidgetRef ref) async {
@@ -394,7 +395,7 @@ class _ValuePicker extends ConsumerWidget {
       ...switch (field) {
         FilterField.list => [
             (inboxListId, '收集箱'),
-            for (final l in lists.values) (l.id, '${l.emoji ?? ''} ${l.name}'.trim()),
+            for (final l in lists.values) (l.id, '${listEmoji(l.emoji) ?? ''} ${l.name}'.trim()),
           ],
         FilterField.tag => [
             (noTag, '无标签'),

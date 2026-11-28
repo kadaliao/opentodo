@@ -49,6 +49,8 @@ private struct TaskDetailForm: View {
     @State private var notes = ""
     @State private var saveTask: Task<Void, Never>?
     @State private var editingSchedule = false
+    /// iOS: 子任务 are being put in order (each shows its ≡, `ChecklistStack`).
+    @State private var sortingChecklist = false
     @FocusState private var focus: Field?
     @Environment(\.uiScale) private var s
 
@@ -98,7 +100,7 @@ private struct TaskDetailForm: View {
                 })) {
                     Text("📥 收集箱").tag(inboxListId)
                     ForEach(model.lists) { l in
-                        Text("\(l.emoji ?? "📋") \(l.name)").tag(l.id)
+                        listMenuLabel(l).tag(l.id)
                     }
                 } label: {
                     Label("清单", systemImage: "folder")
@@ -127,7 +129,7 @@ private struct TaskDetailForm: View {
             }
             .disabled(trashed)
 
-            ChecklistSection(taskId: task.id, readOnly: trashed)
+            ChecklistSection(taskId: task.id, readOnly: trashed, sorting: $sortingChecklist)
 
             Section {
             } footer: {
@@ -308,12 +310,18 @@ private struct TaskDetailForm: View {
     }
 }
 
-/// 子任务: tick, rename (on return or leaving the field), delete, drag to
-/// reorder, add.
+/// 子任务: tick, rename (on return or leaving the field), delete, add, and
+/// put in order by a handle (≡) that moves the subtask straight up or down
+/// only (`ChecklistStack`; the system list's `onMove` let it drift
+/// sideways). On macOS the subtasks are always that stack, the handle
+/// showing while the pointer is over a row; on iOS 排序 by the section's
+/// title (or in a row's long-press menu) turns them into it, with every
+/// handle showing, and 完成 back into rows that swipe to delete.
 private struct ChecklistSection: View {
     @Environment(AppModel.self) private var model
     var taskId: String
     var readOnly: Bool
+    @Binding var sorting: Bool
 
     @State private var newItem = ""
     @FocusState private var adding: Bool
@@ -321,22 +329,29 @@ private struct ChecklistSection: View {
 
     var body: some View {
         let items = model.checklist(of: taskId)
+        let sortable = !readOnly && items.count > 1
         Section {
-            ForEach(items) { item in
-                ChecklistRow(item: item, readOnly: readOnly)
+            #if os(macOS)
+            if !items.isEmpty {
+                ChecklistStack(items: items, readOnly: readOnly, sortable: sortable, sorting: false)
             }
-            .onMove(perform: readOnly ? nil : { from, to in
-                guard let i = from.first else { return }
-                let item = items[i]
-                model.run { await model.moveChecklistItem(item, to: to) }
-            })
-            .onDelete(perform: readOnly ? nil : { offsets in
+            #else
+            if sorting {
+                ChecklistStack(items: items, readOnly: readOnly, sortable: sortable, sorting: true)
+            } else {
+                ForEach(items) { item in
+                    ChecklistRow(item: item, among: items, readOnly: readOnly, sorting: false,
+                                 sortable: sortable, startSorting: { sorting = true })
+                }
+                .onDelete(perform: readOnly ? nil : { offsets in
                 for i in offsets {
                     let id = items[i].id
                     model.run { try await model.repo.deleteChecklistItem(id) }
                 }
-            })
-            if !readOnly {
+                })
+            }
+            #endif
+            if !readOnly && !sorting {
                 HStack(spacing: 8 * s) {
                     Image(systemName: "plus")
                         .foregroundStyle(.tint)
@@ -348,15 +363,25 @@ private struct ChecklistSection: View {
                 }
             }
         } header: {
-            Group {
+            HStack {
                 if !items.isEmpty {
                     Text("子任务 \(items.count(where: \.done))/\(items.count)")
                 } else {
                     Text("子任务")
                 }
+                #if os(iOS)
+                Spacer()
+                if sortable || sorting {
+                    Button(sorting ? "完成" : "排序") { sorting.toggle() }
+                        .buttonStyle(.borderless)
+                        .uiFont(.subheadline, weight: sorting ? .semibold : .regular)
+                        .textCase(nil)
+                }
+                #endif
             }
             .uiDefaultFont(.headline)
         }
+        .onChange(of: sortable) { _, can in if !can { sorting = false } }
     }
 
     private func add() {
@@ -369,10 +394,173 @@ private struct ChecklistSection: View {
     }
 }
 
-private struct ChecklistRow: View {
+/// The subtasks one under another, put in order by dragging a handle:
+/// the subtask follows the pointer up and down only (kept within the
+/// stack), the ones it passes slide out of its way, and where it's let go
+/// is written. Until the database says so, the stack keeps showing the new
+/// order (`pending`), so nothing jumps back for a moment.
+private struct ChecklistStack: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.uiScale) private var s
+    let items: [ChecklistItem]
+    let readOnly: Bool
+    let sortable: Bool
+    /// iOS 排序: every handle shows, the rows don't edit.
+    let sorting: Bool
+
+    @State private var heights: [String: CGFloat] = [:]
+    @State private var dragging: String?
+    @State private var dy: CGFloat = 0
+    @State private var pending: [String]?
+
+    var body: some View {
+        let shown = ordered
+        let drag = dragState(shown)
+        VStack(spacing: 0) {
+            ForEach(Array(shown.enumerated()), id: \.element.id) { i, item in
+                let lifted = item.id == dragging
+                VStack(spacing: 0) {
+                    if i > 0 {
+                        Divider().padding(.leading, (PriorityCheckbox.defaultSize + 8) * s)
+                            .opacity(lifted || drag.map { $0.shifts(i) != 0 } == true ? 0 : 1)
+                    }
+                    ChecklistRow(item: item, among: shown, readOnly: readOnly, sorting: sorting,
+                                 sortable: sortable, startSorting: {}) {
+                        handle(item, shown)
+                    }
+                    .padding(.vertical, 5 * s)
+                }
+                .background {
+                    if lifted {
+                        RoundedRectangle(cornerRadius: 8 * s, style: .continuous)
+                            .fill(.background)
+                            .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
+                            .padding(.horizontal, -6 * s)
+                    }
+                }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heights[item.id] = $0 }
+                .offset(y: lifted ? dy : CGFloat(drag?.shifts(i) ?? 0))
+                .zIndex(lifted ? 1 : 0)
+                .animation(lifted ? nil : .snappy(duration: 0.18), value: drag?.position)
+            }
+        }
+        .onChange(of: items.map(\.id)) { pending = nil }
+    }
+
+    /// The subtasks in the order to show: the one just dropped already in
+    /// its new place.
+    private var ordered: [ChecklistItem] {
+        guard let pending else { return items }
+        let byId = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        let known = pending.compactMap { byId[$0] }
+        return known.count == items.count ? known : items
+    }
+
+    private func dragState(_ shown: [ChecklistItem]) -> ChecklistDrag? {
+        guard let dragging, let from = shown.firstIndex(where: { $0.id == dragging }) else { return nil }
+        return ChecklistDrag(from: from, dy: dy, heights: shown.map { heights[$0.id] ?? 0 })
+    }
+
+    private func handle(_ item: ChecklistItem, _ shown: [ChecklistItem]) -> some View {
+        Image(systemName: "line.3.horizontal")
+            .foregroundStyle(.tertiary)
+            #if os(macOS)
+            .frame(width: 18 * s, height: 18 * s)
+            #else
+            .foregroundStyle(.secondary)
+            .frame(width: 44 * s, height: 36 * s)
+            #endif
+            .contentShape(Rectangle())
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                    .onChanged { value in
+                        if dragging == nil { dragging = item.id }
+                        guard let from = shown.firstIndex(where: { $0.id == item.id }) else { return }
+                        dy = ChecklistDrag.clamp(value.translation.height, from: from,
+                                                 heights: shown.map { heights[$0.id] ?? 0 })
+                    }
+                    .onEnded { _ in drop(item, shown) }
+            )
+            .help("拖动排序")
+            .accessibilityLabel("拖动排序")
+    }
+
+    private func drop(_ item: ChecklistItem, _ shown: [ChecklistItem]) {
+        defer {
+            dragging = nil
+            dy = 0
+        }
+        guard let state = dragState(shown), let index = state.moveIndex else { return }
+        var ids = shown.map(\.id)
+        ids.move(fromOffsets: [state.from], toOffset: index)
+        pending = ids
+        model.run { await model.moveChecklistItem(item, to: index) }
+    }
+}
+
+/// A subtask being dragged in a stack of rows `heights` tall (in order):
+/// the one at `from`, `dy` points from its place.
+struct ChecklistDrag: Equatable {
+    var from: Int
+    var dy: CGFloat
+    var heights: [CGFloat]
+
+    private func top(_ i: Int) -> CGFloat { heights[..<i].reduce(0, +) }
+    private func center(_ i: Int) -> CGFloat { top(i) + heights[i] / 2 }
+
+    /// The place it would take if let go now: past every row whose middle
+    /// its middle has gone by.
+    var position: Int {
+        guard heights.indices.contains(from) else { return from }
+        let mid = center(from) + dy
+        var p = from
+        if dy > 0 {
+            for j in (from + 1)..<heights.count where mid > center(j) { p = j }
+        } else if dy < 0 {
+            for j in (0..<from).reversed() where mid < center(j) { p = j }
+        }
+        return p
+    }
+
+    /// How far the row at `i` moves to make room.
+    func shifts(_ i: Int) -> CGFloat {
+        guard heights.indices.contains(from) else { return 0 }
+        let p = position, h = heights[from]
+        if from < i && i <= p { return -h }
+        if p <= i && i < from { return h }
+        return 0
+    }
+
+    /// The index `moveChecklistItem` / `Array.move(toOffset:)` take (counting
+    /// it where it is now); nil when it stays.
+    var moveIndex: Int? {
+        let p = position
+        return p == from ? nil : p > from ? p + 1 : p
+    }
+
+    /// `dy` kept about within the stack: at most half the row past the
+    /// first row's top or the last row's bottom (enough to get past their
+    /// middles and take their places).
+    static func clamp(_ dy: CGFloat, from: Int, heights: [CGFloat]) -> CGFloat {
+        guard heights.indices.contains(from) else { return 0 }
+        let top = heights[..<from].reduce(0, +)
+        let below = heights[(from + 1)...].reduce(0, +)
+        let half = heights[from] / 2
+        return min(max(dy, -top - half), below + half)
+    }
+}
+
+private struct ChecklistRow<Handle: View>: View {
     @Environment(AppModel.self) private var model
     var item: ChecklistItem
+    /// The task's subtasks in order (for 上移 / 下移).
+    var among: [ChecklistItem]
     var readOnly: Bool
+    var sorting: Bool
+    var sortable: Bool
+    var startSorting: () -> Void
+    /// macOS: what the row drags by, at its end.
+    @ViewBuilder var handle: () -> Handle
 
     @State private var text = ""
     @FocusState private var focused: Bool
@@ -382,7 +570,7 @@ private struct ChecklistRow: View {
     var body: some View {
         HStack(spacing: 8 * s) {
             PriorityCheckbox(checked: item.done, priority: .none, size: PriorityCheckbox.defaultSize - 2,
-                             action: readOnly ? nil : {
+                             action: readOnly || sorting ? nil : {
                                  model.run { try await model.repo.updateChecklistItem(item.id, done: !item.done) }
                              })
                 .frame(width: PriorityCheckbox.defaultSize * s)
@@ -391,7 +579,7 @@ private struct ChecklistRow: View {
                 .focused($focused)
                 .foregroundStyle(item.done ? .secondary : .primary)
                 .strikethrough(item.done, color: .secondary)
-                .disabled(readOnly)
+                .disabled(readOnly || sorting)
                 .onSubmit(rename)
             #if os(macOS)
             if !readOnly {
@@ -405,13 +593,32 @@ private struct ChecklistRow: View {
                 .help("删除子任务")
             }
             #endif
+            if sortable {
+                #if os(macOS)
+                handle().opacity(hovering ? 1 : 0)
+                #else
+                if sorting { handle() }
+                #endif
+            }
+        }
+        .contentShape(Rectangle())
+        .accessibilityActions {
+            if sortable && !sorting, let i = among.firstIndex(where: { $0.id == item.id }) {
+                if i > 0 { Button("上移") { model.run { await model.moveChecklistItem(item, to: i - 1) } } }
+                if i + 1 < among.count { Button("下移") { model.run { await model.moveChecklistItem(item, to: i + 2) } } }
+            }
         }
         .onHover { hovering = $0 }
         .onAppear { text = item.title }
         .onChange(of: item.title) { _, new in if !focused { text = new } }
         .onChange(of: focused) { _, now in if !now { rename() } }
         .contextMenu {
-            if !readOnly {
+            if !readOnly && !sorting {
+                #if os(iOS)
+                if sortable {
+                    Button("排序", systemImage: "arrow.up.arrow.down", action: startSorting)
+                }
+                #endif
                 Button("删除子任务", systemImage: "trash", role: .destructive) {
                     model.run { try await model.repo.deleteChecklistItem(item.id) }
                 }
@@ -423,6 +630,14 @@ private struct ChecklistRow: View {
         guard text != item.title else { return }
         let t = text, id = item.id
         model.run { try await model.repo.updateChecklistItem(id, title: t) }
+    }
+}
+
+extension ChecklistRow where Handle == EmptyView {
+    init(item: ChecklistItem, among: [ChecklistItem], readOnly: Bool, sorting: Bool, sortable: Bool,
+         startSorting: @escaping () -> Void) {
+        self.init(item: item, among: among, readOnly: readOnly, sorting: sorting, sortable: sortable,
+                  startSorting: startSorting, handle: { EmptyView() })
     }
 }
 

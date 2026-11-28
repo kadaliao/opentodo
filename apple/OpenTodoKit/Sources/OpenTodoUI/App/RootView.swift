@@ -49,6 +49,7 @@ public struct RootView: View {
             .frame(minWidth: 760, minHeight: 460)
             .background { if let size = debug?.windowSize { DebugWindowSizer(size: size) } }
             #endif
+            .environment(\.dragHandoff, model.dragHandoff)
             // Outermost, so every modifier above can read it.
             .environment(model)
             .interfaceScaleRoot()

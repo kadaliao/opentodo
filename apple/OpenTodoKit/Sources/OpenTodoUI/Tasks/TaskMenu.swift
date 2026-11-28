@@ -52,7 +52,7 @@ struct TaskMenu: View {
                     })) {
                         Text("📥 收集箱").tag(inboxListId)
                         ForEach(model.lists) { l in
-                            Text("\(l.emoji ?? "📋") \(l.name)").tag(l.id)
+                            listMenuLabel(l).tag(l.id)
                         }
                     }
                     .pickerStyle(.inline)

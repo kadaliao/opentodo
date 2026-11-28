@@ -194,9 +194,9 @@ extension AppModel {
     // MARK: - Lists
 
     /// Adds a list and shows it.
-    public func addList(name: String, emoji: String?) async {
+    public func addList(name: String, emoji: String?, color: Int? = nil) async {
         await attempt {
-            let id = try await repo.addList(name, emoji: emoji)
+            let id = try await repo.addList(name, emoji: emoji, color: color)
             select(.list(id))
         }
     }

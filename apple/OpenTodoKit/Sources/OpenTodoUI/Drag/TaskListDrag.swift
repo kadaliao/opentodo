@@ -87,10 +87,17 @@ private struct TaskListDragRow: ViewModifier {
     @Environment(AppModel.self) private var model
     @Environment(DragController.self) private var drag: DragController?
     @Environment(\.dragPicked) private var picked
+    @State private var hovering = false
 
     func body(content: Content) -> some View {
         let group = GroupDrop(section)
         let lit = group.map { drag?.highlights($0.target) == true } ?? false
+        let sortGroup = task.trashedAt == nil ? sortableGroup(section) : nil
+        #if os(macOS)
+        let showsHandle = sortGroup != nil && (hovering || drag?.lift != nil && drag?.isDragged(task.id) == true)
+        #else
+        let showsHandle = sortGroup != nil && model.taskList.isSorting(model.view)
+        #endif
         content
             .frame(maxWidth: .infinity, alignment: .leading)
             .taskDragSource(task, picked: picked,
@@ -99,6 +106,16 @@ private struct TaskListDragRow: ViewModifier {
                 DragRowPreview(task: task, now: model.now, list: model.listsById[task.listId],
                                checklist: model.checklistProgress(of: task.id))
             }
+            // Outside the row's own drag: the handle lifts the task straight
+            // up and down within its group (`SortHandle`).
+            .overlay(alignment: .trailing) {
+                if showsHandle, let sortGroup {
+                    SortHandle(task: task, group: sortGroup, picked: picked)
+                }
+            }
+            #if os(macOS)
+            .onHover { hovering = $0 }
+            #endif
             .opacity(drag?.isDragged(task.id) == true ? 0.3 : 1)
             .listRowBackground(lit ? Color.accentColor.opacity(0.1) : nil)
             .modifier(OptionalDropSlot(
@@ -156,45 +173,23 @@ private struct SectionHeaderDrag: ViewModifier {
     }
 }
 
-/// The rows of `section`, each made by `row`. On iOS the system list
-/// drags them itself, while 排序 is on (`sorting`): the list is in edit
-/// mode and each row of a group in manual order has the system's ≡ handle
-/// to drag it by within the group (`onMove`), written as a drop would be.
-/// A long press on a row's right end turns 排序 on (`taskRowMenu`); anywhere
-/// else on the row it's the task's menu. There the drag space can't do
-/// it: the `List` keeps every drag over it to itself (its `onDrop` never
-/// hears of one), and an iPhone list row doesn't drag with `.draggable`
-/// at all. On macOS the drag space does it (rows into other groups too,
-/// picked tasks together).
+/// The rows of `section`, each made by `row`. Putting them in order is by
+/// each row's ≡ (`SortHandle`, on both systems; the system list's own
+/// `onMove` let the lifted row drift sideways): on macOS it shows while the
+/// pointer is over a row of a group in manual order; on iOS while 排序 is
+/// on, which a long press on a row's right end turns on (`taskRowMenu`;
+/// anywhere else on the row it's the task's menu). On iOS the rows can't
+/// be dragged elsewhere: the `List` keeps every system drag over it to
+/// itself, and an iPhone list row doesn't drag with `.draggable` at all.
+/// On macOS the rest of the row drags into other groups and onto the
+/// sidebar, picked tasks together.
 struct TaskListDropRows<Row: View>: View {
     let section: TaskSection
     var sorting = false
     @ViewBuilder let row: (TodoTask) -> Row
-    #if os(iOS)
-    @Environment(AppModel.self) private var model
-    #endif
-
     var body: some View {
-        #if os(iOS)
-        // Only while sorting: with `onMove` on, the list also lifts a row
-        // on a long press anywhere, and that and the menu fight over it.
-        let group = sorting ? sortableGroup(section) : nil
         ForEach(section.tasks) { row($0) }
-            .onMove(perform: group.map { g in { from, to in move(from, to: to, in: g) } })
-        #else
-        ForEach(section.tasks) { row($0) }
-        #endif
     }
-
-    #if os(iOS)
-    /// `to` counts the rows as they are, the moved one still in its place
-    /// (as `GroupDrop.plan` does).
-    private func move(_ from: IndexSet, to: Int, in group: GroupDrop) {
-        guard let i = from.first, section.tasks.indices.contains(i),
-              let plan = group.plan(DraggedTasks(section.tasks[i]), at: to) else { return }
-        model.run { await model.dropTasks(plan) }
-    }
-    #endif
 }
 
 /// The group `section` is, when its rows can be put in order by hand.
@@ -299,6 +294,73 @@ private struct OptionalDropSlot: ViewModifier {
 
     func body(content: Content) -> some View {
         if let kind { content.dropSlot(id, kind) } else { content }
+    }
+}
+
+/// The ≡ at a row's right end (macOS: while the pointer is over the row;
+/// iOS: while sorting): pressing it lifts the task (the picked ones with
+/// it) and it goes straight up and down with the pointer, never sideways,
+/// landing only in its own group, where the line shows. The rest of the row
+/// still drags freely (macOS), into other groups and onto the sidebar.
+private struct SortHandle: View {
+    @Environment(\.uiScale) private var s
+    @Environment(AppModel.self) private var model
+    @Environment(DragController.self) private var drag: DragController?
+    let task: TodoTask
+    let group: GroupDrop
+    let picked: [TodoTask]
+
+    var body: some View {
+        Image(systemName: "line.3.horizontal")
+            .uiFont(.body, weight: .medium)
+            .foregroundStyle(.secondary)
+            #if os(macOS)
+            .frame(width: 28 * s, height: 28 * s)
+            #else
+            .frame(width: 44 * s, height: 44 * s)
+            #endif
+            .contentShape(Rectangle())
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                    .onChanged { value in
+                        guard let drag else { return }
+                        if drag.lift == nil { lift(drag) }
+                        drag.moveLift(by: value.translation.height)
+                    }
+                    .onEnded { _ in drag?.dropLift() }
+            )
+            .help("拖动排序")
+            .accessibilityLabel("拖动排序")
+            .accessibilityIdentifier("sort-handle-\(task.id)")
+    }
+
+    private func lift(_ drag: DragController) {
+        let target = group.target
+        let preview = LiftedRowPreview(task: task, now: model.now, list: model.listsById[task.listId],
+                                       checklist: model.checklistProgress(of: task.id))
+        drag.beginLift(.tasks(DraggedTasks(task, picked: picked)), slotId: "row-\(task.id)",
+                       preview: AnyView(preview)) { slot in
+            switch slot.kind {
+            case .taskRow(let g, _), .taskArea(let g, _): g.target == target
+            default: false
+            }
+        }
+    }
+}
+
+/// The lifted copy of a row, drawn over the list at the row's size.
+private struct LiftedRowPreview: View {
+    @Environment(\.uiScale) private var s
+    let task: TodoTask
+    let now: LocalDateTime
+    let list: TaskList?
+    let checklist: (done: Int, total: Int)
+
+    var body: some View {
+        TaskRow(task, now: now, list: list, showList: false, checklist: checklist) {}
+            .padding(.horizontal, 12 * s)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .background(BoardStyle.cardFill, in: .rect(cornerRadius: 8 * s))
     }
 }
 

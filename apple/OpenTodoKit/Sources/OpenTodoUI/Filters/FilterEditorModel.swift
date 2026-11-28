@@ -227,7 +227,7 @@ public func toggling(_ value: String, in values: [String], options: [FilterValue
 
 /// `💼 工作`, or just the name.
 func listLabel(_ l: TaskList) -> String {
-    "\(l.emoji ?? "") \(l.name)".trimmingCharacters(in: .whitespaces)
+    "\(l.textEmoji ?? "") \(l.name)".trimmingCharacters(in: .whitespaces)
 }
 
 /// The view to show after filter `id` is deleted (here or by a sync): 今天

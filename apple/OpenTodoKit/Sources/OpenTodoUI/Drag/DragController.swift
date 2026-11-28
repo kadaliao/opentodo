@@ -31,6 +31,19 @@ public final class DragController {
     /// Gets what a drop comes to.
     @ObservationIgnored public var onDrop: (DropOutcome) -> Void
 
+    /// A row lifted by its sort handle (`SortHandle`): it moves straight up
+    /// and down only, drawn by the space over everything (`preview` at
+    /// `frame`, moved by `dy`), and lands only in the places `allows`.
+    public struct Lift {
+        public var frame: CGRect
+        public var dy: CGFloat
+        var startY: CGFloat
+        var allows: (DropSlot) -> Bool
+        public var preview: AnyView
+    }
+
+    public private(set) var lift: Lift?
+
     struct SlotEntry {
         var frame: CGRect
         var kind: DropSlotKind
@@ -70,6 +83,33 @@ public final class DragController {
         if scrolling == nil, scrollSteps(at: p).contains(where: { $0.1 != 0 }) { startScrolling() }
     }
 
+    /// A sort handle is pressed on the row whose place is `slotId`: `item`
+    /// lifts and goes up and down with the pointer, landing only where
+    /// `allows` says. The pointer is followed by how far it has moved
+    /// (`moveLift(by:)`), from the row's middle: inside an iOS list row a
+    /// gesture can't read the space's coordinates.
+    public func beginLift(_ item: DragItem, slotId: String, preview: AnyView,
+                          allows: @escaping (DropSlot) -> Bool) {
+        guard let entry = slots[slotId] else { return }
+        lift = Lift(frame: entry.frame, dy: 0, startY: entry.frame.midY, allows: allows, preview: preview)
+        begin(item)
+        move(to: CGPoint(x: entry.frame.midX, y: entry.frame.midY))
+    }
+
+    /// The pointer has moved `dy` since the handle was pressed.
+    public func moveLift(by dy: CGFloat) {
+        guard var l = lift else { return }
+        l.dy = dy
+        lift = l
+        move(to: CGPoint(x: l.frame.midX, y: l.startY + dy))
+    }
+
+    /// Let go of the lifted row.
+    public func dropLift() {
+        guard let l = lift else { return }
+        drop(at: CGPoint(x: l.frame.midX, y: l.startY + l.dy))
+    }
+
     /// The pointer left the space.
     public func leave() {
         if inside { inside = false }
@@ -92,6 +132,7 @@ public final class DragController {
     /// The drag is over, wherever it ended.
     public func end() {
         item = nil
+        lift = nil
         leave()
     }
 
@@ -121,11 +162,12 @@ public final class DragController {
     // MARK: Geometry
 
     /// The places that take a drop, their frames cut to what their scroll
-    /// views show.
+    /// views show (while a row is lifted, only those it may land in).
     public var visibleSlots: [DropSlot] {
         slots.compactMap { id, s in
             let frame = clip(s.frame, s.clips)
-            return frame.isEmpty ? nil : DropSlot(id: id, frame: frame, kind: s.kind)
+            let slot = DropSlot(id: id, frame: frame, kind: s.kind)
+            return frame.isEmpty || lift.map({ $0.allows(slot) }) == false ? nil : slot
         }
     }
 

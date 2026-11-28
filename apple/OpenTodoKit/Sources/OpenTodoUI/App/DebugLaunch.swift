@@ -54,6 +54,8 @@
 //     system:<state>           macOS menu bar window / quick-add panel / their
 //                              settings, in the window (System/SystemDebug.swift)
 //     search[:<query>]         search (OpenTodoUI/Search/SearchDebug.swift)
+//     list-editor:<id>[:<tab>] the list editor on list <id> (`new` for 添加清单),
+//                              on a tab: symbol, emoji, custom (Tasks/ListEditor.swift)
 //     filter-editor:<state>    the filter editor: new, simple, advanced, legacy,
 //                              range, delete (same file)
 //     board:<scene>            the board / drag demo (Board/BoardDemo.swift)
@@ -190,6 +192,8 @@ public enum DebugRoute: Sendable, Hashable {
     case system(String)
     case search(String?)
     case filterEditor(String)
+    /// `work`, `new:symbol` …: the list editor on a list (or a new one).
+    case listEditor(String)
     case board(String)
     /// `habits`, `focus:stats` …: an efficiency module (the whole text).
     case efficiency(String)
@@ -234,6 +238,7 @@ public enum DebugRoute: Sendable, Hashable {
         case ("search", nil): self = .search(nil)
         case ("search", let a?) where !a.isEmpty: self = .search(a)
         case ("filter-editor", let a?) where !a.isEmpty: self = .filterEditor(a)
+        case ("list-editor", let a?) where !a.isEmpty: self = .listEditor(a)
         case ("board", let a?) where !a.isEmpty: self = .board(a)
         case ("habits", _), ("focus", _), ("countdowns", _), ("matrix", _): self = .efficiency(text)
         case ("prefs", let a?) where !a.isEmpty: self = .prefs(a)
@@ -263,6 +268,7 @@ public enum DebugRoute: Sendable, Hashable {
         case .system(let s): "system:\(s)"
         case .search(let q): q.map { "search:\($0)" } ?? "search"
         case .filterEditor(let s): "filter-editor:\(s)"
+        case .listEditor(let s): "list-editor:\(s)"
         case .board(let s): "board:\(s)"
         case .efficiency(let text): text
         case .prefs(let s): "prefs:\(s)"

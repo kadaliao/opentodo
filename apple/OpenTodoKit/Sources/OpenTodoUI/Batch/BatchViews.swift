@@ -95,7 +95,7 @@ private struct ListMenuItems: View {
         item(inboxListId, "收集箱")
         Divider()
         ForEach(context.lists.filter { $0.id != inboxListId }) { l in
-            item(l.id, [l.emoji, l.name].compactMap { $0 }.joined(separator: " "))
+            item(l.id, [l.textEmoji, l.name].compactMap { $0 }.joined(separator: " "))
         }
     }
 }

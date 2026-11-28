@@ -136,7 +136,7 @@ public struct AppCommands: Commands {
         if let lists = model?.lists, !lists.isEmpty {
             Divider()
             ForEach(lists) { l in
-                Button("\(l.emoji ?? "📋") \(l.name)") { go(.list(l.id)) }
+                Button { go(.list(l.id)) } label: { listMenuLabel(l) }
             }
         }
         Divider()

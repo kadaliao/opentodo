@@ -136,7 +136,7 @@ struct CalendarQuickAdd: View {
             Picker(selection: $listId) {
                 Label("收集箱", systemImage: "tray").tag(inboxListId)
                 ForEach(model.lists) { l in
-                    Text(l.emoji.map { "\($0) \(l.name)" } ?? l.name).tag(l.id)
+                    listMenuLabel(l, fallback: nil).tag(l.id)
                 }
             } label: {
                 Label("清单", systemImage: "list.bullet")

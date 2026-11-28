@@ -647,6 +647,21 @@ private func sec(_ title: String?, _ tasks: [String]) -> String {
 // MARK: - The rest of the writes
 
 @Suite struct OtherWriteTests {
+    @Test("a list's icon and colour: set, kept, taken away")
+    func listIconAndColor() async throws {
+        let f = try RepoFixture()
+        let repo = f.repo
+        let l = try await repo.addList("购物", emoji: "sf:cart", color: 0xFF34C759)
+        var list = try #require(try await f.db.observeLists().first().first)
+        #expect(list.emoji == "sf:cart" && list.color == 0xFF34C759)
+        try await repo.updateList(l, name: "买菜")
+        list = try #require(try await f.db.observeLists().first().first)
+        #expect(list.name == "买菜" && list.emoji == "sf:cart" && list.color == 0xFF34C759)
+        try await repo.updateList(l, emoji: .some(nil), color: .some(nil))
+        list = try #require(try await f.db.observeLists().first().first)
+        #expect(list.emoji == nil && list.color == nil)
+    }
+
     @Test("lists, filters, tags, title, content, priority, list: stamped and dirty")
     func stamped() async throws {
         let f = try RepoFixture()

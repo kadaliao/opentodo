@@ -56,8 +56,16 @@ public struct TextPromptRequest: Identifiable {
 public struct ListEditorRequest: Identifiable {
     public let id = UUID()
     public var list: TaskList?
+    /// The icon tab to open on (the `list-editor:` debug route); nil: the
+    /// one the list's icon is on.
+    var tab: ListEditorSheet.Tab?
 
     public init(list: TaskList? = nil) { self.list = list }
+
+    init(list: TaskList?, tab: ListEditorSheet.Tab?) {
+        self.list = list
+        self.tab = tab
+    }
 }
 
 /// The date dialog for a task, from somewhere without a button to anchor a

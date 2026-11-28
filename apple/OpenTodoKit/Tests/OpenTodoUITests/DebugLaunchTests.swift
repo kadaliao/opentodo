@@ -61,7 +61,7 @@ import Testing
 }
 
 @Test(arguments: ["home", "smart:today", "list:a:b", "tag:工作", "filter:f1", "task:t1",
-                  "calendar", "calendar:month", "timeline", "settings", "settings:account", "prefs:denied", "account:signedIn"])
+                  "calendar", "calendar:month", "timeline", "settings", "settings:account", "prefs:denied", "list-editor:work:symbol", "account:signedIn"])
 func routesRoundTrip(_ text: String) {
     #expect(DebugRoute(text)?.text == text)
 }

@@ -144,7 +144,7 @@ struct ShareView: View {
                 Picker("清单", selection: $model.listId) {
                     Label("收集箱", systemImage: "tray").tag(inboxListId)
                     ForEach(model.lists) { l in
-                        Text([l.emoji, l.name].compactMap { $0 }.joined(separator: " ")).tag(l.id)
+                        Text([l.textEmoji, l.name].compactMap { $0 }.joined(separator: " ")).tag(l.id)
                     }
                 }
             } footer: {

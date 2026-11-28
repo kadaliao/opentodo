@@ -55,6 +55,8 @@ public final class AppModel {
     // MARK: Feature state
 
     public let selection = SelectionModel()
+    /// What this window is dragging, for the sidebar (`Drag/SidebarDrop.swift`).
+    public let dragHandoff = DragHandoff()
     public let notices = Notices()
     public let present = Presentation()
     public let search = SearchState()
@@ -368,6 +370,10 @@ public final class AppModel {
             settings.setLayout(view, .timeline)
         case .settings:
             present.settings = true
+        case .listEditor(let arg):
+            let parts = arg.split(separator: ":").map(String.init)
+            present.listEditor = ListEditorRequest(list: lists.first { $0.id == parts.first },
+                                                   tab: parts.count > 1 ? ListEditorSheet.Tab(rawValue: parts[1]) : nil)
         default:
             // Routes that open one feature's own screens (the schedule dialog,
             // the timeline…) are handled by that feature's debug presenter.

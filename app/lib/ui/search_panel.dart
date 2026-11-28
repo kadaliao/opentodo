@@ -11,6 +11,7 @@ import 'task_actions.dart';
 import 'task_detail.dart';
 import 'task_tile.dart' show PriorityCheckbox;
 import 'theme.dart';
+import '../domain/list_icon.dart';
 
 /// Opens search: a dialog near the top of a computer window, a page on a
 /// phone.
@@ -144,7 +145,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
     );
     final entries = <_Entry>[
       for (final l in results.lists)
-        _ViewEntry(ListViewRef(l.id), Text(l.emoji ?? '📋', style: const TextStyle(fontSize: 16)), l.name),
+        _ViewEntry(ListViewRef(l.id), Text(listEmoji(l.emoji) ?? '📋', style: const TextStyle(fontSize: 16)), l.name),
       for (final f in results.filters)
         _ViewEntry(FilterViewRef(f.id), const Icon(Icons.filter_alt_outlined, size: 20), f.name),
       for (final t in results.tags)
@@ -432,7 +433,7 @@ class _TaskRow extends ConsumerWidget {
           Text(
             task.listId == inboxListId || list == null
                 ? '收集箱'
-                : '${list.emoji ?? ''} ${list.name}'.trim(),
+                : '${listEmoji(list.emoji) ?? ''} ${list.name}'.trim(),
             style: meta,
           ),
           if (task.dueDate != null)
